@@ -1,0 +1,73 @@
+#include <ros/ros.h>
+#include <ros/package.h>
+
+#include "my_astar/astar.h"
+#include "my_astar/MC_astar.h"
+#include "my_astar/map_generator.h"
+
+int main(int argc, char *argv[])
+{
+    ros::init(argc, argv, "test_map_and_MCastar");
+    ros::NodeHandle nh;
+
+    Astar astar_planner;
+    MCAstar MC_astar_planner;
+    MapGenerator generator;
+
+    // 0.颜色测试
+    // generator.color_test();
+
+    // 1.随机生成地图与Astar测试
+    // generator.generate_random_map(50, 50, 0.2f);
+    // generator.set_planner(&astar_planner);
+    // generator.show_map("random map and astar test");
+
+    // 2. 手动生成地图测试
+    // 2.1 生成地图
+    // generator.generate_blank_map(50, 50);
+    // generator.add_obstacles(cv::Point2i(5, 2));                                         // 单个点
+    // generator.add_obstacles({cv::Point2i(1, 4), cv::Point2i(4, 1), cv::Point2i(3, 3)}); // 多个点
+    // generator.add_obstacles(cv::Point2i(0, 20), cv::Point2i(49, 20));                   // 直线
+    // generator.add_obstacles(cv::Point2i(0, 20), cv::Point2i(3, 49));                    // 斜直线
+    // generator.add_obstacles(cv::Rect(cv::Point2i(30, 30), cv::Point2i(40, 40)));        // 矩形
+    // generator.add_obstacles(cv::Point2i(44, 44), 5);                                    // 圆形
+    // 2.2 测试地图
+    // generator.set_planner(&astar_planner);
+    // 2.3 测试保存地图
+    // generator.save_map(ros::package::getPath("my_astar") + "/map/map1.png");
+    // 2.4 测试读取地图
+    // generator.load_map(ros::package::getPath("my_astar") + "/map/map1.png");
+    // generator.show_map("blank map and add obstacles test");
+
+    // 3.生成所需要的地图
+    // generator.generate_blank_map(100, 100);
+    // generator.add_obstacles(cv::Point2i(0,  0),  cv::Point(99, 0));
+    // generator.add_obstacles(cv::Point2i(99, 0),  cv::Point(99, 99));
+    // generator.add_obstacles(cv::Point2i(99, 99), cv::Point(0,  99));
+    // generator.add_obstacles(cv::Point2i(0,  99), cv::Point(0,  0));
+
+    // generator.add_obstacles(cv::Point2i(0, 21), cv::Point(42, 21));
+    // generator.add_obstacles(cv::Point2i(60, 0), cv::Point(60, 60));
+    // generator.add_obstacles(cv::Point2i(20, 40), cv::Point(60, 40));
+    // generator.add_obstacles(cv::Point2i(45, 10), cv::Point(45, 30));
+    // generator.add_obstacles(cv::Point2i(16, 30), cv::Point(16, 50));
+    // generator.add_obstacles(cv::Rect(cv::Point2i(0, 60), cv::Point(45, 82)));
+    // generator.add_obstacles(cv::Point2i(60, 75), cv::Point(60, 99));
+    // generator.add_obstacles(cv::Point2i(60, 75), cv::Point(85, 75));
+    // generator.add_obstacles(cv::Point2i(75, 88), cv::Point(99, 88));
+    // generator.add_obstacles(cv::Point2i(75, 75), cv::Point(75, 20));
+    // generator.add_obstacles(cv::Point2i(70, 10), cv::Point(90, 10));
+    // generator.add_obstacles(cv::Point2i(90, 60), cv::Point(90, 10));
+
+    // generator.save_map(ros::package::getPath("my_astar") + "/map/map1.png");
+    // generator.set_planner(&astar_planner);
+    // generator.show_map("generate map");
+
+    // 4.测试最终功能
+    generator.load_map(ros::package::getPath("my_astar") + "/map/map1.png");
+    generator.expand_map();
+    generator.set_planner(&MC_astar_planner);
+    generator.show_map("test");
+
+    return 0;
+}
