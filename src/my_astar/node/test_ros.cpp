@@ -5,11 +5,13 @@
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 
 #include "my_astar/MC_astar.h"
+#include "my_astar/astar.h"
 
 ros::Publisher path_pub;
 ros::Publisher smooth_path_pub;
 ros::Publisher expanded_map_pub;
 MCAstar MC_astar;
+// Astar MC_astar;
 double res = 0.0;
 double ori_x = 0.0;
 double ori_y = 0.0;
@@ -47,6 +49,7 @@ void map_callback(const nav_msgs::OccupancyGrid & msg)
     res = msg.info.resolution;
     ori_x = msg.info.origin.position.x;
     ori_y = msg.info.origin.position.y;
+    MC_astar.setMapInfo(res, ori_x, ori_y);
 
     cv::Mat map = cv::Mat::zeros(rows, cols, CV_8UC1);
     for (size_t i = 0; i < rows; i++)
@@ -146,6 +149,7 @@ void pub_path()
     nav_msgs::Path msg;
     msg.header.frame_id = "map";
     msg.header.stamp = ros::Time::now();
+    // 原始节点是栅格点，需要手动修正0.5个单位
     for (cv::Point2i & p : path)
     {
         geometry_msgs::PoseStamped m;
@@ -161,8 +165,8 @@ void pub_path()
     {
         geometry_msgs::PoseStamped m;
         m.header = msg2.header;
-        m.pose.position.x = (p.x + 0.5) * res + ori_x;
-        m.pose.position.y = (p.y + 0.5) * res + ori_y;
+        m.pose.position.x = p.x;
+        m.pose.position.y = p.y;
         m.pose.position.z = 0;
         msg2.poses.push_back(m);
     }

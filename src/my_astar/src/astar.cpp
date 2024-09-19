@@ -3,9 +3,6 @@
 
 Astar::Astar(HeuristicsType type) : type_(type)
 {
-    init_map_ = false;
-    init_start_node_ = false;
-    init_end_node_ = false;
 }
 
 Astar::~Astar()
@@ -216,19 +213,27 @@ bool Astar::getRawPath(std::vector<cv::Point2i> & path)
 
 bool Astar::getSmoothPath(std::vector<cv::Point2f> & path)
 {
+    if (init_map_info_ == false)
+    {
+        std::cout << "平滑失败！缺少地图信息用以补齐栅格偏差！\n";
+        return false;
+    }
+    
     path.clear();
     std::vector<cv::Point2i> temp;
     if (!getRawPath(temp))
     {
         return false;
     }
-    for (cv::Point2i pi : temp)
-    {
-        cv::Point2f pf;
-        pf.x = pi.x;
-        pf.y = pi.y;
-        path.push_back(pf);
-    }
+
+    // 消除0.5个栅格偏差
+    std::for_each(temp.begin(), temp.end(), [this, &path](cv::Point2i & p){
+            cv::Point2f pf;
+            pf.x = (p.x + 0.5) * res_ + ori_x_;
+            pf.y = (p.y + 0.5) * res_ + ori_y_;
+            path.push_back(pf);
+        });
+
     return true;
 }
 

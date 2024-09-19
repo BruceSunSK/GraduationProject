@@ -98,10 +98,7 @@ private:
     std::vector<std::vector<Node>> map_;
     Node * start_node_;
     Node * end_node_;
-
-    int init_map_;
-    int init_start_node_;
-    int init_end_node_;
+    
     HeuristicsType type_;
 
     BezierCurve bezier_;

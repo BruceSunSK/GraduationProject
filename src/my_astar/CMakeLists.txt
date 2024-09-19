@@ -140,6 +140,7 @@ add_executable(test_map_and_MCastar node/test_map_and_MCastar.cpp
                                     src/MC_astar.cpp)
 add_executable(test_bezier_curve    node/test_bezier_curve.cpp)
 add_executable(test_ros             node/test_ros.cpp
+                                    src/astar.cpp
                                     src/MC_astar.cpp)
 
 ## Rename C++ executable without prefix

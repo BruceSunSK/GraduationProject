@@ -18,9 +18,6 @@ const std::unordered_map<std::pair<int, int>,
 
 MCAstar::MCAstar(HeuristicsType type) : type_(type)
 {
-    init_map_ = false;
-    init_start_node_ = false;
-    init_end_node_ = false;
 }
 
 MCAstar::~MCAstar()
@@ -318,14 +315,19 @@ void MCAstar::nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Poi
     }
 }
 
-/// @brief 将原始路径分割成小的子路径进行贝塞尔平滑。该函数将栅格整数坐标xy的值进行平滑，得到的平滑路径时相对于栅格坐标的，若直接用来rviz显示，
-///        在xy方向上都会有0.5个栅格大小的偏移误差。
+/// @brief 将原始路径分割成小的子路径进行贝塞尔平滑。该函数将栅格整数坐标xy的值进行平滑，得到平滑路径后再消除栅格偏差的0.5个单位长度
 /// @param raw_path 待平滑路径
 /// @param soomth_path 输出平滑后的路径
 /// @param control_nums_per_subpath 每个子路径的点的数目
 /// @return 平滑操作是否成功
 bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2f> & smooth_path, int control_nums_per_subpath)
 {
+    if (init_map_info_ == false)
+    {
+        std::cout << "平滑失败！缺少地图信息用以补齐栅格偏差！\n";
+        return false;
+    }
+
     smooth_path.clear();
     size_t points_num = raw_path.size();
     if (points_num == 0)
@@ -353,6 +355,12 @@ bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<
         bezier_.smooth_curve(sub_raw_path, sub_smooth_path, 1.0 / (points_num % control_nums_per_subpath));
         smooth_path.insert(smooth_path.end(), sub_smooth_path.begin(), sub_smooth_path.end());
     }
+
+    // 消除0.5个栅格偏差
+    std::for_each(smooth_path.begin(), smooth_path.end(), [this](cv::Point2f & p){
+            p.x = (p.x + 0.5) * res_ + ori_x_;
+            p.y = (p.y + 0.5) * res_ + ori_y_;
+        });
     
     return true;
 }
