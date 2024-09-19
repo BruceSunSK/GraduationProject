@@ -185,20 +185,31 @@ bool MCAstar::getSmoothPath(std::vector<cv::Point2f> & path)
 
 
 /// @brief 根据启发类型，得到p点到终点的启发值
-/// @param p 待计算的点，计算该点到目标点的启发值
+/// @param p 待计算的点，计算该点到终点的启发值
 /// @return 启发值
-float MCAstar::getH(cv::Point2i p)
+float MCAstar::getH(const cv::Point2i p)
 {
     float h = 0;
+    double dx = 0.0;
+    double dy = 0.0;
     switch (type_)
     {
     case HeuristicsType::None:
         break;
     case HeuristicsType::Manhattan:
-        h = fabs(p.x - end_node_->point.x)+fabs(p.y - end_node_->point.y);
+        h = std::fabs(p.x - end_node_->point.x) + std::fabs(p.y - end_node_->point.y);
         break;
     case HeuristicsType::Euclidean:
-        h = sqrt(pow(p.x - end_node_->point.x, 2) + pow(p.y - end_node_->point.y, 2));
+        h = std::sqrt(std::pow(p.x - end_node_->point.x, 2) + std::pow(p.y - end_node_->point.y, 2));
+        break;
+    case HeuristicsType::Chebyshev:
+        h = std::max(std::abs(p.x - end_node_->point.x), std::abs(p.y - end_node_->point.y));
+        break;
+    case HeuristicsType::Octile:
+        static constexpr double k = 0.4142135623730950; // std::sqrt(2) - 1
+        dx = std::fabs(p.x - end_node_->point.x);
+        dy = std::fabs(p.y - end_node_->point.y);
+        h = std::max(dx, dy) + k * std::min(dx, dy);
         break;
     default:
         break;
@@ -320,7 +331,7 @@ void MCAstar::nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Poi
 /// @param soomth_path 输出平滑后的路径
 /// @param control_nums_per_subpath 每个子路径的点的数目
 /// @return 平滑操作是否成功
-bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2f> & smooth_path, int control_nums_per_subpath)
+bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2f> & smooth_path, const int control_nums_per_subpath)
 {
     if (init_map_info_ == false)
     {

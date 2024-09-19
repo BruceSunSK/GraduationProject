@@ -240,6 +240,8 @@ bool Astar::getSmoothPath(std::vector<cv::Point2f> & path)
 float Astar::getH(cv::Point2i p)
 {
     float h = 0;
+    double dx = 0.0;
+    double dy = 0.0;
     switch (type_)
     {
     case HeuristicsType::None:
@@ -249,6 +251,15 @@ float Astar::getH(cv::Point2i p)
         break;
     case HeuristicsType::Euclidean:
         h = std::sqrt(std::pow(p.x - end_node_->point.x, 2) + std::pow(p.y - end_node_->point.y, 2));
+        break;
+    case HeuristicsType::Chebyshev:
+        h = std::max(std::abs(p.x - end_node_->point.x), std::abs(p.y - end_node_->point.y));
+        break;
+    case HeuristicsType::Octile:
+        static constexpr double k = 0.4142135623730950; // std::sqrt(2) - 1
+        dx = std::fabs(p.x - end_node_->point.x);
+        dy = std::fabs(p.y - end_node_->point.y);
+        h = std::max(dx, dy) + k * std::min(dx, dy);
         break;
     default:
         break;

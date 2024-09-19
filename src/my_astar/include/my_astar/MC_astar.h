@@ -78,11 +78,13 @@ class MCAstar : public GlobalPlannerInterface
     {
         None, 
         Manhattan, 
-        Euclidean
+        Euclidean,
+        Chebyshev,
+        Octile
     };
     
 public:
-    MCAstar(HeuristicsType type = HeuristicsType::Euclidean);
+    MCAstar(HeuristicsType type = HeuristicsType::Octile);
     ~MCAstar();
 
     bool setMap(const cv::Mat & map) override;
@@ -98,14 +100,14 @@ private:
     std::vector<std::vector<Node>> map_;
     Node * start_node_;
     Node * end_node_;
-    
+
     HeuristicsType type_;
 
     BezierCurve bezier_;
 
-    float getH(cv::Point2i p);
+    float getH(const cv::Point2i p);
     bool generateRawNodes(std::vector<Node *> & raw_nodes);
     bool removeRedundantNodes(const std::vector<Node *> & raw_nodes, std::vector<Node *> & reduced_nodes);
     void nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Point2i> & path);
-    bool smoothPath(const std::vector<cv::Point2i> & reduced_path, std::vector<cv::Point2f> & smooth_path, int control_nums_per_subpath = 10);
+    bool smoothPath(const std::vector<cv::Point2i> & reduced_path, std::vector<cv::Point2f> & smooth_path, const int control_nums_per_subpath = 10);
 };

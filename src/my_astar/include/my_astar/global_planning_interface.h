@@ -11,7 +11,7 @@ public:
     virtual ~GlobalPlannerInterface() {}
 
     virtual bool setMap(const cv::Mat & map) = 0;
-    virtual bool setMapInfo(double res, double ori_x, double ori_y) 
+    virtual bool setMapInfo(const double res, const double ori_x, const double ori_y) 
     {
         res_ = res;
         ori_x_ = ori_x;

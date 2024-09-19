@@ -12,7 +12,9 @@ class Astar : public GlobalPlannerInterface
     {
         None, 
         Manhattan, 
-        Euclidean
+        Euclidean,
+        Chebyshev,
+        Octile
     };
 
     struct Node
