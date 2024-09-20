@@ -61,7 +61,6 @@ bool MCAstar::setMap(const cv::Mat & map)
             node.point.x = j;
             node.point.y = i;
             node.cost = map.at<uchar>(i, j);
-            node.type = Node::NodeType::UNKNOWN;
             row[j] = node;
         }
         map_[i] = row;
@@ -72,7 +71,6 @@ bool MCAstar::setMap(const cv::Mat & map)
     init_map_ = true;
     return true;
 }
-
 
 bool MCAstar::setStartPoint(const int x, const int y)
 {
@@ -184,11 +182,11 @@ bool MCAstar::getSmoothPath(std::vector<cv::Point2f> & path)
 }
 
 
-/// @brief 根据启发类型，得到p点到终点的启发值
-/// @param p 待计算的点，计算该点到终点的启发值
-/// @return 启发值
-float MCAstar::getH(const cv::Point2i p)
+/// @brief 根据启发类型，得到节点n到终点的启发值
+/// @param n 待计算的节点，计算该节点到终点的启发值
+void MCAstar::getH(Node * n)
 {
+    cv::Point2i & p = n->point;
     float h = 0;
     double dx = 0.0;
     double dy = 0.0;
@@ -214,7 +212,94 @@ float MCAstar::getH(const cv::Point2i p)
     default:
         break;
     }
-    return h;
+    n->h = h;
+}
+
+/// @brief 计算p点到终点的启发权重
+/// @param p 待计算的点，计算该点到终点的启发权重
+void MCAstar::getW(Node * n)
+{
+    n->w = 1;
+    return;
+
+    // 暂时不好用，以下全部不用
+    int min_y = std::min(n->point.y, end_node_->point.y);
+    int max_y = std::max(n->point.y, end_node_->point.y);
+    int min_x = std::min(n->point.x, end_node_->point.x);
+    int max_x = std::max(n->point.x, end_node_->point.x);
+    
+    n->w_cost = 0;
+    for (int i = min_y; i <= max_y; i++)
+    {
+        for (int j = min_x; j <= max_x; j++)
+        {
+            n->w_cost += map_[i][j].cost;
+        }
+    }
+
+    // 可能是一种优化的方法，todo
+    // // 针对起点，需要首次计算全部代价值
+    // if (n->parent_node == nullptr)
+    // {
+
+    //     for (int i = min_y; i <= max_y; i++)
+    //     {
+    //         for (int j = min_x; j <= max_x; j++)
+    //         {
+    //             n->w_cost += map_[i][j].cost;
+    //         }
+    //     }
+    // }
+    // // 其余点可以简化计算，利用父节点处计算出的代价值减去扩展的值
+    // else
+    // {
+    //     if (n->point.y == n->parent_node->point.y)   // 同一行
+    //     {
+    //         // false 表明需要减去代价值；true表示需要新增代价值
+    //         bool add_flag = (n->point.x > n->parent_node->point.x) ^ (end_node_->point.x > n->parent_node->point.x); 
+
+    //         if (add_flag)
+    //         {
+    //             for (int i = min_y; i <= max_y; i++)
+    //             {
+    //                 n->w_cost += map_[i][n->point.x].cost;
+    //             }
+    //         }
+    //         else
+    //         {
+    //             for (int i = min_y; i <= max_y; i++)
+    //             {
+    //                 n->w_cost -= map_[i][n->parent_node->point.x].cost;
+    //             }
+    //         }
+    //     }
+
+    //     if (n->point.x == n->parent_node->point.x)  // 同一列
+    //     {
+    //         // false 表明需要减去代价值；true表示需要新增代价值
+    //         bool add_flag = (n->point.y > n->parent_node->point.y) ^ (end_node_->point.y > n->parent_node->point.y); 
+
+    //         if (add_flag)
+    //         {
+    //             for (int j = min_x; j <= max_x; j++)
+    //             {
+    //                 n->w_cost += map_[n->point.y][j].cost;
+    //             }
+    //         }
+    //         else
+    //         {
+    //             for (int j = min_x; j <= max_x; j++)
+    //             {
+    //                 n->w_cost -= map_[n->parent_node->point.y][j].cost;
+    //             }
+    //         }
+    //     }
+    // }
+    
+    // 障碍物密度 P ∈ (0, 1)
+    const float P = n->w_cost * 0.01 / ((std::abs(n->point.x - end_node_->point.x) + 1) * (std::abs(n->point.y - end_node_->point.y) + 1));
+    // 权重 w ∈ (1, ∞)
+    n->w = 1 - std::log(P);
 }
 
 /// @brief 通过代价地图计算得到的原始路径，未经过去除冗余点、平滑操作
@@ -224,8 +309,9 @@ bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
 {
     // 初始节点
     start_node_->g = 0;
-    start_node_->h = getH(start_node_->point);
-    start_node_->f = start_node_->g + start_node_->h;
+    getH(start_node_);
+    getW(start_node_);
+    start_node_->f = start_node_->g + start_node_->w * start_node_->h;
     start_node_->parent_node = nullptr;
     std::priority_queue<Node *, std::vector<Node*>, Node::NodePointerCmp> queue;
     queue.push(start_node_);
@@ -257,14 +343,15 @@ bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
                     if (new_node->cost < 100 &&  // 保证该节点是非障碍物节点，才能联通。代价地图[0, 100] 0可通过 100不可通过 
                         new_node->type != Node::NodeType::CLOSED) // 不对已加入CLOSED的数据再次判断
                     {
-                        float dis = sqrt(pow(new_point.x - this_point.x, 2) + pow(new_point.y - this_point.y, 2));
-                        float dis_with_trav_cost = dis * std::exp(new_node->cost / 100);
+                        float dis = std::sqrt(std::pow(new_point.x - this_point.x, 2) + std::pow(new_point.y - this_point.y, 2));
+                        float dis_with_trav_cost = dis * std::exp(new_node->cost * 0.01);
    
                         if (new_node->type == Node::NodeType::UNKNOWN)
                         {
                             new_node->g = this_node->g + dis_with_trav_cost;
-                            new_node->h = getH(new_point);
-                            new_node->f = new_node->g + new_node->h;
+                            getH(new_node);
+                            getW(new_node);
+                            new_node->f = new_node->g + new_node->w * new_node->h;
                             new_node->type = Node::NodeType::OPENED;
                             new_node->parent_node = this_node;
                             new_node->direction_to_parent = Node::index_direction_map.at({k, l});
@@ -275,7 +362,7 @@ bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
                             if (new_node->g > this_node->g + dis_with_trav_cost)   // 更新最近距离
                             {
                                 new_node->g = this_node->g + dis_with_trav_cost;
-                                new_node->f = new_node->g + new_node->h;
+                                new_node->f = new_node->g + new_node->w * new_node->h;
                                 new_node->parent_node = this_node;
                                 new_node->direction_to_parent = Node::index_direction_map.at({k, l});
                             }
@@ -304,10 +391,13 @@ bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
         {
             map_[i][j].g = 0;
             map_[i][j].h = 0;
+            map_[i][j].w = 0;
+            map_[i][j].w_cost = 0;
             map_[i][j].f = 0;
             map_[i][j].type = Node::NodeType::UNKNOWN;
             map_[i][j].parent_node = nullptr;
             map_[i][j].direction_to_parent = Node::Direction::UNKNOWN;
+            map_[i][j].is_redundant = false;
         }
     }
 

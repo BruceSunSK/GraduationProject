@@ -10,11 +10,15 @@
 
 /// @brief Multi-layered Costmap Astar
 /// [1] 实现栅格代价值离散化，0~100和255。代价值低处更易通过；100为障碍物，彻底不可通过；255为未探索区域（与建图相关），直接当做障碍物处理。
-/// [2] 代价函数 f = g + h
-///      1. h和原版AStar保持一致，为距离启发代价
+/// [2] 代价函数 f = g + w * h
+///      1. h和原版AStar保持一致，为距离启发代价。此处选择Euclidean距离启发。
 ///      2. g为考虑可通行度的已探索距离代价，在考虑距离的基础上外加可通行度代价作为衡量指标。
 ///         cost为栅格可通行代价；g0为距离代价，等价于原版astar中的g
 ///         g = \sigma gi = \sigma exp(cost / 100) * g0i
+///      3. w为加权系数，此处选择为动态加权。
+///         引入障碍物密度的概念P(p1, p2) = (\sigma cost) / (100 * (|p1.x - p2.x| + 1) * (|p1.y - p2.y| + 1)), \sigma cost为矩形区域内的总代价值。
+///         然后，w = (1 - lnP), P ∈ (0, 1), w ∈ (1, ∞)。
+///         可以实现在障碍物密集的区域实现避免搜索步长过大，出现局部最优，有效避开障碍物；在障碍物较少的区域中，加快搜索，减少搜索栅格个数。
 /// [3] 去除冗余点
 /// [4] 引入贝塞尔曲线进行分段平滑。默认是每10个控制点进行一组贝塞尔曲线平滑，多组平滑结果拼接得到最终曲线。
 class MCAstar : public GlobalPlannerInterface
@@ -30,12 +34,18 @@ class MCAstar : public GlobalPlannerInterface
             CLOSED,
             OPENED
         };
-        /// @brief 表明该节点相对于父节点的方向
+        /// @brief 表明该节点相对于父节点的方向。使用OpenCV坐标系
         enum class Direction : uint8_t
         {
-            UNKNOWN,
-            N,  S,  W,  E,
-            NW, NE, SW, SE
+            UNKNOWN = 0x00,
+            E = 0x01,
+            W = 0x02,
+            N = 0x04,
+            S = 0x08,
+            NE = N | E | 0x10,
+            NW = N | W | 0x10,
+            SE = S | E | 0x10,
+            SW = S | W | 0x10
         };
         /// @brief stl的std::unordered_map不支持std::pair的映射...自己写对应的hash的仿函数
         struct HashPair
@@ -52,17 +62,18 @@ class MCAstar : public GlobalPlannerInterface
         /// @brief 索引-枚举的映射
         static const std::unordered_map<std::pair<int, int>, Direction, HashPair, EqualPair> index_direction_map;
 
-
         /// @brief 节点属性
-        cv::Point2i point;
-        float cost = 0;
-        float g = 0;
-        float h = 0;
-        float f = 0;
-        NodeType type = NodeType::UNKNOWN;
-        Node * parent_node = nullptr;
-        Direction direction_to_parent = Direction::UNKNOWN;
-        bool is_redundant = false;
+        cv::Point2i point;  // 栅格的xy值
+        float cost = 0;     // 栅格中的代价值
+        float g = 0;        // 起点到该点已探索的距离代价值
+        float h = 0;        // 该点到终点的启发值
+        float w = 0;        // 该点的权重值，为动态加权
+        float w_cost = 0;   // 该点到终点矩形区域内代价值的和，为计算权重的中间量
+        float f = 0;        // 该点总共的代价值 f = g + w * h
+        NodeType type = NodeType::UNKNOWN;  // 节点种类，标识是否已探索
+        Node * parent_node = nullptr;       // 该节点的父节点
+        Direction direction_to_parent = Direction::UNKNOWN;     // 该节点相对父节点的方位
+        bool is_redundant = false;                              // 是否是冗余点
 
 
         /// @brief 节点比较重载，用于优先队列
@@ -84,7 +95,7 @@ class MCAstar : public GlobalPlannerInterface
     };
     
 public:
-    MCAstar(HeuristicsType type = HeuristicsType::Octile);
+    MCAstar(HeuristicsType type = HeuristicsType::Euclidean);
     ~MCAstar();
 
     bool setMap(const cv::Mat & map) override;
@@ -105,7 +116,9 @@ private:
 
     BezierCurve bezier_;
 
-    float getH(const cv::Point2i p);
+    void getG(Node * n);
+    void getH(Node * n);
+    void getW(Node * n);
     bool generateRawNodes(std::vector<Node *> & raw_nodes);
     bool removeRedundantNodes(const std::vector<Node *> & raw_nodes, std::vector<Node *> & reduced_nodes);
     void nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Point2i> & path);

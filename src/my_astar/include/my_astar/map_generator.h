@@ -26,6 +26,7 @@ public:
         if (rows_ > 0 && cols_ > 0)
         {
             planner_->setMap(grid_map_);
+            planner_->setMapInfo(1, 0, 0);
         }
     }
 
@@ -59,6 +60,7 @@ public:
         if (planner_ != nullptr)
         {
             planner_->setMap(grid_map_);
+            planner_->setMapInfo(1, 0, 0);
         }
     }
 
@@ -85,6 +87,7 @@ public:
         if (planner_ != nullptr)
         {
             planner_->setMap(grid_map_);
+            planner_->setMapInfo(1, 0, 0);
         }
     }
 
@@ -156,6 +159,7 @@ public:
         if (planner_ != nullptr)
         {
             planner_->setMap(grid_map_);
+            planner_->setMapInfo(1, 0, 0);
         }
     }
 
