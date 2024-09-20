@@ -20,18 +20,18 @@ public:
     {
     }
 
-    void set_planner(GlobalPlannerInterface * planner)
+    void set_planner(GlobalPlannerInterface * const planner)
     {
         planner_ = planner;
         if (rows_ > 0 && cols_ > 0)
         {
             planner_->setMap(grid_map_);
-            planner_->setMapInfo(1, 0, 0);
+            planner_->setMapInfo(scale_, 0, 0);
         }
     }
 
     // 生成单通道的随机地图，后续可以调用函数扩充阴影
-    void generate_random_map(int rows = 0, int cols = 0, float obs_probability = 0.3)
+    void generate_random_map(const int rows = 0, const int cols = 0, const float obs_probability = 0.3)
     {
         // 设置随机数生成器，用于随机生成障碍物
         std::mt19937 random_number_generator;
@@ -60,12 +60,12 @@ public:
         if (planner_ != nullptr)
         {
             planner_->setMap(grid_map_);
-            planner_->setMapInfo(1, 0, 0);
+            planner_->setMapInfo(scale_, 0, 0);
         }
     }
 
     // 生成单通道的空白地图，后续可以手动添加障碍物、调用函数扩充阴影
-    void generate_blank_map(int rows, int cols)
+    void generate_blank_map(const int rows, const int cols)
     {
         if (rows <= 0)
         {
@@ -87,7 +87,7 @@ public:
         if (planner_ != nullptr)
         {
             planner_->setMap(grid_map_);
-            planner_->setMapInfo(1, 0, 0);
+            planner_->setMapInfo(scale_, 0, 0);
         }
     }
 
@@ -116,21 +116,21 @@ public:
     }
 
     // 添加指定矩形区域内的障碍物
-    void add_obstacles(const cv::Rect & rectangle, bool filled = false)
+    void add_obstacles(const cv::Rect & rectangle, const bool filled = false)
     {
         cv::rectangle(grid_map_, rectangle, 100, filled ? -1 : 1);
         cv::rectangle(grid_map_property_, rectangle, GridType::OBSTACLE, filled ? -1 : 1);
     }
 
     // 添加指定圆形区域内的障碍物
-    void add_obstacles(const cv::Point2i center, int radius, bool filled = false)
+    void add_obstacles(const cv::Point2i center, const int radius, const bool filled = false)
     {
         cv::circle(grid_map_, center, radius, 100, filled ? -1 : 1);
         cv::circle(grid_map_property_, center, radius, GridType::OBSTACLE, filled ? -1 : 1);
     }
 
     // 保存地图数据（非图片效果）
-    bool save_map(std::string path_and_name)
+    bool save_map(const std::string & path_and_name)
     {
         if (rows_ == 0 || cols_ == 0 || path_and_name.empty())
         {
@@ -141,7 +141,7 @@ public:
     }
 
     // 加载地图数据
-    void load_map(std::string path_and_name)
+    void load_map(const std::string & path_and_name)
     {
         grid_map_ = cv::imread(path_and_name, cv::ImreadModes::IMREAD_GRAYSCALE);
         rows_ = grid_map_.rows;
@@ -159,7 +159,7 @@ public:
         if (planner_ != nullptr)
         {
             planner_->setMap(grid_map_);
-            planner_->setMapInfo(1, 0, 0);
+            planner_->setMapInfo(scale_, 0, 0);
         }
     }
 
@@ -233,9 +233,11 @@ public:
     }
 
     // 展示当前的栅格地图，并且调用实时规划效果
-    void show_map(const cv::String & winname, int scale = 5)
+    void show_map(const cv::String & winname, const int scale = 5)
     {
         scale_ = scale;
+        planner_->setMapInfo(scale_, 0, 0);
+
         show_image_ = cv::Mat::zeros(rows_ * scale_, cols_ * scale_, CV_8UC3);
         for (size_t i = 0; i < rows_; i++)
         {
@@ -301,7 +303,7 @@ private:
     GlobalPlannerInterface * planner_ = nullptr; // 规划器
 
 
-    enum GridType
+    enum GridType : uint8_t
     {
         GROUND,             // 普通地面，即还未进行搜索
         OBSTACLE,           // 障碍物
@@ -315,24 +317,24 @@ private:
     };
 
     // 输入栅格地图中的某个点(col, row)/(x, y)和颜色，将对应的可视化图像的对应区域设定成所需颜色
-    void set_show_image_color(int row, int col, cv::Vec3b color)
+    void set_show_image_color(const int row, const int col, const cv::Vec3b & color)
     {
         cv::rectangle(show_image_, cv::Rect(col * scale_, row * scale_, scale_, scale_), color, -1);
     }
 
     // 以点的数据形式实现上述功能
-    void set_show_image_color(cv::Point2i point, cv::Vec3b color)
+    void set_show_image_color(const cv::Point2i & point, const cv::Vec3b & color)
     {
         cv::rectangle(show_image_, cv::Rect(point.x * scale_, point.y * scale_, scale_, scale_), color, -1);
     }
 
     // 针对小的离散点进行绘制
-    void set_show_image_color(cv::Point2f point, cv::Vec3b color)
+    void set_show_image_color(const cv::Point2f & point, const cv::Vec3b & color)
     {
-        show_image_.at<cv::Vec3b>((point.y + 0.5) * scale_, (point.x + 0.5) * scale_) = color;
+        cv::circle(show_image_, point, scale_ / 3, color, -1);
     }
 
-    static cv::Vec3b get_grid_color(GridType type)
+    static cv::Vec3b get_grid_color(const GridType type)
     {
         switch (type)
         {
@@ -402,7 +404,7 @@ private:
                         {
                             cv::Point2i & p = path[i];
                             obj->grid_map_property_.at<uchar>(p.y, p.x) = GridType::CLOSE;
-                            obj->set_show_image_color(p.y, p.x, get_grid_color(GridType::CLOSE));
+                            obj->set_show_image_color(p, get_grid_color(GridType::CLOSE));
                         }
 
                         // 2. 绘制贝塞尔曲线平滑后的路径

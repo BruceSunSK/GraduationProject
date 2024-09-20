@@ -344,7 +344,7 @@ bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
                         new_node->type != Node::NodeType::CLOSED) // 不对已加入CLOSED的数据再次判断
                     {
                         float dis = std::sqrt(std::pow(new_point.x - this_point.x, 2) + std::pow(new_point.y - this_point.y, 2));
-                        float dis_with_trav_cost = dis * std::exp(new_node->cost * 0.01);
+                        float dis_with_trav_cost = dis * std::exp(new_node->cost * 0.02);
    
                         if (new_node->type == Node::NodeType::UNKNOWN)
                         {

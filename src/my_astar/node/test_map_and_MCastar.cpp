@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
     generator.load_map(ros::package::getPath("my_astar") + "/map/map1.png");
     generator.expand_map();
     generator.set_planner(&MC_astar_planner);
-    generator.show_map("test");
+    generator.show_map("test", 10);
 
     return 0;
 }
