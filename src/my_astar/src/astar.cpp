@@ -158,7 +158,7 @@ bool Astar::getRawPath(std::vector<cv::Point2i> & path)
                     if (new_node->cost < 50 &&  // 保证该节点是非障碍物节点，才能联通。代价地图[0, 100] 0可通过 100不可通过 
                         new_node->type != Node::NodeType::CLOSED) // 不对已加入CLOSED的数据再次判断
                     {
-                        float dis = sqrt(pow(new_point.x - this_point.x, 2) + pow(new_point.y - this_point.y, 2));
+                        double dis = sqrt(pow(new_point.x - this_point.x, 2) + pow(new_point.y - this_point.y, 2));
    
                         if (new_node->type == Node::NodeType::UNKNOWN)
                         {
@@ -211,7 +211,7 @@ bool Astar::getRawPath(std::vector<cv::Point2i> & path)
     return path.size() > 1;
 }
 
-bool Astar::getSmoothPath(std::vector<cv::Point2f> & path)
+bool Astar::getSmoothPath(std::vector<cv::Point2d> & path)
 {
     if (init_map_info_ == false)
     {
@@ -228,7 +228,7 @@ bool Astar::getSmoothPath(std::vector<cv::Point2f> & path)
 
     // 消除0.5个栅格偏差
     std::for_each(temp.begin(), temp.end(), [this, &path](cv::Point2i & p){
-            cv::Point2f pf;
+            cv::Point2d pf;
             pf.x = (p.x + 0.5) * res_ + ori_x_;
             pf.y = (p.y + 0.5) * res_ + ori_y_;
             path.push_back(pf);
@@ -237,9 +237,9 @@ bool Astar::getSmoothPath(std::vector<cv::Point2f> & path)
     return true;
 }
 
-float Astar::getH(cv::Point2i p)
+double Astar::getH(cv::Point2i p)
 {
-    float h = 0;
+    double h = 0;
     double dx = 0.0;
     double dy = 0.0;
     switch (type_)

@@ -144,13 +144,21 @@ bool MCAstar::getRawPath(std::vector<cv::Point2i> & path)
         return false;
     }
 
+    ////////
+    std::vector<Node *> reduced_nodes;
+    removeRedundantNodes(raw_nodes, reduced_nodes);
+    ////////
+
     // 2.节点转成路径点
-    nodesToPath(raw_nodes, path);
+    nodesToPath(reduced_nodes, path);
+
+    // 3. 复原地图
+    resetMap();
 
     return true;
 }
 
-bool MCAstar::getSmoothPath(std::vector<cv::Point2f> & path)
+bool MCAstar::getSmoothPath(std::vector<cv::Point2d> & path)
 {
     if ( !(init_map_ && init_start_node_ && init_end_node_) )
     {
@@ -167,16 +175,18 @@ bool MCAstar::getSmoothPath(std::vector<cv::Point2f> & path)
     }
     
     // 2.去除冗余节点
+    std::vector<Node *> reduced_nodes;
+    removeRedundantNodes(raw_nodes, reduced_nodes);
 
     // 3.节点转成路径点
     std::vector<cv::Point2i> reduced_path;
-    nodesToPath(raw_nodes, reduced_path);
+    nodesToPath(reduced_nodes, reduced_path);
 
     // 4.完成路径平滑
-    if (!smoothPath(reduced_path, path))
-    {
-        return false;
-    }
+    smoothPath(reduced_path, path, 4);
+
+    // 5. 复原地图
+    resetMap();
 
     return true;
 }
@@ -187,7 +197,7 @@ bool MCAstar::getSmoothPath(std::vector<cv::Point2f> & path)
 void MCAstar::getH(Node * n)
 {
     cv::Point2i & p = n->point;
-    float h = 0;
+    double h = 0;
     double dx = 0.0;
     double dy = 0.0;
     switch (type_)
@@ -297,7 +307,7 @@ void MCAstar::getW(Node * n)
     // }
     
     // 障碍物密度 P ∈ (0, 1)
-    const float P = n->w_cost * 0.01 / ((std::abs(n->point.x - end_node_->point.x) + 1) * (std::abs(n->point.y - end_node_->point.y) + 1));
+    const double P = n->w_cost * 0.01 / ((std::abs(n->point.x - end_node_->point.x) + 1) * (std::abs(n->point.y - end_node_->point.y) + 1));
     // 权重 w ∈ (1, ∞)
     n->w = 1 - std::log(P);
 }
@@ -343,8 +353,8 @@ bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
                     if (new_node->cost < 100 &&  // 保证该节点是非障碍物节点，才能联通。代价地图[0, 100] 0可通过 100不可通过 
                         new_node->type != Node::NodeType::CLOSED) // 不对已加入CLOSED的数据再次判断
                     {
-                        float dis = std::sqrt(std::pow(new_point.x - this_point.x, 2) + std::pow(new_point.y - this_point.y, 2));
-                        float dis_with_trav_cost = dis * std::exp(new_node->cost * 0.02);
+                        double dis = std::sqrt(std::pow(new_point.x - this_point.x, 2) + std::pow(new_point.y - this_point.y, 2));
+                        double dis_with_trav_cost = dis * std::exp(new_node->cost * 0.02);
    
                         if (new_node->type == Node::NodeType::UNKNOWN)
                         {
@@ -383,25 +393,40 @@ bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
         path_node = path_node->parent_node;
     }
     std::reverse(raw_nodes.begin(), raw_nodes.end()); // 翻转使得路径点从起点到终点排列
+    return raw_nodes.size() > 1;
+}
 
-    // 复原地图
-    for (int i = 0; i < rows_; i++)
+/// @brief 根据路径节点之间的关系，去除中间的冗余点，只保留关键点，如：起始点、转弯点
+/// @param raw_nodes 输入的待去除冗余点的路径
+/// @param reduced_nodes 输出的去除冗余点后的路径
+/// @return 是否去除冗余点成功。若没有去除任何点，则返回false
+bool MCAstar::removeRedundantNodes(const std::vector<Node *> & raw_nodes, std::vector<Node *> & reduced_nodes)
+{
+    reduced_nodes.clear();
+    size_t size = raw_nodes.size();
+    if (size <= 2)  // 只有两个点，说明只是起点和终点
     {
-        for (int j = 0; j < cols_; j++)
+        reduced_nodes.insert(reduced_nodes.end(), raw_nodes.begin(), raw_nodes.end());
+        return false;
+    }
+    
+    // 如果连续两个点扩展的方向一致，则去除第一个点，只保留第二个点
+    reduced_nodes.push_back(raw_nodes.front());
+    size_t l = 1;
+    for (size_t r = 2; r < size - 1; r++)
+    {
+        if (raw_nodes[r]->direction_to_parent != raw_nodes[l]->direction_to_parent)
         {
-            map_[i][j].g = 0;
-            map_[i][j].h = 0;
-            map_[i][j].w = 0;
-            map_[i][j].w_cost = 0;
-            map_[i][j].f = 0;
-            map_[i][j].type = Node::NodeType::UNKNOWN;
-            map_[i][j].parent_node = nullptr;
-            map_[i][j].direction_to_parent = Node::Direction::UNKNOWN;
-            map_[i][j].is_redundant = false;
+            reduced_nodes.push_back(raw_nodes[r - 1]);
+            l = r;
         }
     }
-
-    return raw_nodes.size() > 1;
+    if (raw_nodes[size - 1]->direction_to_parent != raw_nodes[size - 2]->direction_to_parent) // 最后两个点单独判断
+    {
+        reduced_nodes.push_back(raw_nodes[size - 2]);
+    }
+    reduced_nodes.push_back(raw_nodes.back());
+    return true;
 }
 
 /// @brief 将节点Node数据类型转换成便于后续计算的Point数据类型
@@ -420,8 +445,8 @@ void MCAstar::nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Poi
 /// @param raw_path 待平滑路径
 /// @param soomth_path 输出平滑后的路径
 /// @param control_nums_per_subpath 每个子路径的点的数目
-/// @return 平滑操作是否成功
-bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2f> & smooth_path, const int control_nums_per_subpath)
+/// @return 平滑操作是否成功。若缺少地图信息或输入路径为空，返回false
+bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2d> & smooth_path, const int control_nums_per_subpath)
 {
     if (init_map_info_ == false)
     {
@@ -442,8 +467,8 @@ bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<
     {
         std::vector<cv::Point2i> sub_raw_path(raw_path.begin() + i * control_nums_per_subpath, 
                                               raw_path.begin() + (i + 1) * control_nums_per_subpath);
-        std::vector<cv::Point2f> sub_smooth_path;
-        bezier_.smooth_curve(sub_raw_path, sub_smooth_path, 1.0 / control_nums_per_subpath);
+        std::vector<cv::Point2d> sub_smooth_path;
+        bezier_.smooth_curve(sub_raw_path, sub_smooth_path, 0.01);
         smooth_path.insert(smooth_path.end(), sub_smooth_path.begin(), sub_smooth_path.end());
     }
 
@@ -452,16 +477,35 @@ bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<
     {
         std::vector<cv::Point2i> sub_raw_path(raw_path.begin() + groups_num * control_nums_per_subpath, 
                                               raw_path.end());
-        std::vector<cv::Point2f> sub_smooth_path;
-        bezier_.smooth_curve(sub_raw_path, sub_smooth_path, 1.0 / (points_num % control_nums_per_subpath));
+        std::vector<cv::Point2d> sub_smooth_path;
+        bezier_.smooth_curve(sub_raw_path, sub_smooth_path, 0.01);
         smooth_path.insert(smooth_path.end(), sub_smooth_path.begin(), sub_smooth_path.end());
     }
 
     // 消除0.5个栅格偏差
-    std::for_each(smooth_path.begin(), smooth_path.end(), [this](cv::Point2f & p){
+    std::for_each(smooth_path.begin(), smooth_path.end(), [this](cv::Point2d & p){
             p.x = (p.x + 0.5) * res_ + ori_x_;
             p.y = (p.y + 0.5) * res_ + ori_y_;
         });
     
     return true;
+}
+
+/// @brief 将当前地图中的参数全部初始化。一般在完成一次规划的所有步骤后进行。
+void MCAstar::resetMap()
+{
+    for (int i = 0; i < rows_; i++)
+    {
+        for (int j = 0; j < cols_; j++)
+        {
+            map_[i][j].g = 0;
+            map_[i][j].h = 0;
+            map_[i][j].w = 0;
+            map_[i][j].w_cost = 0;
+            map_[i][j].f = 0;
+            map_[i][j].type = Node::NodeType::UNKNOWN;
+            map_[i][j].parent_node = nullptr;
+            map_[i][j].direction_to_parent = Node::Direction::UNKNOWN;
+        }
+    }
 }

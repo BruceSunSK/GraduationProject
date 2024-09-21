@@ -24,7 +24,7 @@ public:
     virtual bool setEndPoint(const cv::Point2i p) = 0;
 
     virtual bool getRawPath(std::vector<cv::Point2i> & path) = 0;       // 原始的以栅格为单位的路径
-    virtual bool getSmoothPath(std::vector<cv::Point2f> & path) = 0;    // 平滑优化后的离散路径，会补齐因栅格坐标系而偏移出的0.5个单位长度的偏差
+    virtual bool getSmoothPath(std::vector<cv::Point2d> & path) = 0;    // 平滑优化后的离散路径，会补齐因栅格坐标系而偏移出的0.5个单位长度的偏差
 
 protected:
     // 地图属性

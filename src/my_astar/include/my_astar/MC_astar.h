@@ -22,6 +22,8 @@
 ///         然后，w = (1 - lnP), P ∈ (0, 1), w ∈ (1, ∞)。
 ///         可以实现在障碍物密集的区域实现避免搜索步长过大，出现局部最优，有效避开障碍物；在障碍物较少的区域中，加快搜索，减少搜索栅格个数。
 /// [3] 去除冗余点
+///      1. 在搜索过程中使用Direction枚举记录节点的扩展方向（即子节点位于父节点的方向）。
+///      2. 在冗余点剔除时，若连续两个点的扩展方向相同，则剔除前一个节点。
 /// [4] 引入贝塞尔曲线进行分段平滑。默认是每10个控制点进行一组贝塞尔曲线平滑，多组平滑结果拼接得到最终曲线。
 class MCAstar : public GlobalPlannerInterface
 {
@@ -66,16 +68,15 @@ class MCAstar : public GlobalPlannerInterface
 
         /// @brief 节点属性
         cv::Point2i point;  // 栅格的xy值
-        float cost = 0;     // 栅格中的代价值
-        float g = 0;        // 起点到该点已探索的距离代价值
-        float h = 0;        // 该点到终点的启发值
-        float w = 0;        // 该点的权重值，为动态加权
-        float w_cost = 0;   // 该点到终点矩形区域内代价值的和，为计算权重的中间量
-        float f = 0;        // 该点总共的代价值 f = g + w * h
+        double cost = 0;    // 栅格中的代价值
+        double g = 0;       // 起点到该点已探索的可通行距离代价值
+        double h = 0;       // 该点到终点的启发值
+        double w = 0;       // 该点的权重值，为动态加权
+        double w_cost = 0;  // 该点到终点矩形区域内代价值的和，为计算权重的中间量
+        double f = 0;       // 该点总共的代价值 f = g + w * h
         NodeType type = NodeType::UNKNOWN;  // 节点种类，标识是否已探索
         Node * parent_node = nullptr;       // 该节点的父节点
         Direction direction_to_parent = Direction::UNKNOWN;     // 该节点相对父节点的方位
-        bool is_redundant = false;                              // 是否是冗余点
 
 
         /// @brief 节点比较重载，用于优先队列
@@ -107,7 +108,7 @@ public:
     bool setEndPoint(const cv::Point2i p) override;
 
     bool getRawPath(std::vector<cv::Point2i> & path) override;
-    bool getSmoothPath(std::vector<cv::Point2f> & path) override;
+    bool getSmoothPath(std::vector<cv::Point2d> & path) override;
 
 private:
     std::vector<std::vector<Node>> map_;
@@ -124,5 +125,6 @@ private:
     bool generateRawNodes(std::vector<Node *> & raw_nodes);
     bool removeRedundantNodes(const std::vector<Node *> & raw_nodes, std::vector<Node *> & reduced_nodes);
     void nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Point2i> & path);
-    bool smoothPath(const std::vector<cv::Point2i> & reduced_path, std::vector<cv::Point2f> & smooth_path, const int control_nums_per_subpath = 10);
+    bool smoothPath(const std::vector<cv::Point2i> & reduced_path, std::vector<cv::Point2d> & smooth_path, const int control_nums_per_subpath = 10);
+    void resetMap();
 };

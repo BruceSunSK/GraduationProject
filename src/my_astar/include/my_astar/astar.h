@@ -27,11 +27,11 @@ class Astar : public GlobalPlannerInterface
         };
 
         cv::Point2i point;
-        float cost = 0;
+        double cost = 0;
 
-        float g = 0;
-        float h = 0;
-        float f = 0;
+        double g = 0;
+        double h = 0;
+        double f = 0;
         NodeType type = NodeType::UNKNOWN;
         Node * parent_node = nullptr;
 
@@ -55,7 +55,7 @@ public:
     bool setEndPoint(const cv::Point2i p) override;
 
     bool getRawPath(std::vector<cv::Point2i> & path) override;
-    bool getSmoothPath(std::vector<cv::Point2f> & path) override;
+    bool getSmoothPath(std::vector<cv::Point2d> & path) override;
 
 private:
     std::vector<std::vector<Node>> map_;
@@ -64,5 +64,5 @@ private:
 
     HeuristicsType type_;
 
-    float getH(cv::Point2i p);
+    double getH(cv::Point2i p);
 };

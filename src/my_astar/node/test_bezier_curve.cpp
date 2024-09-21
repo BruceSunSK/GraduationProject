@@ -12,8 +12,8 @@ int main(int argc, char *argv[])
     ros::NodeHandle nh;
 
     BezierCurve bezier;
-    std::vector<cv::Point2f> input = {{0, 0}, {50, 0}, {50, 100}, {100, 100}};
-    std::vector<cv::Point2f> output;
+    std::vector<cv::Point2d> input = {{0, 0}, {50, 0}, {50, 100}, {100, 100}};
+    std::vector<cv::Point2d> output;
     bezier.smooth_curve(input, output);
 
     cv::Mat img = cv::Mat::zeros(101, 101, CV_8UC3);

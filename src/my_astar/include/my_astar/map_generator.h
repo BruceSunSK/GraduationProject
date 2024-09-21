@@ -31,13 +31,13 @@ public:
     }
 
     // 生成单通道的随机地图，后续可以调用函数扩充阴影
-    void generate_random_map(const int rows = 0, const int cols = 0, const float obs_probability = 0.3)
+    void generate_random_map(const int rows = 0, const int cols = 0, const double obs_probability = 0.3)
     {
         // 设置随机数生成器，用于随机生成障碍物
         std::mt19937 random_number_generator;
         random_number_generator.seed();
         std::uniform_int_distribution<int> int_distribution(10, 30); 
-        std::uniform_real_distribution<float> float_distribution(0.0f, 1.0f); 
+        std::uniform_real_distribution<double> double_distribution(0.0f, 1.0f); 
 
         // 确定地图大小
         rows_ = (rows <= 0 ? int_distribution(random_number_generator) : rows);
@@ -50,7 +50,7 @@ public:
         {
             for (size_t j = 0; j < cols_; j++)
             {
-                float grid_p = float_distribution(random_number_generator);
+                double grid_p = double_distribution(random_number_generator);
                 bool is_obs = grid_p < obs_probability;
                 grid_map_.at<uchar>(i, j) = (is_obs ? 100 : 0);   // 100为障碍物 0为可通行区域
                 grid_map_property_.at<uchar>(i, j) = (is_obs ? GridType::OBSTACLE : GridType::GROUND);
@@ -167,7 +167,7 @@ public:
     // 5x5 范围内的代价值系数与距离成反比。即距离为sqrt(2)的格子代价值即为 1/sqrt(2)*COST，COST为中心代价值
     void expand_map()
     {
-        static const cv::Mat kernel = (cv::Mat_<float>(15, 15) << 0.10102, 0.10847, 0.11625, 0.12403, 0.13131, 0.13736, 0.14142, 0.14286, 0.14142, 0.13736, 0.13131, 0.12403, 0.11625, 0.10847, 0.10102, 
+        static const cv::Mat kernel = (cv::Mat_<double>(15, 15) << 0.10102, 0.10847, 0.11625, 0.12403, 0.13131, 0.13736, 0.14142, 0.14286, 0.14142, 0.13736, 0.13131, 0.12403, 0.11625, 0.10847, 0.10102, 
                                                                   0.10847, 0.11785, 0.12804, 0.13868, 0.14907, 0.15811, 0.16440, 0.16667, 0.16440, 0.15811, 0.14907, 0.13868, 0.12804, 0.11785, 0.10847, 
                                                                   0.11625, 0.12804, 0.14142, 0.15617, 0.17150, 0.18570, 0.19612, 0.20000, 0.19612, 0.18570, 0.17150, 0.15617, 0.14142, 0.12804, 0.11625, 
                                                                   0.12403, 0.13868, 0.15617, 0.17678, 0.20000, 0.22361, 0.24254, 0.25000, 0.24254, 0.22361, 0.20000, 0.17678, 0.15617, 0.13868, 0.12403, 
@@ -217,7 +217,7 @@ public:
                             break;
                         }
                         
-                        uchar new_cost = static_cast<uchar>(kernel.at<float>(m + kernel_half_width, n + kernel_half_width) * cost);
+                        uchar new_cost = static_cast<uchar>(kernel.at<double>(m + kernel_half_width, n + kernel_half_width) * cost);
                         if (grid_map_.at<uchar>(i + m, j + n) < new_cost)
                         {
                             grid_map_.at<uchar>(i + m, j + n) = new_cost;
@@ -329,7 +329,7 @@ private:
     }
 
     // 针对小的离散点进行绘制
-    void set_show_image_color(const cv::Point2f & point, const cv::Vec3b & color)
+    void set_show_image_color(const cv::Point2d & point, const cv::Vec3b & color)
     {
         cv::circle(show_image_, point, scale_ / 3, color, -1);
     }
@@ -408,15 +408,15 @@ private:
                         }
 
                         // 2. 绘制贝塞尔曲线平滑后的路径
-                        std::vector<cv::Point2f> smooth_path;
+                        std::vector<cv::Point2d> smooth_path;
                         obj->planner_->getSmoothPath(smooth_path);
                         for (size_t i = 0; i < smooth_path.size(); i++)
                         {
-                            cv::Point2f & p = smooth_path[i];
+                            cv::Point2d & p = smooth_path[i];
                             obj->set_show_image_color(p, get_grid_color(GridType::PATH));
                         }
 
-                        std::cout << "路径规划成功，总计长度：" << path.size() << std::endl << std::endl;
+                        std::cout << "路径规划成功，raw路径长度：" << path.size() << "，smooth路径长度：" << smooth_path.size() << std::endl << std::endl;
                     }
                     else
                     {

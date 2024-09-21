@@ -60,7 +60,7 @@ void map_callback(const nav_msgs::OccupancyGrid & msg)
         }
     }
 
-    static const cv::Mat kernel = (cv::Mat_<float>(15, 15) << 0.10102, 0.10847, 0.11625, 0.12403, 0.13131, 0.13736, 0.14142, 0.14286, 0.14142, 0.13736, 0.13131, 0.12403, 0.11625, 0.10847, 0.10102, 
+    static const cv::Mat kernel = (cv::Mat_<double>(15, 15) << 0.10102, 0.10847, 0.11625, 0.12403, 0.13131, 0.13736, 0.14142, 0.14286, 0.14142, 0.13736, 0.13131, 0.12403, 0.11625, 0.10847, 0.10102, 
                                                               0.10847, 0.11785, 0.12804, 0.13868, 0.14907, 0.15811, 0.16440, 0.16667, 0.16440, 0.15811, 0.14907, 0.13868, 0.12804, 0.11785, 0.10847, 
                                                               0.11625, 0.12804, 0.14142, 0.15617, 0.17150, 0.18570, 0.19612, 0.20000, 0.19612, 0.18570, 0.17150, 0.15617, 0.14142, 0.12804, 0.11625, 
                                                               0.12403, 0.13868, 0.15617, 0.17678, 0.20000, 0.22361, 0.24254, 0.25000, 0.24254, 0.22361, 0.20000, 0.17678, 0.15617, 0.13868, 0.12403, 
@@ -110,7 +110,7 @@ void map_callback(const nav_msgs::OccupancyGrid & msg)
                         break;
                     }
                     
-                    uchar new_cost = static_cast<uchar>(kernel.at<float>(m + kernel_half_width, n + kernel_half_width) * cost);
+                    uchar new_cost = static_cast<uchar>(kernel.at<double>(m + kernel_half_width, n + kernel_half_width) * cost);
                     if (map.at<uchar>(i + m, j + n) < new_cost)
                     {
                         map.at<uchar>(i + m, j + n) = new_cost;
@@ -142,7 +142,7 @@ void map_callback(const nav_msgs::OccupancyGrid & msg)
 void pub_path()
 {
     std::vector<cv::Point2i> path;
-    std::vector<cv::Point2f> smooth_path;
+    std::vector<cv::Point2d> smooth_path;
     MC_astar.getRawPath(path);
     MC_astar.getSmoothPath(smooth_path);
 
@@ -161,7 +161,7 @@ void pub_path()
     }
     nav_msgs::Path msg2;
     msg2.header = msg.header;
-    for (cv::Point2f & p : smooth_path)
+    for (cv::Point2d & p : smooth_path)
     {
         geometry_msgs::PoseStamped m;
         m.header = msg2.header;
