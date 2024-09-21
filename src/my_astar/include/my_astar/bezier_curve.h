@@ -15,7 +15,7 @@ public:
     /// @param bezier_points 输出的平滑后的稠密序列点
     /// @param t_step 贝塞尔平滑中t的步增长度，t∈[0, 1]，每一步生成一个输出点
     template <typename PointType>
-    void smooth_curve(const std::vector<PointType> & control_points, std::vector<cv::Point2f> & bezier_points, float t_step = 0.01)
+    void smooth_curve(const std::vector<PointType> & control_points, std::vector<cv::Point2f> & bezier_points, double t_step = 0.01)
     {
         if (control_points.size() == 0)
         {
@@ -31,7 +31,7 @@ public:
         
         bezier_points.clear();
         size_t n = control_points.size() - 1;
-        for (float t = 0; t <= 1; t += t_step)
+        for (double t = 0; t <= 1; t += t_step)
         {
             cv::Point2f pt(0.0f, 0.0f);
             for (size_t i = 0; i <= n; i++)
