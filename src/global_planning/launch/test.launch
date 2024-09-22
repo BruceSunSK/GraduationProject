@@ -1,0 +1,7 @@
+<launch>
+
+    <node pkg="global_planning" name="test_map_and_MCastar" type="test_map_and_MCastar" output="screen" /> 
+
+    <!-- <node pkg="global_planning" name="test_bezier_curve" type="test_bezier_curve" output="screen" />  -->
+
+</launch>

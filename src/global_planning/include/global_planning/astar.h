@@ -4,7 +4,7 @@
 #include <queue>
 #include <algorithm>
 
-#include "my_astar/global_planning_interface.h"
+#include "global_planning/global_planning_interface.h"
 
 class Astar : public GlobalPlannerInterface
 {

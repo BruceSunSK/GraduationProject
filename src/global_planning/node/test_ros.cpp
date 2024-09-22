@@ -4,8 +4,8 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 
-#include "my_astar/MC_astar.h"
-#include "my_astar/astar.h"
+#include "global_planning/MC_astar.h"
+#include "global_planning/astar.h"
 
 ros::Publisher path_pub;
 ros::Publisher smooth_path_pub;

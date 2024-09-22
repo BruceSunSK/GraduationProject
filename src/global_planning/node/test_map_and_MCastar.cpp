@@ -1,9 +1,9 @@
 #include <ros/ros.h>
 #include <ros/package.h>
 
-#include "my_astar/astar.h"
-#include "my_astar/MC_astar.h"
-#include "my_astar/map_generator.h"
+#include "global_planning/astar.h"
+#include "global_planning/MC_astar.h"
+#include "global_planning/map_generator.h"
 
 int main(int argc, char *argv[])
 {
@@ -34,9 +34,9 @@ int main(int argc, char *argv[])
     // 2.2 测试地图
     // generator.set_planner(&astar_planner);
     // 2.3 测试保存地图
-    // generator.save_map(ros::package::getPath("my_astar") + "/map/map1.png");
+    // generator.save_map(ros::package::getPath("global_planning") + "/map/map1.png");
     // 2.4 测试读取地图
-    // generator.load_map(ros::package::getPath("my_astar") + "/map/map1.png");
+    // generator.load_map(ros::package::getPath("global_planning") + "/map/map1.png");
     // generator.show_map("blank map and add obstacles test");
 
     // 3.生成所需要的地图
@@ -59,12 +59,12 @@ int main(int argc, char *argv[])
     // generator.add_obstacles(cv::Point2i(70, 10), cv::Point(90, 10));
     // generator.add_obstacles(cv::Point2i(90, 60), cv::Point(90, 10));
 
-    // generator.save_map(ros::package::getPath("my_astar") + "/map/map1.png");
+    // generator.save_map(ros::package::getPath("global_planning") + "/map/map1.png");
     // generator.set_planner(&astar_planner);
     // generator.show_map("generate map");
 
     // 4.测试最终功能
-    generator.load_map(ros::package::getPath("my_astar") + "/map/map1.png");
+    generator.load_map(ros::package::getPath("global_planning") + "/map/map1.png");
     generator.expand_map();
     generator.set_planner(&MC_astar_planner);
     generator.show_map("test", 10);

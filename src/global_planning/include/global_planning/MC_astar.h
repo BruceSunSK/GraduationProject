@@ -5,8 +5,8 @@
 #include <unordered_map>
 #include <algorithm>
 
-#include "my_astar/global_planning_interface.h"
-#include "my_astar/bezier_curve.h"
+#include "global_planning/global_planning_interface.h"
+#include "global_planning/bezier_curve.h"
 
 /// @brief Multi-layered Costmap Astar
 /// [1] 实现栅格代价值离散化，0~100和255。代价值低处更易通过；100为障碍物，彻底不可通过；255为未探索区域（与建图相关），直接当做障碍物处理。

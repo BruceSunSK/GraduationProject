@@ -1,7 +1,0 @@
-<launch>
-
-    <node pkg="my_astar" name="test_map_and_MCastar" type="test_map_and_MCastar" output="screen" /> 
-
-    <!-- <node pkg="my_astar" name="test_bezier_curve" type="test_bezier_curve" output="screen" />  -->
-
-</launch>

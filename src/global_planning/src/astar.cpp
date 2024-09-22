@@ -1,4 +1,4 @@
-#include "my_astar/astar.h"
+#include "global_planning/astar.h"
 
 
 Astar::Astar(HeuristicsType type) : type_(type)

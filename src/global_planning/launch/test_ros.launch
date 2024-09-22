@@ -1,0 +1,8 @@
+<launch>
+
+    <!-- [1] 使用全局MCAstar规划 -->
+    <node pkg="global_planning" name="test_ros" type="test_ros" output="screen" /> 
+    <!-- [2] 启动 rviz -->
+    <node pkg="rviz" name="rviz" type="rviz" args="-d $(find global_planning)/rviz/test_ros.rviz" />
+
+</launch>

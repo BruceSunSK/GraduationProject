@@ -7,8 +7,8 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
-#include "my_astar/global_planning_interface.h"
-#include "my_astar/debug.h"
+#include "global_planning/global_planning_interface.h"
+#include "global_planning/debug.h"
 
 class MapGenerator
 {

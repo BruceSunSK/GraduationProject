@@ -1,3 +1,3 @@
-#include "my_astar/bezier_curve.h"
+#include "global_planning/bezier_curve.h"
 
 std::vector<std::vector<size_t>> BezierCurve::combination_table_ = {{1}, {1, 1}, {1, 2, 1}, {1, 3, 3, 1}};
