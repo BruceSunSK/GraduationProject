@@ -128,6 +128,9 @@ bool MCAstar::setEndPoint(const cv::Point2i p)
     return setEndPoint(p.x, p.y);
 }
 
+/// @brief 通过给定的地图、起点、终点规划出一条从起点到终点的路径。
+/// @param path 规划出的路径。该路径是栅格坐标系下原始路径点，没有冗余点剔除、平滑、降采样操作。
+/// @return 是否规划成功
 bool MCAstar::getRawPath(std::vector<cv::Point2i> & path)
 {
     if ( !(init_map_ && init_start_node_ && init_end_node_) )
@@ -152,12 +155,15 @@ bool MCAstar::getRawPath(std::vector<cv::Point2i> & path)
     // 2.节点转成路径点
     nodesToPath(reduced_nodes, path);
 
-    // 3. 复原地图
+    // 3.复原地图
     resetMap();
 
     return true;
 }
 
+/// @brief 通过给定的地图、地图信息、起点、终点规划出一条从起点到终点的平滑路径。
+/// @param path 规划出的路径。该路径是真实地图下的坐标点，进行冗余点剔除、分段三阶贝塞尔曲线平滑、降采样操作。并且补齐0.5个单位长度的栅格偏差。
+/// @return 是否规划成功
 bool MCAstar::getSmoothPath(std::vector<cv::Point2d> & path)
 {
     if ( !(init_map_ && init_start_node_ && init_end_node_) )
@@ -185,7 +191,10 @@ bool MCAstar::getSmoothPath(std::vector<cv::Point2d> & path)
     // 4.完成路径平滑
     smoothPath(reduced_path, path);
 
-    // 5. 复原地图
+    // 5.降采样
+    downsampling(path, res_);
+
+    // 6.复原地图
     resetMap();
 
     return true;
@@ -471,6 +480,33 @@ bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<
         });
     
     return true;
+}
+
+/// @brief 对路径进行降采样。在进行完贝塞尔曲线平滑后进行，避免规划出的路径过于稠密
+/// @param path 待降采样的路径
+/// @param dis 两点间最小间距
+void MCAstar::downsampling(std::vector<cv::Point2d> & path, double dis)
+{
+    size_t size = path.size();
+    if (size == 0)
+    {
+        return;
+    }
+    
+    std::vector<cv::Point2d> temp;
+    temp.push_back(path.front());   // 保证起点
+    cv::Point2d temp_p = path.front();
+    for (size_t i = 1; i < size - 1; i++)
+    {
+        double temp_dis = std::hypot(path[i].x - temp_p.x, path[i].y - temp_p.y);
+        if (temp_dis > dis)
+        {
+            temp.push_back(path[i]);
+            temp_p = path[i];
+        }
+    }
+    temp.push_back(path.back());    // 保证终点
+    path = temp;
 }
 
 /// @brief 将当前地图中的参数全部初始化。一般在完成一次规划的所有步骤后进行。

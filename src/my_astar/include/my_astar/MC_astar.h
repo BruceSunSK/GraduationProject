@@ -29,7 +29,7 @@
 ///      2. 然后第i组的第二个点与第i+1组的第一个点线性插值的中点作为新插入节点，同时作为第i组和第i+1组的成员。
 ///      3. 这样每组都拥有四个节点成员，使用三阶贝塞尔曲线进行平滑。这样在分段处基本保持连续和曲率平滑。
 ///      4. 最后一组可能由于点的数量不够，只有三个点，此时使用二阶贝塞尔曲线进行平滑。
-/// [5] 由于生成的贝塞尔曲线是稠密的，因此手动进行降采样。
+/// [5] 由于生成的贝塞尔曲线是稠密的，因此手动进行降采样。按照两点间距离进行判断，使得路径离散。
 class MCAstar : public GlobalPlannerInterface
 {
     /// @brief 用于描述规划过程中的单个栅格节点
@@ -131,5 +131,6 @@ private:
     bool removeRedundantNodes(const std::vector<Node *> & raw_nodes, std::vector<Node *> & reduced_nodes);
     void nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Point2i> & path);
     bool smoothPath(const std::vector<cv::Point2i> & reduced_path, std::vector<cv::Point2d> & smooth_path);
+    void downsampling(std::vector<cv::Point2d> & path, double dis);
     void resetMap();
 };
