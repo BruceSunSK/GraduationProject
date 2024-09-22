@@ -183,7 +183,7 @@ bool MCAstar::getSmoothPath(std::vector<cv::Point2d> & path)
     nodesToPath(reduced_nodes, reduced_path);
 
     // 4.完成路径平滑
-    smoothPath(reduced_path, path, 4);
+    smoothPath(reduced_path, path);
 
     // 5. 复原地图
     resetMap();
@@ -441,12 +441,12 @@ void MCAstar::nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Poi
     }
 }
 
-/// @brief 将原始路径分割成小的子路径进行贝塞尔平滑。该函数将栅格整数坐标xy的值进行平滑，得到平滑路径后再消除栅格偏差的0.5个单位长度
+/// @brief 使用分段三阶贝塞尔曲线进行平滑。该函数将栅格整数坐标xy的值进行平滑，得到平滑路径后再消除栅格偏差的0.5个单位长度
 /// @param raw_path 待平滑路径
 /// @param soomth_path 输出平滑后的路径
 /// @param control_nums_per_subpath 每个子路径的点的数目
 /// @return 平滑操作是否成功。若缺少地图信息或输入路径为空，返回false
-bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2d> & smooth_path, const int control_nums_per_subpath)
+bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2d> & smooth_path)
 {
     if (init_map_info_ == false)
     {
@@ -461,26 +461,8 @@ bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<
         return false;
     }
     
-    // 分组进行平滑
-    int groups_num = points_num / control_nums_per_subpath;
-    for (int i = 0; i < groups_num; i++)
-    {
-        std::vector<cv::Point2i> sub_raw_path(raw_path.begin() + i * control_nums_per_subpath, 
-                                              raw_path.begin() + (i + 1) * control_nums_per_subpath);
-        std::vector<cv::Point2d> sub_smooth_path;
-        bezier_.smooth_curve(sub_raw_path, sub_smooth_path, 0.01);
-        smooth_path.insert(smooth_path.end(), sub_smooth_path.begin(), sub_smooth_path.end());
-    }
-
-    // 针对最后不完整的分组特殊处理
-    if (points_num % control_nums_per_subpath != 0)
-    {
-        std::vector<cv::Point2i> sub_raw_path(raw_path.begin() + groups_num * control_nums_per_subpath, 
-                                              raw_path.end());
-        std::vector<cv::Point2d> sub_smooth_path;
-        bezier_.smooth_curve(sub_raw_path, sub_smooth_path, 0.01);
-        smooth_path.insert(smooth_path.end(), sub_smooth_path.begin(), sub_smooth_path.end());
-    }
+    // 使用优化后的分段三阶贝塞尔曲线进行平滑
+    bezier_.piecewise_smooth_curve(raw_path, smooth_path);
 
     // 消除0.5个栅格偏差
     std::for_each(smooth_path.begin(), smooth_path.end(), [this](cv::Point2d & p){

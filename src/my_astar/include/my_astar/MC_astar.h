@@ -24,7 +24,12 @@
 /// [3] 去除冗余点
 ///      1. 在搜索过程中使用Direction枚举记录节点的扩展方向（即子节点位于父节点的方向）。
 ///      2. 在冗余点剔除时，若连续两个点的扩展方向相同，则剔除前一个节点。
-/// [4] 引入贝塞尔曲线进行分段平滑。默认是每10个控制点进行一组贝塞尔曲线平滑，多组平滑结果拼接得到最终曲线。
+/// [4] 引入贝塞尔曲线进行分段平滑。
+///      1. 首先将路径点去除起点和终点后每两个划分为1组。第一组额外包括起点，最后一组额外包括终点
+///      2. 然后第i组的第二个点与第i+1组的第一个点线性插值的中点作为新插入节点，同时作为第i组和第i+1组的成员。
+///      3. 这样每组都拥有四个节点成员，使用三阶贝塞尔曲线进行平滑。这样在分段处基本保持连续和曲率平滑。
+///      4. 最后一组可能由于点的数量不够，只有三个点，此时使用二阶贝塞尔曲线进行平滑。
+/// [5] 由于生成的贝塞尔曲线是稠密的，因此手动进行降采样。
 class MCAstar : public GlobalPlannerInterface
 {
     /// @brief 用于描述规划过程中的单个栅格节点
@@ -125,6 +130,6 @@ private:
     bool generateRawNodes(std::vector<Node *> & raw_nodes);
     bool removeRedundantNodes(const std::vector<Node *> & raw_nodes, std::vector<Node *> & reduced_nodes);
     void nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Point2i> & path);
-    bool smoothPath(const std::vector<cv::Point2i> & reduced_path, std::vector<cv::Point2d> & smooth_path, const int control_nums_per_subpath = 10);
+    bool smoothPath(const std::vector<cv::Point2i> & reduced_path, std::vector<cv::Point2d> & smooth_path);
     void resetMap();
 };
