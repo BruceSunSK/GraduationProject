@@ -11,6 +11,10 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   roslib
   std_msgs
+  nav_msgs
+  geometry_msgs
+  tf2
+  tf2_ros
 )
 
 find_package(OpenCV REQUIRED QUIET)
@@ -135,11 +139,12 @@ add_library(bezier_curve STATIC src/bezier_curve.cpp)
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(test_map_and_MCastar node/test_map_and_MCastar.cpp
+add_executable(test_map_and_MCAstar node/test_map_and_MCastar.cpp
                                     src/astar.cpp
                                     src/MC_astar.cpp)
 add_executable(test_bezier_curve    node/test_bezier_curve.cpp)
-add_executable(test_ros             node/test_ros.cpp
+add_executable(global_planning      node/global_planning_node.cpp
+                                    src/global_planning.cpp   
                                     src/astar.cpp
                                     src/MC_astar.cpp)
 
@@ -151,14 +156,14 @@ add_executable(test_ros             node/test_ros.cpp
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-add_dependencies(test_map_and_MCastar ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(test_map_and_MCAstar ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(test_bezier_curve ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(test_ros ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(global_planning ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(test_map_and_MCastar ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} bezier_curve)
+target_link_libraries(test_map_and_MCAstar ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} bezier_curve)
 target_link_libraries(test_bezier_curve ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} bezier_curve)
-target_link_libraries(test_ros ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} bezier_curve)
+target_link_libraries(global_planning ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} bezier_curve)
 
 #############
 ## Install ##

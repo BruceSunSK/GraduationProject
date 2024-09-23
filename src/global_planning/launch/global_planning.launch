@@ -1,0 +1,6 @@
+<launch>
+
+    <!-- 使用全局MCAstar规划 -->
+    <node pkg="global_planning" name="global_planning" type="global_planning" output="screen" /> 
+
+</launch>

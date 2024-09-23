@@ -1,0 +1,5 @@
+<launch>
+
+    <node pkg="global_planning" name="test_map_and_MCAstar" type="test_map_and_MCAstar" output="screen" /> 
+
+</launch>

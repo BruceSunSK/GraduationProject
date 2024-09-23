@@ -65,7 +65,6 @@ int main(int argc, char *argv[])
 
     // 4.测试最终功能
     generator.load_map(ros::package::getPath("global_planning") + "/map/map1.png");
-    generator.expand_map();
     generator.set_planner(&MC_astar_planner);
     generator.show_map("test", 10);
 

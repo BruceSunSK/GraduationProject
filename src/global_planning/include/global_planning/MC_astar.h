@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <algorithm>
 
-#include "global_planning/global_planning_interface.h"
+#include "global_planning/global_planner_interface.h"
 #include "global_planning/bezier_curve.h"
 
 /// @brief Multi-layered Costmap Astar
