@@ -5,7 +5,8 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 
-#include "global_planning/MC_astar.h"
+#include "global_planning/astar.h"
+#include "global_planning/MCAstar.h"
 
 class GlobalPlanning
 {

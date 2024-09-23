@@ -2,16 +2,16 @@
 #include <ros/package.h>
 
 #include "global_planning/astar.h"
-#include "global_planning/MC_astar.h"
+#include "global_planning/MCAstar.h"
 #include "global_planning/map_generator.h"
 
 int main(int argc, char *argv[])
 {
-    ros::init(argc, argv, "test_map_and_MCastar");
+    ros::init(argc, argv, "test_map_and_MCAstar");
     ros::NodeHandle nh;
 
     Astar astar_planner;
-    MCAstar MC_astar_planner;
+    MCAstar MCAstar_planner;
     MapGenerator generator;
 
     // 0.颜色测试
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
 
     // 4.测试最终功能
     generator.load_map(ros::package::getPath("global_planning") + "/map/map1.png");
-    generator.set_planner(&MC_astar_planner);
+    generator.set_planner(&MCAstar_planner);
     generator.show_map("test", 10);
 
     return 0;

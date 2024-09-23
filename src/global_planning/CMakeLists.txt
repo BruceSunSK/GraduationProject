@@ -139,14 +139,14 @@ add_library(bezier_curve STATIC src/bezier_curve.cpp)
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(test_map_and_MCAstar node/test_map_and_MCastar.cpp
+add_executable(test_map_and_MCAstar node/test_map_and_MCAstar.cpp
                                     src/astar.cpp
-                                    src/MC_astar.cpp)
+                                    src/MCAstar.cpp)
 add_executable(test_bezier_curve    node/test_bezier_curve.cpp)
 add_executable(global_planning      node/global_planning_node.cpp
                                     src/global_planning.cpp   
                                     src/astar.cpp
-                                    src/MC_astar.cpp)
+                                    src/MCAstar.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the

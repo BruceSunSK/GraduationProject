@@ -1,4 +1,4 @@
-#include "global_planning/MC_astar.h"
+#include "global_planning/MCAstar.h"
 
 const std::unordered_map<std::pair<int, int>, 
                          MCAstar::Node::Direction, 
