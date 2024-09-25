@@ -8,6 +8,7 @@
 #include "global_planning/global_planner_interface.h"
 #include "global_planning/bezier_curve.h"
 
+
 /// @brief Multi-layered Costmap Astar
 /// [1] 实现栅格代价值离散化，0~100和255。代价值低处更易通过；100为障碍物，彻底不可通过；255为未探索区域（与建图相关），直接当做障碍物处理。
 /// [2] 代价函数 f = g + w * h
@@ -32,6 +33,54 @@
 /// [5] 由于生成的贝塞尔曲线是稠密的，因此手动进行降采样。按照两点间距离进行判断，使得路径离散。
 class MCAstar : public GlobalPlannerInterface
 {
+public:
+    /// @brief 搜索过程的启发值类型
+    enum class HeuristicsType
+    {
+        None, 
+        Manhattan, 
+        Euclidean,
+        Chebyshev,
+        Octile
+    };
+
+    /// @brief 用于MCAstar规划器使用的参数类型
+    struct MCAstarParams : public GlobalPlannerParams
+    {
+        ~MCAstarParams() {}
+
+        // 地图相关参数
+        struct 
+        {
+            double EXPANDED_K = 1.0;                // 地图膨胀时，膨胀系数
+            uint8_t EXPANDED_MIN_THRESHOLD = 0;     // 原始地图栅格代价值大于等于(>=)该值的栅格，才进行膨胀
+            uint8_t EXPANDED_MAX_THRESHOLD = 100;   // 原始地图栅格代价值小于等于(<=)该值的栅格，才进行膨胀
+            uint8_t OBSTACLE_THRESHOLD = 100;       // 膨胀地图中栅格代价值大于等于(>=)该值的栅格，会被视为障碍物，搜索过程中将直接跳过该栅格
+        } map_params;
+
+        // 代价函数相关参数
+        struct
+        {
+            MCAstar::HeuristicsType HEURISTICS_TYPE = MCAstar::HeuristicsType::Euclidean;   // 启发值类型，共有五种
+            double TRAV_COST_K = 2.0;               // 计算可通行度代价值时的系数
+        } cost_function_params;
+
+        // 冗余点去除相关参数
+
+        // 贝塞尔曲线平滑相关参数
+        struct
+        {
+            double T_STEP = 0.01;       // 贝塞尔曲线的步长，t∈(0, 1)， t越大，生成的贝塞尔曲线离散点的密度就越大。
+        } bezier_curve_params;
+
+        // 降采样相关参数
+        struct
+        {
+            double INTERVAL = 0.3;      // 根据res_转化到实际地图上后的尺寸进行判断，降采样后的路径上两点间距至少大于INTERVAL
+        } downsampling_params;
+    };
+
+private:
     /// @brief 用于描述规划过程中的单个栅格节点
     struct Node
     {
@@ -91,21 +140,12 @@ class MCAstar : public GlobalPlannerInterface
             bool operator()(Node * l, Node * r) const { return l->f > r->f; }
         };
     };
-
-    /// @brief 搜索过程的启发值类型
-    enum class HeuristicsType
-    {
-        None, 
-        Manhattan, 
-        Euclidean,
-        Chebyshev,
-        Octile
-    };
     
 public:
-    MCAstar(HeuristicsType type = HeuristicsType::Euclidean);
+    MCAstar();
     ~MCAstar();
 
+    void initParams(const GlobalPlannerParams & params) override;
     bool setMap(const cv::Mat & map) override;
     bool setStartPoint(const int x, const int y) override;
     bool setStartPoint(const cv::Point2i p) override;
@@ -116,11 +156,11 @@ public:
     bool getSmoothPath(std::vector<cv::Point2d> & path) override;
 
 private:
+    MCAstarParams params_;
+    
     std::vector<std::vector<Node>> map_;
     Node * start_node_;
     Node * end_node_;
-
-    HeuristicsType type_;
 
     BezierCurve bezier_;
 
@@ -131,6 +171,6 @@ private:
     bool removeRedundantNodes(const std::vector<Node *> & raw_nodes, std::vector<Node *> & reduced_nodes);
     void nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Point2i> & path);
     bool smoothPath(const std::vector<cv::Point2i> & reduced_path, std::vector<cv::Point2d> & smooth_path);
-    void downsampling(std::vector<cv::Point2d> & path, double dis);
+    void downsampling(std::vector<cv::Point2d> & path);
     void resetMap();
 };

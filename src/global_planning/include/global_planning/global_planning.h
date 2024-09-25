@@ -14,8 +14,6 @@ public:
     GlobalPlanning(ros::NodeHandle & nh);
     ~GlobalPlanning();
 
-    void set_planner(GlobalPlannerInterface * planner) { planner_ = planner;}
-
 private:
     ros::NodeHandle nh_;
 

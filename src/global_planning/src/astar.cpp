@@ -1,12 +1,20 @@
 #include "global_planning/astar.h"
 
 
-Astar::Astar(HeuristicsType type) : type_(type)
+Astar::Astar()
 {
 }
 
 Astar::~Astar()
 {
+}
+
+/// @brief 对规划器相关变量进行初始化设置，进行参数拷贝设置
+/// @param params 传入的参数
+void Astar::initParams(const GlobalPlannerParams & params)
+{
+    const AstarParams & p = dynamic_cast<const AstarParams &>(params);
+    params_ = p;
 }
 
 bool Astar::setMap(const cv::Mat & map)
@@ -67,7 +75,7 @@ bool Astar::setStartPoint(const int x, const int y)
         return false;
     }
 
-    if (map_[y][x].cost >= 50)
+    if (map_[y][x].cost >= params_.map_params.OBSTACLE_THRESHOLD)
     {
         std::cout << "起点必须设置在非障碍物处！" << '\n';
         init_start_node_ = false;
@@ -95,7 +103,7 @@ bool Astar::setEndPoint(const int x, const int y)
         return false;
     }
 
-    if (map_[y][x].cost >= 50)
+    if (map_[y][x].cost >= params_.map_params.OBSTACLE_THRESHOLD)
     {
         std::cout << "终点必须设置在非障碍物处！\n";
         init_end_node_ = false;
@@ -155,8 +163,8 @@ bool Astar::getRawPath(std::vector<cv::Point2i> & path)
                     Node * new_node = &map_[this_point.y+k][this_point.x+l];
                     cv::Point2i new_point = new_node->point;
 
-                    if (new_node->cost < 50 &&  // 保证该节点是非障碍物节点，才能联通。代价地图[0, 100] 0可通过 100不可通过 
-                        new_node->type != Node::NodeType::CLOSED) // 不对已加入CLOSED的数据再次判断
+                    if (new_node->cost < params_.map_params.OBSTACLE_THRESHOLD &&   // 保证该节点是非障碍物节点，才能联通。代价地图[0, 100] 0可通过 100不可通过 
+                        new_node->type != Node::NodeType::CLOSED)                   // 不对已加入CLOSED的数据再次判断
                     {
                         double dis = sqrt(pow(new_point.x - this_point.x, 2) + pow(new_point.y - this_point.y, 2));
    
@@ -242,7 +250,7 @@ double Astar::getH(cv::Point2i p)
     double h = 0;
     double dx = 0.0;
     double dy = 0.0;
-    switch (type_)
+    switch (params_.cost_function_params.HEURISTICS_TYPE)
     {
     case HeuristicsType::None:
         break;

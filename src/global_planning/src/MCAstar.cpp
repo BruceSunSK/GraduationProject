@@ -16,12 +16,20 @@ const std::unordered_map<std::pair<int, int>,
     };
 
 
-MCAstar::MCAstar(HeuristicsType type) : type_(type)
+MCAstar::MCAstar()
 {
 }
 
 MCAstar::~MCAstar()
 {
+}
+
+/// @brief 对规划器相关变量进行初始化设置，进行参数拷贝设置
+/// @param params 传入的参数
+void MCAstar::initParams(const GlobalPlannerParams & params)
+{
+    const MCAstarParams & p = dynamic_cast<const MCAstarParams &>(params);
+    params_ = p;
 }
 
 /// @brief 对输入的map的进行膨胀，然后设置成为规划器中需要使用的地图
@@ -79,37 +87,38 @@ bool MCAstar::setMap(const cv::Mat & map)
         for (int j = 0; j < cols_; j++)
         {
             const uchar & cost = src.at<uchar>(i, j);
-            if (cost > 100) // 只对正常范围[0, 100]中的值进行膨胀扩展；(100, 255)未定义区域和255为探索区域不进行扩展
-            {
-                continue;
-            }
-            
-            for (int m = -kernel_half_width; m <= kernel_half_width; m++)
-            {
-                if (i + m < 0)
+            if (cost >= params_.map_params.EXPANDED_MIN_THRESHOLD &&
+                cost <= params_.map_params.EXPANDED_MAX_THRESHOLD) // 只对正常范围[0, 100]中的值进行膨胀扩展；(100, 255)未定义区域和255为探索区域不进行扩展。可手动修改
+            {            
+                for (int m = -kernel_half_width; m <= kernel_half_width; m++)
                 {
-                    continue;
-                }
-                if (i + m >= rows_)
-                {
-                    break;
-                }
-                
-                for (int n = -kernel_half_width; n <= kernel_half_width; n++)
-                {
-                    if (j + n < 0)
+                    if (i + m < 0)
                     {
                         continue;
                     }
-                    if (j + n >= cols_)
+                    if (i + m >= rows_)
                     {
                         break;
                     }
                     
-                    uchar new_cost = static_cast<uchar>(kernel.at<double>(m + kernel_half_width, n + kernel_half_width) * cost);
-                    if (out.at<uchar>(i + m, j + n) < new_cost)
+                    for (int n = -kernel_half_width; n <= kernel_half_width; n++)
                     {
-                        out.at<uchar>(i + m, j + n) = new_cost;
+                        if (j + n < 0)
+                        {
+                            continue;
+                        }
+                        if (j + n >= cols_)
+                        {
+                            break;
+                        }
+                        
+                        uchar new_cost = static_cast<uchar>(kernel.at<double>(m + kernel_half_width, n + kernel_half_width) 
+                                                            * cost * params_.map_params.EXPANDED_K);
+                        new_cost = std::min<uchar>(new_cost, 100);
+                        if (out.at<uchar>(i + m, j + n) < new_cost)
+                        {
+                            out.at<uchar>(i + m, j + n) = new_cost;
+                        }
                     }
                 }
             }
@@ -140,6 +149,10 @@ bool MCAstar::setMap(const cv::Mat & map)
     return true;
 }
 
+/// @brief 设置规划路径的起点。以栅格坐标形式，而非行列形式。
+/// @param x 栅格坐标系的x值
+/// @param y 栅格坐标系的y值
+/// @return 该点是否能够成为起点。即该点在地图内部且不在障碍物上。
 bool MCAstar::setStartPoint(const int x, const int y)
 {
     if ((x >= 0 && x < cols_ && y >= 0 && y < rows_) == false)
@@ -149,7 +162,7 @@ bool MCAstar::setStartPoint(const int x, const int y)
         return false;
     }
 
-    if (map_[y][x].cost >= 100)
+    if (map_[y][x].cost >= params_.map_params.OBSTACLE_THRESHOLD)
     {
         std::cout << "起点必须设置在非障碍物处！" << '\n';
         init_start_node_ = false;
@@ -163,11 +176,18 @@ bool MCAstar::setStartPoint(const int x, const int y)
     return true;
 }
 
+/// @brief 设置规划路径的起点。以栅格坐标形式，而非行列形式。
+/// @param p 栅格坐标系的点
+/// @return 该点是否能够成为起点。即该点在地图内部且不在障碍物上。
 bool MCAstar::setStartPoint(const cv::Point2i p)
 {
     return setStartPoint(p.x, p.y);
 }
 
+/// @brief 设置规划路径的终点。以栅格坐标形式，而非行列形式。
+/// @param x 栅格坐标系的x值
+/// @param y 栅格坐标系的y值
+/// @return 该点是否能够成为终点。即该点在地图内部且不在障碍物上。
 bool MCAstar::setEndPoint(const int x, const int y)
 {
     if ((x >= 0 && x < cols_ && y >= 0 && y < rows_) == false)
@@ -177,7 +197,7 @@ bool MCAstar::setEndPoint(const int x, const int y)
         return false;
     }
 
-    if (map_[y][x].cost >= 100)
+    if (map_[y][x].cost >= params_.map_params.OBSTACLE_THRESHOLD)
     {
         std::cout << "终点必须设置在非障碍物处！\n";
         init_end_node_ = false;
@@ -191,6 +211,9 @@ bool MCAstar::setEndPoint(const int x, const int y)
     return true;
 }
 
+/// @brief 设置规划路径的终点。以栅格坐标形式，而非行列形式。
+/// @param p 栅格坐标系的点
+/// @return 该点是否能够成为终点。即该点在地图内部且不在障碍物上。
 bool MCAstar::setEndPoint(const cv::Point2i p)
 {
     return setEndPoint(p.x, p.y);
@@ -260,7 +283,7 @@ bool MCAstar::getSmoothPath(std::vector<cv::Point2d> & path)
     smoothPath(reduced_path, path);
 
     // 5.降采样
-    downsampling(path, res_);
+    downsampling(path);
 
     // 6.复原地图
     resetMap();
@@ -277,7 +300,7 @@ void MCAstar::getH(Node * n)
     double h = 0;
     double dx = 0.0;
     double dy = 0.0;
-    switch (type_)
+    switch (params_.cost_function_params.HEURISTICS_TYPE)
     {
     case HeuristicsType::None:
         break;
@@ -427,11 +450,11 @@ bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
                     Node * new_node = &map_[this_point.y+k][this_point.x+l];
                     cv::Point2i new_point = new_node->point;
 
-                    if (new_node->cost < 100 &&  // 保证该节点是非障碍物节点，才能联通。代价地图[0, 100] 0可通过 100不可通过 
-                        new_node->type != Node::NodeType::CLOSED) // 不对已加入CLOSED的数据再次判断
+                    if (new_node->cost < params_.map_params.OBSTACLE_THRESHOLD &&   // 保证该节点是非障碍物节点，才能联通。代价地图[0, 100] 0可通过 100不可通过 
+                        new_node->type != Node::NodeType::CLOSED)                   // 不对已加入CLOSED的数据再次判断
                     {
                         double dis = std::sqrt(std::pow(new_point.x - this_point.x, 2) + std::pow(new_point.y - this_point.y, 2));
-                        double dis_with_trav_cost = dis * std::exp(new_node->cost * 0.02);
+                        double dis_with_trav_cost = dis * std::exp(new_node->cost * 0.01 * params_.cost_function_params.TRAV_COST_K);
    
                         if (new_node->type == Node::NodeType::UNKNOWN)
                         {
@@ -539,7 +562,7 @@ bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<
     }
     
     // 使用优化后的分段三阶贝塞尔曲线进行平滑
-    bezier_.piecewise_smooth_curve(raw_path, smooth_path);
+    bezier_.piecewise_smooth_curve(raw_path, smooth_path, params_.bezier_curve_params.T_STEP);
 
     // 消除0.5个栅格偏差
     std::for_each(smooth_path.begin(), smooth_path.end(), [this](cv::Point2d & p){
@@ -553,7 +576,7 @@ bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<
 /// @brief 对路径进行降采样。在进行完贝塞尔曲线平滑后进行，避免规划出的路径过于稠密
 /// @param path 待降采样的路径
 /// @param dis 两点间最小间距
-void MCAstar::downsampling(std::vector<cv::Point2d> & path, double dis)
+void MCAstar::downsampling(std::vector<cv::Point2d> & path)
 {
     size_t size = path.size();
     if (size == 0)
@@ -567,7 +590,7 @@ void MCAstar::downsampling(std::vector<cv::Point2d> & path, double dis)
     for (size_t i = 1; i < size - 1; i++)
     {
         double temp_dis = std::hypot(path[i].x - temp_p.x, path[i].y - temp_p.y);
-        if (temp_dis > dis)
+        if (temp_dis > params_.downsampling_params.INTERVAL)
         {
             temp.push_back(path[i]);
             temp_p = path[i];

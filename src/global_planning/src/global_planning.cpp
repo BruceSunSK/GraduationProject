@@ -2,21 +2,58 @@
 
 GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer_)
 {
-    nh_.param("input_map_topic",  input_map_topic_,  std::string("/grid_cost_map/global_occupancy_grid_map"));
-    nh_.param("input_goal_topic", input_goal_topic_, std::string("/move_base_simple/goal"));
-    nh_.param("output_extended_map_topic", output_extended_map_topic_, std::string("extended_map"));
-    nh_.param("output_path_topic",         output_path_topic_,         std::string("path"));
-    nh_.param("output_smooth_path_topic",  output_smooth_path_topic_,  std::string("smooth_path"));
+    // 话题参数初始化
+    nh_.param<std::string>("input_map_topic",  input_map_topic_,  "/grid_cost_map/global_occupancy_grid_map");
+    nh_.param<std::string>("input_goal_topic", input_goal_topic_, "/move_base_simple/goal");
+    nh_.param<std::string>("output_extended_map_topic", output_extended_map_topic_, "extended_map");
+    nh_.param<std::string>("output_path_topic",         output_path_topic_,         "path");
+    nh_.param<std::string>("output_smooth_path_topic",  output_smooth_path_topic_,  "smooth_path");
 
     sub_map_  = nh_.subscribe(input_map_topic_ , 1, &GlobalPlanning::set_map, this);
     sub_goal_ = nh_.subscribe(input_goal_topic_, 1, &GlobalPlanning::set_goal, this);
     pub_extended_map_ = nh.advertise<nav_msgs::OccupancyGrid>(output_extended_map_topic_, 1, true);
     pub_path_         = nh.advertise<nav_msgs::Path>(output_path_topic_, 10);
     pub_smooth_path_  = nh.advertise<nav_msgs::Path>(output_smooth_path_topic_, 10);
+
+    // 规划器初始化
+    std::string planner_name = nh_.param<std::string>("planner_name", "MCAstar");
+    if (planner_name == "MCAstar")
+    {
+        planner_ = new MCAstar;
+        MCAstar::MCAstarParams p;
+        p.map_params.EXPANDED_K                = nh_.param<double>("MCAstar/map_params/EXPANDED_K", 1.0);
+        p.map_params.EXPANDED_MIN_THRESHOLD    = nh_.param<int>("MCAstar/map_params/EXPANDED_MIN_THRESHOLD", 0);
+        p.map_params.EXPANDED_MAX_THRESHOLD    = nh_.param<int>("MCAstar/map_params/EXPANDED_MAX_THRESHOLD", 100);
+        p.map_params.OBSTACLE_THRESHOLD        = nh_.param<int>("MCAstar/map_params/OBSTACLE_THRESHOLD", 100);
+        p.cost_function_params.HEURISTICS_TYPE = static_cast<MCAstar::HeuristicsType>(
+                                                 nh_.param<int>("MCAstar/cost_function_params/HEURISTICS_TYPE", 2));
+        p.cost_function_params.TRAV_COST_K     = nh_.param<double>("MCAstar/cost_function_params/TRAV_COST_K", 2.0);
+        p.bezier_curve_params.T_STEP           = nh_.param<double>("MCAstar/bezier_curve_params/T_STEP", 0.01);
+        p.downsampling_params.INTERVAL         = nh_.param<double>("MCAstar/downsampling_params/INTERVAL", 0.3);
+        planner_->initParams(p);
+    }
+    else if (planner_name == "Astar")
+    {
+        planner_ = new Astar;
+        Astar::AstarParams p;
+        p.map_params.OBSTACLE_THRESHOLD        = nh_.param<int>("Astar/map_params/OBSTACLE_THRESHOLD", 50);
+        p.cost_function_params.HEURISTICS_TYPE = static_cast<Astar::HeuristicsType>(
+                                                 nh_.param<int>("Astar/cost_function_params/HEURISTICS_TYPE", 2));
+        planner_->initParams(p);
+    }
+    else
+    {
+        ROS_FATAL("[GlobalPlanning]: Wrong planner name! exit!");
+        ros::shutdown();
+    }
 }
 
 GlobalPlanning::~GlobalPlanning()
 {
+    if (planner_)
+    {
+        delete planner_;
+    }
 }
 
 void GlobalPlanning::set_map(const nav_msgs::OccupancyGrid::Ptr msg)
@@ -105,8 +142,8 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
         {
             geometry_msgs::PoseStamped m;
             m.header = msg2.header;
-            m.pose.position.x = (p.x + 0.5) * res_ + ori_x_;
-            m.pose.position.y = (p.y + 0.5) * res_ + ori_y_;
+            m.pose.position.x = p.x;
+            m.pose.position.y = p.y;
             m.pose.position.z = 0;
             msg2.poses.push_back(m);
         }

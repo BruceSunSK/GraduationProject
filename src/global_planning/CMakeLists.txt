@@ -19,10 +19,6 @@ find_package(catkin REQUIRED COMPONENTS
 
 find_package(OpenCV REQUIRED QUIET)
 
-if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
-  add_definitions(-DDEBUG)
-endif ()
-
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -129,24 +125,24 @@ include_directories(
 )
 
 ## Declare a C++ library
-add_library(bezier_curve STATIC src/bezier_curve.cpp)
-
+add_library(bezier_curve  SHARED  src/bezier_curve.cpp)
+add_library(astars        SHARED  src/astar.cpp
+                                  src/MCAstar.cpp)
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
 ## either from message generation or dynamic reconfigure
-# add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(astars ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
+target_link_libraries(astars ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} bezier_curve)
 
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(test_map_and_MCAstar node/test_map_and_MCAstar.cpp
-                                    src/astar.cpp
-                                    src/MCAstar.cpp)
+add_executable(test_opencv          node/test_opencv.cpp)
+add_executable(test_ros             node/test_ros.cpp)
 add_executable(test_bezier_curve    node/test_bezier_curve.cpp)
 add_executable(global_planning      node/global_planning_node.cpp
-                                    src/global_planning.cpp   
-                                    src/astar.cpp
-                                    src/MCAstar.cpp)
+                                    src/global_planning.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -156,14 +152,16 @@ add_executable(global_planning      node/global_planning_node.cpp
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-add_dependencies(test_map_and_MCAstar ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(test_bezier_curve ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(global_planning ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(test_opencv        ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(test_ros           ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(test_bezier_curve  ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(global_planning    ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(test_map_and_MCAstar ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} bezier_curve)
+target_link_libraries(test_opencv       ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} astars)
+target_link_libraries(test_ros          ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} astars)
 target_link_libraries(test_bezier_curve ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} bezier_curve)
-target_link_libraries(global_planning ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} bezier_curve)
+target_link_libraries(global_planning   ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} astars)
 
 #############
 ## Install ##

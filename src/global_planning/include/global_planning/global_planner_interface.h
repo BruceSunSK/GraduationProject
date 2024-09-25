@@ -4,12 +4,20 @@
 
 #include <opencv2/core.hpp>
 
+
 class GlobalPlannerInterface
 {
+public:
+    struct GlobalPlannerParams
+    {
+        virtual ~GlobalPlannerParams() {}
+    };
+
 public:
     GlobalPlannerInterface() {}
     virtual ~GlobalPlannerInterface() {}
 
+    virtual void initParams(const GlobalPlannerParams & params) = 0;
     virtual bool setMap(const cv::Mat & map) = 0;
     virtual bool setMapInfo(const double res, const double ori_x, const double ori_y) 
     {

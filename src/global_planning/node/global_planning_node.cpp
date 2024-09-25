@@ -6,8 +6,6 @@ int main(int argc, char *argv[])
     ros::NodeHandle nh("~");
 
     GlobalPlanning GP(nh);
-    MCAstar MCAstar;
-    GP.set_planner(&MCAstar);
 
     ros::spin();
     return 0;

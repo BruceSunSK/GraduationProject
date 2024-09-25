@@ -1,0 +1,16 @@
+MCAstar:
+  map_params:
+    EXPANDED_K: 1.0             # 地图膨胀时，膨胀系数
+    EXPANDED_MIN_THRESHOLD: 0   # 原始地图栅格代价值大于等于(>=)该值的栅格，才进行膨胀
+    EXPANDED_MAX_THRESHOLD: 100 # 原始地图栅格代价值小于等于(<=)该值的栅格，才进行膨胀
+    OBSTACLE_THRESHOLD: 100     # 膨胀地图中栅格代价值大于等于(>=)该值的栅格，会被视为障碍物，搜索过程中将直接跳过该栅格
+
+  cost_function_params:
+    HEURISTICS_TYPE: 2          # 启发值类型，0:None, 1:Manhattan, 2:Euclidean, 3:Chebyshev, 4:Octile
+    TRAV_COST_K: 2.0            # 计算可通行度代价值时的系数
+
+  bezier_curve_params:
+    T_STEP: 0.01                # 贝塞尔曲线的步长，t∈(0, 1)， t越大，生成的贝塞尔曲线离散点的密度就越大。
+
+  downsampling_params:
+    INTERVAL: 0.3               # 根据res_转化到实际地图上后的尺寸进行判断，降采样后的路径上两点间距至少大于INTERVAL

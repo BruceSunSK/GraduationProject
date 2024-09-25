@@ -1,5 +1,5 @@
 <launch>
 
-    <node pkg="global_planning" name="test_map_and_MCAstar" type="test_map_and_MCAstar" output="screen" /> 
+    <node pkg="global_planning" name="test_opencv" type="test_opencv" output="screen" /> 
 
 </launch>
