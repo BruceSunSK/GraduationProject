@@ -3,6 +3,7 @@ MCAstar:
     EXPANDED_K: 1.0             # 地图膨胀时，膨胀系数
     EXPANDED_MIN_THRESHOLD: 0   # 原始地图栅格代价值大于等于(>=)该值的栅格，才进行膨胀
     EXPANDED_MAX_THRESHOLD: 100 # 原始地图栅格代价值小于等于(<=)该值的栅格，才进行膨胀
+    COST_THRESHOLD: 10          # 膨胀地图中栅格代价值大于等于(>=)该值的栅格，会被视为有代价值的栅格，否则代价值为0
     OBSTACLE_THRESHOLD: 100     # 膨胀地图中栅格代价值大于等于(>=)该值的栅格，会被视为障碍物，搜索过程中将直接跳过该栅格
 
   cost_function_params:

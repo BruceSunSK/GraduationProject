@@ -19,7 +19,7 @@ public:
 
     virtual void initParams(const GlobalPlannerParams & params) = 0;
     virtual bool setMap(const cv::Mat & map) = 0;
-    virtual bool setMapInfo(const double res, const double ori_x, const double ori_y) 
+    virtual void setMapInfo(const double res, const double ori_x, const double ori_y) 
     {
         res_ = res;
         ori_x_ = ori_x;
@@ -31,6 +31,7 @@ public:
     virtual bool setEndPoint(const int x, const int y) = 0;
     virtual bool setEndPoint(const cv::Point2i p) = 0;
 
+    virtual bool getProcessedMap(cv::Mat & map) = 0;                    // 处理后的地图，即算法内部真正使用的地图
     virtual bool getRawPath(std::vector<cv::Point2i> & path) = 0;       // 原始的以栅格为单位的路径
     virtual bool getSmoothPath(std::vector<cv::Point2d> & path) = 0;    // 平滑优化后的离散路径，会补齐因栅格坐标系而偏移出的0.5个单位长度的偏差
 

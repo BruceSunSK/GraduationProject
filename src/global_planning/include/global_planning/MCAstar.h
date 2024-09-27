@@ -55,6 +55,7 @@ public:
             double EXPANDED_K = 1.0;                // 地图膨胀时，膨胀系数
             uint8_t EXPANDED_MIN_THRESHOLD = 0;     // 原始地图栅格代价值大于等于(>=)该值的栅格，才进行膨胀
             uint8_t EXPANDED_MAX_THRESHOLD = 100;   // 原始地图栅格代价值小于等于(<=)该值的栅格，才进行膨胀
+            uint8_t COST_THRESHOLD = 10;            // 膨胀地图中栅格代价值大于等于(>=)该值的栅格，会被视为有代价值的栅格，否则代价值为0
             uint8_t OBSTACLE_THRESHOLD = 100;       // 膨胀地图中栅格代价值大于等于(>=)该值的栅格，会被视为障碍物，搜索过程中将直接跳过该栅格
         } map_params;
 
@@ -122,7 +123,7 @@ private:
 
         /// @brief 节点属性
         cv::Point2i point;  // 栅格的xy值
-        double cost = 0;    // 栅格中的代价值
+        uint8_t cost = 0;   // 栅格中的代价值
         double g = 0;       // 起点到该点已探索的可通行距离代价值
         double h = 0;       // 该点到终点的启发值
         double w = 0;       // 该点的权重值，为动态加权
@@ -152,6 +153,7 @@ public:
     bool setEndPoint(const int x, const int y) override;
     bool setEndPoint(const cv::Point2i p) override;
 
+    bool getProcessedMap(cv::Mat & map) override;
     bool getRawPath(std::vector<cv::Point2i> & path) override;
     bool getSmoothPath(std::vector<cv::Point2d> & path) override;
 

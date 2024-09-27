@@ -32,7 +32,7 @@ void MCAstar::initParams(const GlobalPlannerParams & params)
     params_ = p;
 }
 
-/// @brief 对输入的map的进行膨胀，然后设置成为规划器中需要使用的地图
+/// @brief 对输入的map的进行预处理膨胀、过滤小代价值栅格，然后设置成为规划器中需要使用的地图
 /// @param map 输入的原始地图
 /// @return 地图设置是否成功
 bool MCAstar::setMap(const cv::Mat & map)
@@ -114,7 +114,7 @@ bool MCAstar::setMap(const cv::Mat & map)
                         
                         uchar new_cost = static_cast<uchar>(kernel.at<double>(m + kernel_half_width, n + kernel_half_width) 
                                                             * cost * params_.map_params.EXPANDED_K);
-                        new_cost = std::min<uchar>(new_cost, 100);
+                        new_cost = std::min<uchar>(new_cost, 100);  // 防止超过100范围               
                         if (out.at<uchar>(i + m, j + n) < new_cost)
                         {
                             out.at<uchar>(i + m, j + n) = new_cost;
@@ -137,7 +137,15 @@ bool MCAstar::setMap(const cv::Mat & map)
             Node node;
             node.point.x = j;
             node.point.y = i;
-            node.cost = out.at<uchar>(i, j);
+            if (out.at<uchar>(i, j) >= params_.map_params.COST_THRESHOLD)    // 过滤小代价值栅格
+            {
+                node.cost = out.at<uchar>(i, j);   
+            }
+            else
+            {
+                node.cost = 0;
+            }
+            
             row[j] = node;
         }
         map_[i] = row;
@@ -217,6 +225,28 @@ bool MCAstar::setEndPoint(const int x, const int y)
 bool MCAstar::setEndPoint(const cv::Point2i p)
 {
     return setEndPoint(p.x, p.y);
+}
+
+/// @brief 获得处理后的地图，即算法内部真正使用的，经过膨胀、忽视小代价值后的地图
+/// @param map 地图将存入该变量
+/// @return 存入是否成功
+bool MCAstar::getProcessedMap(cv::Mat & map)
+{
+    if (!init_map_)
+    {
+        std::cout << "当前无有效地图！\n";
+        return false;
+    }
+    
+    map = cv::Mat::zeros(rows_, cols_, CV_8UC1);
+    for (size_t i = 0; i < rows_; i++)
+    {
+        for (size_t j = 0; j < cols_; j++)
+        {
+            map.at<uchar>(i, j) = map_[i][j].cost;
+        }
+    }
+    return true;
 }
 
 /// @brief 通过给定的地图、起点、终点规划出一条从起点到终点的路径。

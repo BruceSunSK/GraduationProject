@@ -5,15 +5,15 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
     // 话题参数初始化
     nh_.param<std::string>("input_map_topic",  input_map_topic_,  "/grid_cost_map/global_occupancy_grid_map");
     nh_.param<std::string>("input_goal_topic", input_goal_topic_, "/move_base_simple/goal");
-    nh_.param<std::string>("output_extended_map_topic", output_extended_map_topic_, "extended_map");
-    nh_.param<std::string>("output_path_topic",         output_path_topic_,         "path");
-    nh_.param<std::string>("output_smooth_path_topic",  output_smooth_path_topic_,  "smooth_path");
+    nh_.param<std::string>("output_processed_map_topic", output_processed_map_topic_, "processed_map");
+    nh_.param<std::string>("output_path_topic",          output_path_topic_,          "path");
+    nh_.param<std::string>("output_smooth_path_topic",   output_smooth_path_topic_,   "smooth_path");
 
     sub_map_  = nh_.subscribe(input_map_topic_ , 1, &GlobalPlanning::set_map, this);
     sub_goal_ = nh_.subscribe(input_goal_topic_, 1, &GlobalPlanning::set_goal, this);
-    pub_extended_map_ = nh.advertise<nav_msgs::OccupancyGrid>(output_extended_map_topic_, 1, true);
-    pub_path_         = nh.advertise<nav_msgs::Path>(output_path_topic_, 10);
-    pub_smooth_path_  = nh.advertise<nav_msgs::Path>(output_smooth_path_topic_, 10);
+    pub_processed_map_ = nh.advertise<nav_msgs::OccupancyGrid>(output_processed_map_topic_, 1, true);
+    pub_path_          = nh.advertise<nav_msgs::Path>(output_path_topic_, 10);
+    pub_smooth_path_   = nh.advertise<nav_msgs::Path>(output_smooth_path_topic_, 10);
 
     // 规划器初始化
     std::string planner_name = nh_.param<std::string>("planner_name", "MCAstar");
@@ -24,6 +24,7 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
         p.map_params.EXPANDED_K                = nh_.param<double>("MCAstar/map_params/EXPANDED_K", 1.0);
         p.map_params.EXPANDED_MIN_THRESHOLD    = nh_.param<int>("MCAstar/map_params/EXPANDED_MIN_THRESHOLD", 0);
         p.map_params.EXPANDED_MAX_THRESHOLD    = nh_.param<int>("MCAstar/map_params/EXPANDED_MAX_THRESHOLD", 100);
+        p.map_params.COST_THRESHOLD            = nh_.param<int>("MCAstar/map_params/COST_THRESHOLD", 10);
         p.map_params.OBSTACLE_THRESHOLD        = nh_.param<int>("MCAstar/map_params/OBSTACLE_THRESHOLD", 100);
         p.cost_function_params.HEURISTICS_TYPE = static_cast<MCAstar::HeuristicsType>(
                                                  nh_.param<int>("MCAstar/cost_function_params/HEURISTICS_TYPE", 2));
@@ -75,20 +76,25 @@ void GlobalPlanning::set_map(const nav_msgs::OccupancyGrid::Ptr msg)
     }
     map_flag = planner_->setMap(map);
 
-    // 暂时先取消输出扩展后的map
-    // nav_msgs::OccupancyGrid new_msg;
-    // new_msg.header.frame_id = msg->header.frame_id;
-    // new_msg.header.stamp = ros::Time::now();
-    // new_msg.info = msg->info;
-    // new_msg.data.resize(msg->data.size());
-    // for (size_t i = 0; i < rows; i++)
-    // {
-    //     for (size_t j = 0; j < cols; j++)
-    //     {
-    //         new_msg.data[i * cols + j] = map.at<uchar>(i, j);
-    //     }
-    // }
-    // pub_extended_map_.publish(new_msg);
+    if (map_flag)
+    {
+        cv::Mat processed_map;
+        planner_->getProcessedMap(processed_map);
+
+        nav_msgs::OccupancyGrid new_msg;
+        new_msg.header.frame_id = msg->header.frame_id;
+        new_msg.header.stamp = ros::Time::now();
+        new_msg.info = msg->info;
+        new_msg.data.resize(msg->data.size());
+        for (size_t i = 0; i < rows; i++)
+        {
+            for (size_t j = 0; j < cols; j++)
+            {
+                new_msg.data[i * cols + j] = processed_map.at<uchar>(i, j);
+            }
+        }
+        pub_processed_map_.publish(new_msg);
+    }
 }
 
 void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)

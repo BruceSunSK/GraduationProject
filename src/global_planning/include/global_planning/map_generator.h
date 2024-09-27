@@ -169,21 +169,15 @@ public:
         planner_->setMapInfo(scale_, 0, 0);
 
         show_image_ = cv::Mat::zeros(rows_ * scale_, cols_ * scale_, CV_8UC3);
+        cv::Mat processed_map;
+        planner_->getProcessedMap(processed_map);
         for (size_t i = 0; i < rows_; i++)
         {
             for (size_t j = 0; j < cols_; j++)
             {
-                GridType type = static_cast<GridType>(grid_map_property_.at<uchar>(i, j));
-                if (type == GridType::EXPANDED_OBSTACLE)
-                {
-                    uchar & value = grid_map_.at<uchar>(i, j);
-                    uchar new_value = (100 - value) / 100.0 * 255;
-                    set_show_image_color(i, j, cv::Vec3b(new_value, new_value, new_value));
-                }
-                else
-                {
-                    set_show_image_color(i, j, get_grid_color(type));
-                }
+                uchar & value = processed_map.at<uchar>(i, j);
+                uchar new_value = (100 - value) / 100.0 * 255;
+                set_show_image_color(i, j, cv::Vec3b(new_value, new_value, new_value));
             }
         }
 
@@ -237,7 +231,6 @@ private:
     {
         GROUND,             // 普通地面，即还未进行搜索
         OBSTACLE,           // 障碍物
-        EXPANDED_OBSTACLE,  // 扩展出的障碍物
         OPEN,               // 加入open集合
         CLOSE,              // 加入close集合
         START,              // 起点

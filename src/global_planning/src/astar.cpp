@@ -53,7 +53,8 @@ bool Astar::setMap(const cv::Mat & map)
             Node node;
             node.point.x = j;
             node.point.y = i;
-            node.cost = map.at<uchar>(i, j);
+            node.cost = (map.at<uchar>(i, j) >= params_.map_params.OBSTACLE_THRESHOLD &&
+                         map.at<uchar>(i, j) != 255 ? 100 : 0);
             node.type = Node::NodeType::UNKNOWN;
             row[j] = node;
         }
@@ -120,6 +121,25 @@ bool Astar::setEndPoint(const int x, const int y)
 bool Astar::setEndPoint(const cv::Point2i p)
 {
     return setEndPoint(p.x, p.y);
+}
+
+bool Astar::getProcessedMap(cv::Mat & map)
+{
+    if (!init_map_)
+    {
+        std::cout << "当前无有效地图！\n";
+        return false;
+    }
+    
+    map = cv::Mat::zeros(rows_, cols_, CV_8UC1);
+    for (size_t i = 0; i < rows_; i++)
+    {
+        for (size_t j = 0; j < cols_; j++)
+        {
+            map.at<uchar>(i, j) = map_[i][j].cost;
+        }
+    }
+    return true;
 }
 
 bool Astar::getRawPath(std::vector<cv::Point2i> & path)

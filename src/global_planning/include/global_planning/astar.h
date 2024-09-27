@@ -75,6 +75,7 @@ public:
     bool setEndPoint(const int x, const int y) override;
     bool setEndPoint(const cv::Point2i p) override;
 
+    bool getProcessedMap(cv::Mat & map) override;
     bool getRawPath(std::vector<cv::Point2i> & path) override;
     bool getSmoothPath(std::vector<cv::Point2d> & path) override;
 

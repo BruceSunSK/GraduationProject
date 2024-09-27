@@ -26,10 +26,10 @@ private:
     void set_map(const nav_msgs::OccupancyGrid::Ptr msg);
     void set_goal(const geometry_msgs::PoseStamped::Ptr msg);
 
-    std::string output_extended_map_topic_;
+    std::string output_processed_map_topic_;
     std::string output_path_topic_;
     std::string output_smooth_path_topic_;
-    ros::Publisher pub_extended_map_;
+    ros::Publisher pub_processed_map_;
     ros::Publisher pub_path_;
     ros::Publisher pub_smooth_path_;
 
