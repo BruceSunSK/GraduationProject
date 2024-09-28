@@ -4,7 +4,7 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
-#include "global_planning/path_simplification.h"
+#include "global_planning/tools/path_simplification.h"
 
 
 int main(int argc, char * argv[])

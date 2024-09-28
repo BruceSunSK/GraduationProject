@@ -6,8 +6,8 @@
 #include <algorithm>
 
 #include "global_planning/global_planner_interface.h"
-#include "global_planning/bezier_curve.h"
-#include "global_planning/path_simplification.h"
+#include "global_planning/tools/bezier_curve.h"
+#include "global_planning/tools/path_simplification.h"
 
 
 /// @brief Multi-layered Costmap Astar

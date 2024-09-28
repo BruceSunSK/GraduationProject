@@ -35,10 +35,7 @@ public:
             {
                 out_path.push_back(in_path[i]);
                 l = i;
-                printf("dis: %.3lf, baoliu\n", dis);
             }
-            else
-                printf("dis: %.3lf, buyao \n", dis);
         }
         out_path.push_back(in_path.back());
     }

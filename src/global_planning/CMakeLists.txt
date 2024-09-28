@@ -125,7 +125,7 @@ include_directories(
 )
 
 ## Declare a C++ library
-add_library(bezier_curve  SHARED  src/bezier_curve.cpp)
+add_library(bezier_curve  SHARED  src/tools/bezier_curve.cpp)
 add_library(astars        SHARED  src/astar.cpp
                                   src/MCAstar.cpp)
 ## Add cmake target dependencies of the library
