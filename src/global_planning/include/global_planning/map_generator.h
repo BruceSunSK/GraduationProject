@@ -9,16 +9,16 @@
 
 #include "global_planning/global_planner_interface.h"
 
+
+/// @brief 用于生成、加载、保存自定义地图，然后调用规划器进行规划并显示规划的结果
 class MapGenerator
 {
 public:
-    MapGenerator()
-    {
-    }
-    ~MapGenerator()
-    {
-    }
+    MapGenerator() = default;
+    ~MapGenerator() = default;
 
+    /// @brief 设置要使用的规划期
+    /// @param planner 规划器
     void set_planner(GlobalPlannerInterface * const planner)
     {
         planner_ = planner;
@@ -29,7 +29,10 @@ public:
         }
     }
 
-    // 生成单通道的随机地图，后续可以调用函数扩充阴影
+    /// @brief 生成单通道的随机地图，后续可以调用函数扩充阴影
+    /// @param rows 地图的行数
+    /// @param cols 地图的列数
+    /// @param obs_probability 单个栅格为障碍的概率
     void generate_random_map(const int rows = 0, const int cols = 0, const double obs_probability = 0.3)
     {
         // 设置随机数生成器，用于随机生成障碍物
@@ -63,7 +66,9 @@ public:
         }
     }
 
-    // 生成单通道的空白地图，后续可以手动添加障碍物、调用函数扩充阴影
+    /// @brief 生成单通道的空白地图，后续可以手动添加障碍物、调用函数扩充阴影
+    /// @param rows 地图的行数
+    /// @param cols 地图的列数
     void generate_blank_map(const int rows, const int cols)
     {
         if (rows <= 0)
@@ -90,14 +95,16 @@ public:
         }
     }
 
-    // 添加单点障碍物
+    /// @brief 添加单点障碍物
+    /// @param point 点的坐标
     void add_obstacles(const cv::Point2i & point)
     {
         grid_map_.at<uchar>(point) = 100;
         grid_map_property_.at<uchar>(point) = GridType::OBSTACLE;
     }
 
-    // 添加多个离散点障碍物
+    /// @brief 添加多个离散点障碍物
+    /// @param points 所有点的集合
     void add_obstacles(const std::vector<cv::Point2i> & points)
     {
         for (auto && p : points)
@@ -107,28 +114,37 @@ public:
         }
     }
 
-    // 添加指定两点间的障碍物
+    /// @brief 添加指定两点连线间的障碍物
+    /// @param point1 第一个点的坐标
+    /// @param point2 第二个点的坐标
     void add_obstacles(const cv::Point2i & point1, const cv::Point2i & point2)
     {
         cv::line(grid_map_, point1, point2, 100, 1);
         cv::line(grid_map_property_, point1, point2, GridType::OBSTACLE, 1);
     }
 
-    // 添加指定矩形区域内的障碍物
+    /// @brief 添加指定矩形区域内的障碍物
+    /// @param rectangle 矩形区域
+    /// @param filled 是否对内部进行填充
     void add_obstacles(const cv::Rect & rectangle, const bool filled = false)
     {
         cv::rectangle(grid_map_, rectangle, 100, filled ? -1 : 1);
         cv::rectangle(grid_map_property_, rectangle, GridType::OBSTACLE, filled ? -1 : 1);
     }
 
-    // 添加指定圆形区域内的障碍物
+    /// @brief 添加指定圆形区域内的障碍物
+    /// @param center 圆心坐标
+    /// @param radius 半径
+    /// @param filled 是否对内部进行填充
     void add_obstacles(const cv::Point2i center, const int radius, const bool filled = false)
     {
         cv::circle(grid_map_, center, radius, 100, filled ? -1 : 1);
         cv::circle(grid_map_property_, center, radius, GridType::OBSTACLE, filled ? -1 : 1);
     }
 
-    // 保存地图数据（非图片效果）
+    /// @brief 保存地图数据（非图片效果）到目标地址
+    /// @param path_and_name 保存的路径及文件名
+    /// @return 是否保存成功
     bool save_map(const std::string & path_and_name)
     {
         if (rows_ == 0 || cols_ == 0 || path_and_name.empty())
@@ -139,7 +155,8 @@ public:
         return cv::imwrite(path_and_name, grid_map_);
     }
 
-    // 加载地图数据
+    /// @brief 加载地图数据
+    /// @param path_and_name 加载的路径及文件名
     void load_map(const std::string & path_and_name)
     {
         grid_map_ = cv::imread(path_and_name, cv::ImreadModes::IMREAD_GRAYSCALE);
@@ -162,7 +179,9 @@ public:
         }
     }
 
-    // 展示当前的栅格地图，并且调用实时规划效果
+    /// @brief 展示当前的栅格地图，并且调用实时规划效果。用于最终显示效果
+    /// @param winname 创建的窗口的名字
+    /// @param scale 对栅格进行缩放的比例
     void show_map(const cv::String & winname, const int scale = 5)
     {
         scale_ = scale;
@@ -194,7 +213,7 @@ public:
         }
     }
 
-    // 用于测试最终每栅格颜色
+    /// @brief 用于测试最终每栅格颜色
     void color_test()
     {
         cv::Mat color_test_image = cv::Mat::zeros(1, 8, CV_8UC3);
@@ -227,6 +246,7 @@ private:
     GlobalPlannerInterface * planner_ = nullptr; // 规划器
 
 
+    /// @brief 栅格的属性
     enum GridType : uint8_t
     {
         GROUND,             // 普通地面，即还未进行搜索
@@ -239,24 +259,34 @@ private:
         UNKNOWN             // 一般是未探索区域
     };
 
-    // 输入栅格地图中的某个点(col, row)/(x, y)和颜色，将对应的可视化图像的对应区域设定成所需颜色
+    /// @brief 输入栅格地图中的某个点(col, row)/(x, y)和颜色，将对应的可视化图像的对应区域设定成所需颜色
+    /// @param row 所处的行
+    /// @param col 所处的列
+    /// @param color 要设置的颜色
     void set_show_image_color(const int row, const int col, const cv::Vec3b & color)
     {
         cv::rectangle(show_image_, cv::Rect(col * scale_, row * scale_, scale_, scale_), color, -1);
     }
 
-    // 以点的数据形式实现上述功能
+    /// @brief 输入栅格地图中的某个点(col, row)/(x, y)和颜色，将对应的可视化图像的对应区域设定成所需颜色
+    /// @param point 点的坐标
+    /// @param color 要设置的颜色
     void set_show_image_color(const cv::Point2i & point, const cv::Vec3b & color)
     {
         cv::rectangle(show_image_, cv::Rect(point.x * scale_, point.y * scale_, scale_, scale_), color, -1);
     }
 
-    // 针对小的离散点进行绘制
+    /// @brief 针对小的离散点进行绘制颜色
+    /// @param point 点的坐标
+    /// @param color 要设置的颜色
     void set_show_image_color(const cv::Point2d & point, const cv::Vec3b & color)
     {
         cv::circle(show_image_, point, scale_ / 3, color, -1);
     }
 
+    /// @brief 根据栅格种类映射到对应的颜色
+    /// @param type 栅格种类
+    /// @return 对应的颜色
     static cv::Vec3b get_grid_color(const GridType type)
     {
         switch (type)
@@ -280,6 +310,8 @@ private:
         }
     }
 
+    /// @brief 根据鼠标的点击进行回调操作。实现依次点击的点为起点和终点。设置起点和终点后规划路径并显示
+    /// @param params 由于在类内部操作，opencv不支持类成员函数绑定，因此需要传入this指针
     static void on_mouse_callback(int event, int x, int y, int flags, void * params)
     {
         static int left_click_count = 0;

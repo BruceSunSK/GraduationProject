@@ -6,15 +6,15 @@
 
 #include "global_planning/bezier_curve.h"
 
-int main(int argc, char *argv[])
+
+int main(int argc, char * argv[])
 {
     ros::init(argc, argv, "test_bezier_curve");
     ros::NodeHandle nh;
 
-    BezierCurve bezier;
     std::vector<cv::Point2d> input = {{0, 0}, {50, 0}, {50, 100}, {100, 100}};
     std::vector<cv::Point2d> output;
-    bezier.smooth_curve(input, output);
+    BezierCurve::smooth_curve(input, output);
 
     cv::Mat img = cv::Mat::zeros(101, 101, CV_8UC3);
     img.at<cv::Vec3b>(0, 0) = {0, 0, 255};

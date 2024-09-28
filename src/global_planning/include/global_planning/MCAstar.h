@@ -7,6 +7,7 @@
 
 #include "global_planning/global_planner_interface.h"
 #include "global_planning/bezier_curve.h"
+#include "global_planning/path_simplification.h"
 
 
 /// @brief Multi-layered Costmap Astar
@@ -47,7 +48,7 @@ public:
     /// @brief 用于MCAstar规划器使用的参数类型
     struct MCAstarParams : public GlobalPlannerParams
     {
-        ~MCAstarParams() {}
+        ~MCAstarParams() = default;
 
         // 地图相关参数
         struct 
@@ -143,8 +144,8 @@ private:
     };
     
 public:
-    MCAstar();
-    ~MCAstar();
+    MCAstar() = default;
+    ~MCAstar() = default;
 
     void initParams(const GlobalPlannerParams & params) override;
     bool setMap(const cv::Mat & map) override;
@@ -164,14 +165,11 @@ private:
     Node * start_node_;
     Node * end_node_;
 
-    BezierCurve bezier_;
-
-    void getG(Node * n);
-    void getH(Node * n);
-    void getW(Node * n);
+    void getH(Node * const n);
+    void getW(Node * const n);
     bool generateRawNodes(std::vector<Node *> & raw_nodes);
-    bool removeRedundantNodes(const std::vector<Node *> & raw_nodes, std::vector<Node *> & reduced_nodes);
     void nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Point2i> & path);
+    void removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2i> & reduced_path);
     bool smoothPath(const std::vector<cv::Point2i> & reduced_path, std::vector<cv::Point2d> & smooth_path);
     void downsampling(std::vector<cv::Point2d> & path);
     void resetMap();

@@ -1,14 +1,6 @@
 #include "global_planning/astar.h"
 
 
-Astar::Astar()
-{
-}
-
-Astar::~Astar()
-{
-}
-
 /// @brief 对规划器相关变量进行初始化设置，进行参数拷贝设置
 /// @param params 传入的参数
 void Astar::initParams(const GlobalPlannerParams & params)
@@ -16,6 +8,37 @@ void Astar::initParams(const GlobalPlannerParams & params)
     const AstarParams & p = dynamic_cast<const AstarParams &>(params);
     params_ = p;
 }
+
+double Astar::getH(const cv::Point2i & p)
+{
+    double h = 0;
+    double dx = 0.0;
+    double dy = 0.0;
+    switch (params_.cost_function_params.HEURISTICS_TYPE)
+    {
+    case HeuristicsType::None:
+        break;
+    case HeuristicsType::Manhattan:
+        h = std::fabs(p.x - end_node_->point.x) + std::fabs(p.y - end_node_->point.y);
+        break;
+    case HeuristicsType::Euclidean:
+        h = std::sqrt(std::pow(p.x - end_node_->point.x, 2) + std::pow(p.y - end_node_->point.y, 2));
+        break;
+    case HeuristicsType::Chebyshev:
+        h = std::max(std::abs(p.x - end_node_->point.x), std::abs(p.y - end_node_->point.y));
+        break;
+    case HeuristicsType::Octile:
+        static constexpr double k = 0.4142135623730950; // std::sqrt(2) - 1
+        dx = std::fabs(p.x - end_node_->point.x);
+        dy = std::fabs(p.y - end_node_->point.y);
+        h = std::max(dx, dy) + k * std::min(dx, dy);
+        break;
+    default:
+        break;
+    }
+    return h;
+}
+
 
 bool Astar::setMap(const cv::Mat & map)
 {
@@ -56,9 +79,9 @@ bool Astar::setMap(const cv::Mat & map)
             node.cost = (map.at<uchar>(i, j) >= params_.map_params.OBSTACLE_THRESHOLD &&
                          map.at<uchar>(i, j) != 255 ? 100 : 0);
             node.type = Node::NodeType::UNKNOWN;
-            row[j] = node;
+            row[j] = std::move(node);
         }
-        map_[i] = row;
+        map_[i] = std::move(row);
     }
 
     printf("地图设置成功，大小 %d x %d\n", rows_, cols_);
@@ -163,8 +186,8 @@ bool Astar::getRawPath(std::vector<cv::Point2i> & path)
     // 循环遍历
     while (queue.empty() == false)  // 队列为空，一般意味着无法到达终点
     {
-        Node * this_node = queue.top();
-        cv::Point2i this_point = this_node->point;
+        Node * const this_node = queue.top();
+        const cv::Point2i & this_point = this_node->point;
         queue.pop();
 
         this_node->type = Node::NodeType::CLOSED;
@@ -176,35 +199,37 @@ bool Astar::getRawPath(std::vector<cv::Point2i> & path)
         {
             for (int l = -1; l <= 1; l++)
             {
-                if ((k != 0 || l != 0) &&   // 排除自身节点
-                    (this_point.y+k >= 0 && this_point.y+k < rows_) &&
-                    (this_point.x+l >= 0 && this_point.x+l < cols_)) // 保证当前索引不溢出
+                if (((k != 0 || l != 0) &&                                          // 排除自身节点
+                     (this_point.y + k >= 0 && this_point.y + k < rows_) &&
+                     (this_point.x + l >= 0 && this_point.x + l < cols_)) == false) // 保证当前索引不溢出
                 {
-                    Node * new_node = &map_[this_point.y+k][this_point.x+l];
-                    cv::Point2i new_point = new_node->point;
+                    continue;
+                }
+                
+                Node * const new_node = &map_[this_point.y + k][this_point.x + l];
+                const cv::Point2i & new_point = new_node->point;
 
-                    if (new_node->cost < params_.map_params.OBSTACLE_THRESHOLD &&   // 保证该节点是非障碍物节点，才能联通。代价地图[0, 100] 0可通过 100不可通过 
-                        new_node->type != Node::NodeType::CLOSED)                   // 不对已加入CLOSED的数据再次判断
+                if (new_node->cost < params_.map_params.OBSTACLE_THRESHOLD &&   // 保证该节点是非障碍物节点，才能联通。代价地图[0, 100] 0可通过 100不可通过 
+                    new_node->type != Node::NodeType::CLOSED)                   // 不对已加入CLOSED的数据再次判断
+                {
+                    const double dis = std::hypot(new_point.x - this_point.x, new_point.y - this_point.y);
+
+                    if (new_node->type == Node::NodeType::UNKNOWN)
                     {
-                        double dis = sqrt(pow(new_point.x - this_point.x, 2) + pow(new_point.y - this_point.y, 2));
-   
-                        if (new_node->type == Node::NodeType::UNKNOWN)
+                        new_node->g = this_node->g + dis;
+                        new_node->h = getH(new_point);
+                        new_node->f = new_node->g + new_node->h;
+                        new_node->parent_node = this_node;
+                        new_node->type = Node::NodeType::OPENED;
+                        queue.push(std::move(new_node));
+                    }
+                    else //new_node->type == NodeType::OPENED
+                    {
+                        if (new_node->g > this_node->g + dis)   // 更新最近距离
                         {
                             new_node->g = this_node->g + dis;
-                            new_node->h = getH(new_point);
                             new_node->f = new_node->g + new_node->h;
                             new_node->parent_node = this_node;
-                            new_node->type = Node::NodeType::OPENED;
-                            queue.push(new_node);
-                        }
-                        else //new_node->type == NodeType::OPENED
-                        {
-                            if (new_node->g > this_node->g + dis)   // 更新最近距离
-                            {
-                                new_node->g = this_node->g + dis;
-                                new_node->f = new_node->g + new_node->h;
-                                new_node->parent_node = this_node;
-                            }
                         }
                     }
                 }
@@ -215,7 +240,7 @@ bool Astar::getRawPath(std::vector<cv::Point2i> & path)
 
     // 保存结果路径
     path.clear();
-    Node * path_node = end_node_;
+    const Node * path_node = end_node_;
     while (path_node != nullptr)
     {
         path.push_back(path_node->point);
@@ -264,34 +289,3 @@ bool Astar::getSmoothPath(std::vector<cv::Point2d> & path)
 
     return true;
 }
-
-double Astar::getH(cv::Point2i p)
-{
-    double h = 0;
-    double dx = 0.0;
-    double dy = 0.0;
-    switch (params_.cost_function_params.HEURISTICS_TYPE)
-    {
-    case HeuristicsType::None:
-        break;
-    case HeuristicsType::Manhattan:
-        h = std::fabs(p.x - end_node_->point.x) + std::fabs(p.y - end_node_->point.y);
-        break;
-    case HeuristicsType::Euclidean:
-        h = std::sqrt(std::pow(p.x - end_node_->point.x, 2) + std::pow(p.y - end_node_->point.y, 2));
-        break;
-    case HeuristicsType::Chebyshev:
-        h = std::max(std::abs(p.x - end_node_->point.x), std::abs(p.y - end_node_->point.y));
-        break;
-    case HeuristicsType::Octile:
-        static constexpr double k = 0.4142135623730950; // std::sqrt(2) - 1
-        dx = std::fabs(p.x - end_node_->point.x);
-        dy = std::fabs(p.y - end_node_->point.y);
-        h = std::max(dx, dy) + k * std::min(dx, dy);
-        break;
-    default:
-        break;
-    }
-    return h;
-}
-

@@ -5,31 +5,33 @@
 #include <opencv2/core.hpp>
 
 
+/// @brief 所有规划器的接口类
 class GlobalPlannerInterface
 {
 public:
+    /// @brief 所有规划器参数的接口类
     struct GlobalPlannerParams
     {
-        virtual ~GlobalPlannerParams() {}
+        virtual ~GlobalPlannerParams() = default;
     };
 
 public:
-    GlobalPlannerInterface() {}
-    virtual ~GlobalPlannerInterface() {}
+    GlobalPlannerInterface() = default;
+    virtual ~GlobalPlannerInterface() = default;
 
-    virtual void initParams(const GlobalPlannerParams & params) = 0;
-    virtual bool setMap(const cv::Mat & map) = 0;
-    virtual void setMapInfo(const double res, const double ori_x, const double ori_y) 
+    virtual void initParams(const GlobalPlannerParams & params) = 0;                    // 初始化规划器参数
+    virtual bool setMap(const cv::Mat & map) = 0;                                       // 设置栅格地图
+    virtual void setMapInfo(const double res, const double ori_x, const double ori_y)   // 设置地图的参数信息
     {
         res_ = res;
         ori_x_ = ori_x;
         ori_y_ = ori_y;
         init_map_info_ = true;
     }
-    virtual bool setStartPoint(const int x, const int y) = 0;
-    virtual bool setStartPoint(const cv::Point2i p) = 0;
-    virtual bool setEndPoint(const int x, const int y) = 0;
-    virtual bool setEndPoint(const cv::Point2i p) = 0;
+    virtual bool setStartPoint(const int x, const int y) = 0;           // 设置起点栅格坐标
+    virtual bool setStartPoint(const cv::Point2i p) = 0;                // 设置起点栅格坐标
+    virtual bool setEndPoint(const int x, const int y) = 0;             // 设置终点栅格坐标
+    virtual bool setEndPoint(const cv::Point2i p) = 0;                  // 设置终点栅格坐标
 
     virtual bool getProcessedMap(cv::Mat & map) = 0;                    // 处理后的地图，即算法内部真正使用的地图
     virtual bool getRawPath(std::vector<cv::Point2i> & path) = 0;       // 原始的以栅格为单位的路径

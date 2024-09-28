@@ -3,10 +3,11 @@
 
 #include <opencv2/core.hpp>
 
+
 class BezierCurve
 {
 public:
-    BezierCurve() {}
+    BezierCurve() = default;
     ~BezierCurve() = default;
 
     /// @brief 根据控制点进行贝塞尔平滑。用t_step控制生成点的数目
@@ -15,31 +16,31 @@ public:
     /// @param bezier_points 输出的平滑后的稠密序列点
     /// @param t_step 贝塞尔平滑中t的步增长度，t∈[0, 1]，每一步生成一个输出点
     template <typename PointType>
-    void smooth_curve(const std::vector<cv::Point_<PointType>> & control_points, std::vector<cv::Point2d> & bezier_points, double t_step = 0.01)
+    static void smooth_curve(const std::vector<cv::Point_<PointType>> & control_points, std::vector<cv::Point2d> & bezier_points, double t_step = 0.01)
     {
+        bezier_points.clear();
+
         if (control_points.size() == 0)
         {
-            bezier_points.clear();
             return;
         }
         if (control_points.size() == 1)
         {
-            bezier_points.clear();
-            bezier_points.push_back(cv::Point2d(control_points[0].x, control_points[0].y));
+            bezier_points.push_back(cv::Point2d(control_points.front().x, control_points.front().y));
             return;
         }
         
-        bezier_points.clear();
-        size_t n = control_points.size() - 1;
+        const size_t n = control_points.size() - 1;
         for (double t = 0; t <= 1; t += t_step)
         {
-            cv::Point2d pt(0.0f, 0.0f);
+            cv::Point2d pt(0.0, 0.0);
             for (size_t i = 0; i <= n; i++)
             {
-                pt.x += (C_n_r(n, i) * std::pow(t, i) * std::pow(1 - t, n - i) * control_points[i].x);
-                pt.y += (C_n_r(n, i) * std::pow(t, i) * std::pow(1 - t, n - i) * control_points[i].y);
+                const double coff = C_n_r(n, i) * std::pow(t, i) * std::pow(1 - t, n - i);
+                pt.x += (coff * control_points[i].x);
+                pt.y += (coff * control_points[i].y);
             }
-            bezier_points.push_back(pt);
+            bezier_points.push_back(std::move(pt));
         }
     }
 
@@ -50,10 +51,10 @@ public:
     /// @param bezier_points 输出的平滑后的稠密序列点
     /// @param t_step 贝塞尔平滑中t的步增长度，t∈[0, 1]，每一步生成一个输出点
     template <typename PointType>
-    void piecewise_smooth_curve(const std::vector<cv::Point_<PointType>> & input_points, std::vector<cv::Point2d> & bezier_points, double t_step = 0.01)
+    static void piecewise_smooth_curve(const std::vector<cv::Point_<PointType>> & input_points, std::vector<cv::Point2d> & bezier_points, double t_step = 0.01)
     {
         bezier_points.clear();
-        size_t size = input_points.size();
+        const size_t size = input_points.size();
         if (size <= 4)  // 4个点以下就不分段，直接拟合。
         {
             smooth_curve(input_points, bezier_points, t_step);
@@ -83,7 +84,7 @@ public:
 
             // 插入的新节点也将作为下一段贝塞尔曲线的第一个节点
             sub_points.clear();
-            sub_points.push_back(pi);
+            sub_points.push_back(std::move(pi));
         }
 
         // 最后一段特殊处理，可能是三阶贝塞尔，也可能是二阶贝塞尔
@@ -96,9 +97,13 @@ public:
 private:
     static std::vector<std::vector<size_t>> combination_table_;
 
-    size_t C_n_r(size_t n, size_t r)
+    /// @brief 计算组合数
+    /// @param n 下标n
+    /// @param r 上表r
+    /// @return 组合数结果
+    static size_t C_n_r(size_t n, size_t r)
     {
-        size_t size = combination_table_.size();
+        const size_t size = combination_table_.size();
         if (n < size)
         {
             return combination_table_[n][r];
@@ -114,7 +119,7 @@ private:
                 {
                     row[j] = combination_table_[i - 1][j - 1] + combination_table_[i - 1][j];
                 }
-                combination_table_.push_back(row);
+                combination_table_.push_back(std::move(row));
             }
             return combination_table_[n][r];
         }

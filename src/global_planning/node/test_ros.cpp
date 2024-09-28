@@ -7,6 +7,7 @@
 #include "global_planning/MCAstar.h"
 #include "global_planning/astar.h"
 
+
 ros::Publisher path_pub;
 ros::Publisher smooth_path_pub;
 ros::Publisher processed_map_pub;

@@ -1,0 +1,5 @@
+<launch>
+
+    <node pkg="global_planning" name="test_path_simplification" type="test_path_simplification" output="screen" /> 
+
+</launch>

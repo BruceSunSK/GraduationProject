@@ -5,7 +5,8 @@
 #include "global_planning/MCAstar.h"
 #include "global_planning/map_generator.h"
 
-int main(int argc, char *argv[])
+
+int main(int argc, char * argv[])
 {
     ros::init(argc, argv, "test_opencv");
     ros::NodeHandle nh;

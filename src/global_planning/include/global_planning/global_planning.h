@@ -1,12 +1,14 @@
+#pragma once
 #include <ros/ros.h>
 #include <nav_msgs/Path.h>
-#include <nav_msgs/OccupancyGrid.h>
+#include <nav_msgs/OccupancyGrid.h>  
 #include <geometry_msgs/PoseStamped.h>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 
 #include "global_planning/astar.h"
 #include "global_planning/MCAstar.h"
+
 
 class GlobalPlanning
 {

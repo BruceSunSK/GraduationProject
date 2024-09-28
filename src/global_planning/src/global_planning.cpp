@@ -1,5 +1,8 @@
 #include "global_planning/global_planning.h"
 
+
+/// @brief 完成全局规划的初始化。设定ros相关的话题内容；设定选用的规划器以及对应的参数
+/// @param nh ros节点句柄
 GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer_)
 {
     // 话题参数初始化
@@ -16,7 +19,7 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
     pub_smooth_path_   = nh.advertise<nav_msgs::Path>(output_smooth_path_topic_, 10);
 
     // 规划器初始化
-    std::string planner_name = nh_.param<std::string>("planner_name", "MCAstar");
+    const std::string planner_name = nh_.param<std::string>("planner_name", "MCAstar");
     if (planner_name == "MCAstar")
     {
         planner_ = new MCAstar;
@@ -49,6 +52,7 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
     }
 }
 
+/// @brief 释放资源，delete规划器
 GlobalPlanning::~GlobalPlanning()
 {
     if (planner_)
@@ -57,10 +61,11 @@ GlobalPlanning::~GlobalPlanning()
     }
 }
 
+/// @brief 设置地图的回调函数，完成栅格地图的设置、地图属性的设置，得到算法内部处理后的地图并发布
 void GlobalPlanning::set_map(const nav_msgs::OccupancyGrid::Ptr msg)
 {
-    int rows = msg->info.height;
-    int cols = msg->info.width;
+    const int rows = msg->info.height;
+    const int cols = msg->info.width;
     res_ = msg->info.resolution;
     ori_x_ = msg->info.origin.position.x;
     ori_y_ = msg->info.origin.position.y;
@@ -97,6 +102,7 @@ void GlobalPlanning::set_map(const nav_msgs::OccupancyGrid::Ptr msg)
     }
 }
 
+/// @brief 订阅到终点时捕捉车辆当前位置并设置为起点；话题终点设置为重点；发布原始路径和平滑后的路径。
 void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
 {
     // 起点

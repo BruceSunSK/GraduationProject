@@ -21,7 +21,7 @@ public:
 
     struct AstarParams : public GlobalPlannerParams
     {
-        ~AstarParams() {}
+        ~AstarParams() = default;
 
         // 地图相关参数
         struct 
@@ -65,8 +65,8 @@ private:
     };
 
 public:
-    Astar();
-    ~Astar();
+    Astar() = default;
+    ~Astar() = default;
 
     void initParams(const GlobalPlannerParams & params) override;
     bool setMap(const cv::Mat & map) override;
@@ -86,5 +86,5 @@ private:
     Node * start_node_;
     Node * end_node_;
 
-    double getH(cv::Point2i p);
+    double getH(const cv::Point2i & p);
 };
