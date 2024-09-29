@@ -15,7 +15,9 @@ int main(int argc, char * argv[])
     std::vector<cv::Point2i> input = { {0, 50}, {10, 50}, {20, 60}, {30, 55}, {40, 45},
                                        {50, 50}, {60, 60}, {70, 40}, {80, 30}, {90, 35}, {100, 50} };
     std::vector<cv::Point2i> output;
-    PathSimplification::perpendicular_distance_threshold(input, output, 10);
+    // PathSimplification::distance_threshold(input, output, 10);
+    // PathSimplification::angle_threshold(input, output, 20);
+    PathSimplification::Douglas_Peucker(input, output, 10);
 
     cv::Mat img = cv::Mat::zeros(101, 101, CV_8UC3);
     for (size_t i = 1; i < input.size(); i++)
