@@ -130,42 +130,41 @@ public:
             return;
         }
 
-        // 找距离最远点
-        const Point base = in_path.back() - in_path.front();
-        const double base_length = std::hypot<double>(base.x, base.y);
-        int index = 0;
-        double max = 0;
-        for (size_t i = 1; i < in_path.size() - 1; i++)
-        {
-            const Point v = in_path[i] - in_path.front();
-            const double dis = std::abs(v.cross(base)) / base_length;
-            if (dis > max)
+        // 递归实现
+        std::function<void(const int, const int)> rdp =
+            [&in_path, &out_path, threshold, &rdp](const int i_l, const int i_r) -> void
             {
-                max = dis;
-                index = i;
-            }
-        }
+                // 找距离最远点
+                const Point base = in_path[i_r] - in_path[i_l];
+                const double base_length = std::hypot<double>(base.x, base.y);
+                int index = 0;
+                double max = 0;
+                for (size_t i = i_l + 1; i <= i_r - 1; i++)
+                {
+                    const Point v = in_path[i] - in_path[i_l];
+                    const double dis = std::abs(v.cross(base)) / base_length;
+                    if (dis > max)
+                    {
+                        max = dis;
+                        index = i;
+                    }
+                }
 
-        // 判断最远点距离是否超过阈值
-        if (max > threshold)    // 超过就分别对该点左右两侧进行递归计算
-        {
-            std::vector<cv::Point_<PointType>> in_l;
-            in_l.assign(in_path.begin(), in_path.begin() + index + 1);
-            std::vector<cv::Point_<PointType>> out_l;
-            Douglas_Peucker(in_l, out_l, threshold);
-            out_path.insert(out_path.end(), out_l.begin(), out_l.end() - 1);    // 左边多删除末尾点，以防重复
+                // 判断最远点距离是否超过阈值
+                if (max > threshold)    // 超过就分别对该点左右两侧进行递归计算
+                {
+                    rdp(i_l, index);
+                    out_path.pop_back();    // 左边多删除末尾点，以防重复
+                    rdp(index, i_r);
+                }
+                else                    // 不超过就只保留起点和终点，其余都删除
+                {
+                    out_path.push_back(in_path[i_l]);
+                    out_path.push_back(in_path[i_r]);
+                }
+            };
 
-            std::vector<cv::Point_<PointType>> in_r;
-            in_r.assign(in_path.begin() + index, in_path.end());
-            std::vector<cv::Point_<PointType>> out_r;
-            Douglas_Peucker(in_r, out_r, threshold);
-            out_path.insert(out_path.end(), out_r.begin(), out_r.end());
-        }
-        else                    // 不超过就只保留起点和终点，其余都删除
-        {
-            out_path.push_back(in_path.front());
-            out_path.push_back(in_path.back());
-        }
+        rdp(0, n - 1);
     }
     
 private:
