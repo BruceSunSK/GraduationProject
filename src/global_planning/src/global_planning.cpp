@@ -32,6 +32,9 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
         p.cost_function_params.HEURISTICS_TYPE = static_cast<MCAstar::HeuristicsType>(
                                                  nh_.param<int>("MCAstar/cost_function_params/HEURISTICS_TYPE", 2));
         p.cost_function_params.TRAV_COST_K     = nh_.param<double>("MCAstar/cost_function_params/TRAV_COST_K", 2.0);
+        p.path_simplification_params.PATH_SIMPLIFICATION_TYPE = static_cast<MCAstar::PathSimplificationType>(
+                                                 nh_.param<int>("MCAstar/path_simplification_params/PATH_SIMPLIFICATION_TYPE", 0));
+        p.path_simplification_params.THRESHOLD = nh_.param<double>("MCAstar/path_simplification_params/THRESHOLD", 1.0);
         p.bezier_curve_params.T_STEP           = nh_.param<double>("MCAstar/bezier_curve_params/T_STEP", 0.01);
         p.downsampling_params.INTERVAL         = nh_.param<double>("MCAstar/downsampling_params/INTERVAL", 0.3);
         planner_->initParams(p);

@@ -10,6 +10,10 @@ MCAstar:
     HEURISTICS_TYPE: 2          # 启发值类型，0:None, 1:Manhattan, 2:Euclidean, 3:Chebyshev, 4:Octile
     TRAV_COST_K: 2.0            # 计算可通行度代价值时的系数
 
+  path_simplification_params:
+    PATH_SIMPLIFICATION_TYPE: 0 # 去除冗余点方法， 0:DouglasPeucker, 1:DistanceThreshold, 2:AngleThreshold
+    THRESHOLD: 1.2              # 去除冗余点的阈值。DouglasPeucker 和 DistanceThreshold 方法单位为m， AngleThreshold 方法单位为rad
+      
   bezier_curve_params:
     T_STEP: 0.01                # 贝塞尔曲线的步长，t∈(0, 1)， t越大，生成的贝塞尔曲线离散点的密度就越大。
 

@@ -28,6 +28,8 @@ int main(int argc, char * argv[])
     MCAstar_params.map_params.OBSTACLE_THRESHOLD = 100;
     MCAstar_params.cost_function_params.HEURISTICS_TYPE = MCAstar::HeuristicsType::Euclidean;
     MCAstar_params.cost_function_params.TRAV_COST_K = 2.0;
+    MCAstar_params.path_simplification_params.PATH_SIMPLIFICATION_TYPE = MCAstar::PathSimplificationType::DouglasPeucker;
+    MCAstar_params.path_simplification_params.THRESHOLD = 12;
     MCAstar_params.bezier_curve_params.T_STEP = 0.01;
     MCAstar_params.downsampling_params.INTERVAL = 0.3;
     MCAstar_planner->initParams(MCAstar_params);

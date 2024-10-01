@@ -10,7 +10,7 @@
 class Astar : public GlobalPlannerInterface
 {
 public:
-    enum class HeuristicsType
+    enum class HeuristicsType : uint8_t
     {
         None, 
         Manhattan, 
@@ -39,7 +39,7 @@ public:
 private:
     struct Node
     {
-        enum class NodeType
+        enum class NodeType : uint8_t
         {
             UNKNOWN,
             CLOSED,

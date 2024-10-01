@@ -24,8 +24,9 @@
 ///         然后，w = (1 - lnP), P ∈ (0, 1), w ∈ (1, ∞)。
 ///         可以实现在障碍物密集的区域实现避免搜索步长过大，出现局部最优，有效避开障碍物；在障碍物较少的区域中，加快搜索，减少搜索栅格个数。
 /// [3] 去除冗余点
-///      1. 在搜索过程中使用Direction枚举记录节点的扩展方向（即子节点位于父节点的方向）。
-///      2. 在冗余点剔除时，若连续两个点的扩展方向相同，则剔除前一个节点。
+///      1. DouglasPeucker法。以起点终点连线为基线，找到最远的点，超过threshold则只保留起点终点；否则以该点递归左右两侧。
+///      2. DistanceThreshold法。以起点开始依次向该点之后连线，判断该点之后的点到该直线距离，超过阈值则保留该点，并重置上述过程；否则舍去，继续向后。
+///      3. AngleThreshold。法 逻辑和DistanceThreshold法一致，只不过判断方法变成了角度（<新点，原直线起点连线> 和 <原直线>的角度）。
 /// [4] 引入贝塞尔曲线进行分段平滑。
 ///      1. 首先将路径点去除起点和终点后每两个划分为1组。第一组额外包括起点，最后一组额外包括终点
 ///      2. 然后第i组的第二个点与第i+1组的第一个点线性插值的中点作为新插入节点，同时作为第i组和第i+1组的成员。
@@ -36,13 +37,21 @@ class MCAstar : public GlobalPlannerInterface
 {
 public:
     /// @brief 搜索过程的启发值类型
-    enum class HeuristicsType
+    enum class HeuristicsType : uint8_t
     {
         None, 
         Manhattan, 
         Euclidean,
         Chebyshev,
         Octile
+    };
+
+    /// @brief 去除冗余点时使用的方法类型
+    enum class PathSimplificationType : uint8_t
+    {
+        DouglasPeucker,
+        DistanceThreshold,
+        AngleThreshold
     };
 
     /// @brief 用于MCAstar规划器使用的参数类型
@@ -64,10 +73,15 @@ public:
         struct
         {
             MCAstar::HeuristicsType HEURISTICS_TYPE = MCAstar::HeuristicsType::Euclidean;   // 启发值类型，共有五种
-            double TRAV_COST_K = 2.0;               // 计算可通行度代价值时的系数
+            double TRAV_COST_K = 2.0;   // 计算可通行度代价值时的系数
         } cost_function_params;
 
         // 冗余点去除相关参数
+        struct 
+        {
+            MCAstar::PathSimplificationType PATH_SIMPLIFICATION_TYPE = MCAstar::PathSimplificationType::DouglasPeucker; // 去除冗余点方法，共有三种
+            double THRESHOLD = 1.0;     // 去除冗余点的阈值。DouglasPeucker 和 DistanceThreshold 方法单位为m， AngleThreshold 方法单位为rad
+        } path_simplification_params;
 
         // 贝塞尔曲线平滑相关参数
         struct

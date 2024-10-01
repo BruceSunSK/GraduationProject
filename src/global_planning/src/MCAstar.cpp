@@ -546,25 +546,34 @@ void MCAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, s
         return;
     }
 
-    // 1.使用垂距限值法去除冗余点
-    // 测试结果：× 1. 能够较为有效的保留对称的形状；但是只去除一轮的话，（由于节点特别密集）会存在连续的2/3个点都存在，还需要二次去除
-    //           2. 过于稀疏时，经过平滑会出现穿墙（理论上不算是这个算法的锅）
-    // std::vector<cv::Point2i> v;
-    // PathSimplification::distance_threshold(raw_path, v, 0.3);
-    // PathSimplification::distance_threshold(v, reduced_path, 1.2);
-
-    // 2.使用角度限值法去除冗余点
-    // 测试结果：× 1. 感觉容易破坏对称结构。本来对称的节点去除冗余点后有较为明显的差异，导致效果变差。
-    //         √ 2. 在长直线路径下，能够有效去除多余歪点，只剩起点终点。
-    //           3. 过于稀疏时，经过平滑会出现穿墙（理论上不算是这个算法的锅）
-    // PathSimplification::angle_threshold(raw_path, reduced_path, 3);
-
-    // 3.使用Douglas-Peucker法去除冗余点
+    switch (params_.path_simplification_params.PATH_SIMPLIFICATION_TYPE)
+    {
+    // 1.使用Douglas-Peucker法去除冗余点
     // 测试结果：× 1. 也会破坏对称结构。
     //         √ 2. 但保留的点都很具有特征点代表性
     //         √ 3. 感觉在徐工地图上超级棒，甚至感觉不用平滑，用原始的折现也不错。
-    //           4. 过于稀疏时，经过平滑会出现穿墙（理论上不算是这个算法的锅）
-    PathSimplification::Douglas_Peucker(raw_path, reduced_path, 2);
+    case PathSimplificationType::DouglasPeucker:
+        PathSimplification::Douglas_Peucker(raw_path, reduced_path, params_.path_simplification_params.THRESHOLD / res_);
+        break;
+
+    // 2.使用垂距限值法去除冗余点
+    // 测试结果：√ 1. 能够较为有效的保留对称的形状；
+    //         × 2. 但是只去除一轮的话，（由于节点特别密集）会存在连续的2 / 3个点都存在，还需要二次去除
+    case PathSimplificationType::DistanceThreshold:
+        PathSimplification::distance_threshold(raw_path, reduced_path, params_.path_simplification_params.THRESHOLD / res_);
+        break;
+
+    // 3.使用角度限值法去除冗余点
+    // 测试结果：× 1. 感觉容易破坏对称结构。本来对称的节点去除冗余点后有较为明显的差异，导致效果变差。
+    //         √ 2. 在长直线路径下，能够有效去除多余歪点，只剩起点终点。
+    case PathSimplificationType::AngleThreshold:
+        PathSimplification::angle_threshold(raw_path, reduced_path, params_.path_simplification_params.THRESHOLD);
+        break;
+
+    default:
+        reduced_path = raw_path;
+        break;
+    }
 }
 
 /// @brief 使用分段三阶贝塞尔曲线进行平滑。该函数将栅格整数坐标xy的值进行平滑，得到平滑路径后再消除栅格偏差的0.5个单位长度
