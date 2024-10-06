@@ -141,7 +141,7 @@ private:
         uint8_t cost = 0;   // 栅格中的代价值
         double g = 0;       // 起点到该点已探索的可通行距离代价值
         double h = 0;       // 该点到终点的启发值
-        double w = 0;       // 该点的权重值，为动态加权
+        double w = 1;       // 该点的权重值，为动态加权
         double w_cost = 0;  // 该点到终点矩形区域内代价值的和，为计算权重的中间量
         double f = 0;       // 该点总共的代价值 f = g + w * h
         NodeType type = NodeType::UNKNOWN;  // 节点种类，标识是否已探索

@@ -644,7 +644,7 @@ void MCAstar::resetMap()
         {
             map_[i][j].g = 0;
             map_[i][j].h = 0;
-            map_[i][j].w = 0;
+            map_[i][j].w = 1;
             map_[i][j].w_cost = 0;
             map_[i][j].f = 0;
             map_[i][j].type = Node::NodeType::UNKNOWN;
