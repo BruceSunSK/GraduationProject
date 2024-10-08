@@ -1,6 +1,8 @@
 #include "global_planning/MCAstar.h"
 
 
+// ========================= MCAstar::Node =========================
+
 const std::unordered_map<std::pair<int, int>,
                          MCAstar::Node::Direction, 
                          MCAstar::Node::HashPair, 
@@ -15,19 +17,17 @@ const std::unordered_map<std::pair<int, int>,
         {{ 1, -1}, Direction::SW},
         {{ 1,  1}, Direction::SE}
     };
+// ========================= MCAstar::Node =========================
 
 
-/// @brief 对规划器相关变量进行初始化设置，进行参数拷贝设置
-/// @param params 传入的参数
+// ========================= MCAstar =========================
+
 void MCAstar::initParams(const GlobalPlannerParams & params)
 {
     const MCAstarParams & p = dynamic_cast<const MCAstarParams &>(params);
     params_ = p;
 }
 
-/// @brief 对输入的map的进行预处理膨胀、过滤小代价值栅格，然后设置成为规划器中需要使用的地图
-/// @param map 输入的原始地图
-/// @return 地图设置是否成功
 bool MCAstar::setMap(const cv::Mat & map)
 {
     // 保证地图合理
@@ -150,10 +150,6 @@ bool MCAstar::setMap(const cv::Mat & map)
     return true;
 }
 
-/// @brief 设置规划路径的起点。以栅格坐标形式，而非行列形式。
-/// @param x 栅格坐标系的x值
-/// @param y 栅格坐标系的y值
-/// @return 该点是否能够成为起点。即该点在地图内部且不在障碍物上。
 bool MCAstar::setStartPoint(const int x, const int y)
 {
     if ((x >= 0 && x < cols_ && y >= 0 && y < rows_) == false)
@@ -177,18 +173,11 @@ bool MCAstar::setStartPoint(const int x, const int y)
     return true;
 }
 
-/// @brief 设置规划路径的起点。以栅格坐标形式，而非行列形式。
-/// @param p 栅格坐标系的点
-/// @return 该点是否能够成为起点。即该点在地图内部且不在障碍物上。
 bool MCAstar::setStartPoint(const cv::Point2i p)
 {
     return setStartPoint(p.x, p.y);
 }
 
-/// @brief 设置规划路径的终点。以栅格坐标形式，而非行列形式。
-/// @param x 栅格坐标系的x值
-/// @param y 栅格坐标系的y值
-/// @return 该点是否能够成为终点。即该点在地图内部且不在障碍物上。
 bool MCAstar::setEndPoint(const int x, const int y)
 {
     if ((x >= 0 && x < cols_ && y >= 0 && y < rows_) == false)
@@ -212,18 +201,12 @@ bool MCAstar::setEndPoint(const int x, const int y)
     return true;
 }
 
-/// @brief 设置规划路径的终点。以栅格坐标形式，而非行列形式。
-/// @param p 栅格坐标系的点
-/// @return 该点是否能够成为终点。即该点在地图内部且不在障碍物上。
 bool MCAstar::setEndPoint(const cv::Point2i p)
 {
     return setEndPoint(p.x, p.y);
 }
 
-/// @brief 获得处理后的地图，即算法内部真正使用的，经过膨胀、忽视小代价值后的地图
-/// @param map 地图将存入该变量
-/// @return 存入是否成功
-bool MCAstar::getProcessedMap(cv::Mat & map)
+bool MCAstar::getProcessedMap(cv::Mat & map) const
 {
     if (!init_map_)
     {
@@ -242,9 +225,6 @@ bool MCAstar::getProcessedMap(cv::Mat & map)
     return true;
 }
 
-/// @brief 通过给定的地图、起点、终点规划出一条从起点到终点的路径。
-/// @param path 规划出的路径。该路径是栅格坐标系下原始路径点，没有冗余点剔除、平滑、降采样操作。
-/// @return 是否规划成功
 bool MCAstar::getRawPath(std::vector<cv::Point2i> & path)
 {
     if ( !(init_map_ && init_start_node_ && init_end_node_) )
@@ -276,9 +256,6 @@ bool MCAstar::getRawPath(std::vector<cv::Point2i> & path)
     return true;
 }
 
-/// @brief 通过给定的地图、地图信息、起点、终点规划出一条从起点到终点的平滑路径。
-/// @param path 规划出的路径。该路径是真实地图下的坐标点，进行冗余点剔除、分段三阶贝塞尔曲线平滑、降采样操作。并且补齐0.5个单位长度的栅格偏差。
-/// @return 是否规划成功
 bool MCAstar::getSmoothPath(std::vector<cv::Point2d> & path)
 {
     if ( !(init_map_ && init_start_node_ && init_end_node_) )
@@ -316,9 +293,7 @@ bool MCAstar::getSmoothPath(std::vector<cv::Point2d> & path)
 }
 
 
-/// @brief 根据启发类型，得到节点n到终点的启发值
-/// @param n 待计算的节点，计算该节点到终点的启发值
-void MCAstar::getH(Node * const n)
+void MCAstar::getH(Node * const n) const
 {
     cv::Point2i & p = n->point;
     double h = 0;
@@ -349,9 +324,7 @@ void MCAstar::getH(Node * const n)
     n->h = h;
 }
 
-/// @brief 计算p点到终点的启发权重
-/// @param p 待计算的点，计算该点到终点的启发权重
-void MCAstar::getW(Node * const n)
+void MCAstar::getW(Node * const n) const
 {
     n->w = 1;
     return;
@@ -436,9 +409,6 @@ void MCAstar::getW(Node * const n)
     n->w = 1 - std::log(P);
 }
 
-/// @brief 通过代价地图计算得到的原始路径，未经过去除冗余点、平滑操作
-/// @param raw_nodes 输出规划的原始结果
-/// @return 规划是否成功。如果起点和终点不可达则规划失败
 bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
 {
     // 初始节点
@@ -522,10 +492,7 @@ bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
     return raw_nodes.size() > 1;
 }
 
-/// @brief 将节点Node数据类型转换成便于后续计算的Point数据类型
-/// @param nodes 输入的待转换节点
-/// @param path 输出的路径
-void MCAstar::nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Point2i> & path)
+void MCAstar::nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Point2i> & path) const
 {
     path.clear();
     for (const Node * const n : nodes)
@@ -534,10 +501,7 @@ void MCAstar::nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Poi
     }
 }
 
-/// @brief 根据路径节点之间的关系，去除中间的冗余点，只保留关键点，如：起始点、转弯点
-/// @param raw_path 输入的待去除冗余点的路径
-/// @param reduced_path 输出的去除冗余点后的路径
-void MCAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2i> & reduced_path)
+void MCAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2i> & reduced_path) const
 {
     reduced_path.clear();
     if (raw_path.size() <= 2)  // 只有两个点，说明只是起点和终点
@@ -576,12 +540,7 @@ void MCAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, s
     }
 }
 
-/// @brief 使用分段三阶贝塞尔曲线进行平滑。该函数将栅格整数坐标xy的值进行平滑，得到平滑路径后再消除栅格偏差的0.5个单位长度
-/// @param raw_path 待平滑路径
-/// @param soomth_path 输出平滑后的路径
-/// @param control_nums_per_subpath 每个子路径的点的数目
-/// @return 平滑操作是否成功。若缺少地图信息或输入路径为空，返回false
-bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2d> & smooth_path)
+bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2d> & smooth_path) const
 {
     if (init_map_info_ == false)
     {
@@ -608,10 +567,7 @@ bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<
     return true;
 }
 
-/// @brief 对路径进行降采样。在进行完贝塞尔曲线平滑后进行，避免规划出的路径过于稠密
-/// @param path 待降采样的路径
-/// @param dis 两点间最小间距
-void MCAstar::downsampling(std::vector<cv::Point2d> & path)
+void MCAstar::downsampling(std::vector<cv::Point2d> & path) const
 {
     const size_t size = path.size();
     if (size == 0)
@@ -635,7 +591,6 @@ void MCAstar::downsampling(std::vector<cv::Point2d> & path)
     path = temp;
 }
 
-/// @brief 将当前地图中的参数全部初始化。一般在完成一次规划的所有步骤后进行。
 void MCAstar::resetMap()
 {
     for (int i = 0; i < rows_; i++)
@@ -653,3 +608,4 @@ void MCAstar::resetMap()
         }
     }
 }
+// ========================= MCAstar =========================

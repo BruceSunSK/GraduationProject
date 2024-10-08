@@ -3,10 +3,7 @@
 
 // ========================= Astar::AstarHelper =========================
 
-/// @brief 打印所有的信息，包括规划器参数信息、规划地图信息、规划结果信息。并可以将结果保存到指定路径中
-/// @param save 是否保存到本地
-/// @param save_dir_path 保存的路径
-void Astar::AstarHelper::showAllInfo(const bool save, const std::string & save_dir_path)
+void Astar::AstarHelper::showAllInfo(const bool save, const std::string & save_dir_path) const
 {
     const std::string dt = daytime();
 
@@ -41,9 +38,7 @@ void Astar::AstarHelper::showAllInfo(const bool save, const std::string & save_d
 }
 
 
-/// @brief 将规划器中设置的参数以字符串的形式输出
-/// @return 规划器的参数
-std::string Astar::AstarHelper::paramsInfo()
+std::string Astar::AstarHelper::paramsInfo() const
 {
     const Astar * astar_planner = dynamic_cast<const Astar *>(planner_);
     const AstarParams & astar_params = astar_planner->params_;
@@ -54,9 +49,7 @@ std::string Astar::AstarHelper::paramsInfo()
     return params_info.str();
 }
 
-/// @brief 将规划器所使用的地图信息、起点、终点以字符串的形式输出
-/// @return 地图信息、起点、终点信息
-std::string Astar::AstarHelper::mapInfo()
+std::string Astar::AstarHelper::mapInfo() const
 {
     const Astar * astar_planner = dynamic_cast<const Astar *>(planner_);
 
@@ -70,9 +63,7 @@ std::string Astar::AstarHelper::mapInfo()
     return map_info.str();
 }
 
-/// @brief 将helper中保存的所有有关规划的结果以字符串的形式输出
-/// @return 规划的结果数值
-std::string Astar::AstarHelper::resultInfo()
+std::string Astar::AstarHelper::resultInfo() const
 {
     std::stringstream result_info;
     result_info << "[Result Info]:\n";
@@ -91,17 +82,12 @@ REGISTER_ENUM_BODY(HeuristicsType,
                    REGISTER_MEMBER(HeuristicsType::Chebyshev),
                    REGISTER_MEMBER(HeuristicsType::Octile));
 
-/// @brief 对规划器相关变量进行初始化设置，进行参数拷贝设置
-/// @param params 传入的参数
 void Astar::initParams(const GlobalPlannerParams & params)
 {
     const AstarParams & p = dynamic_cast<const AstarParams &>(params);
     params_ = p;
 }
 
-/// @brief 对输入的map进行二值化，然后设置成为规划器中需要使用的地图
-/// @param map 输入的原始地图
-/// @return 地图设置是否成功
 bool Astar::setMap(const cv::Mat & map)
 {
     rows_ = map.rows;
@@ -151,10 +137,6 @@ bool Astar::setMap(const cv::Mat & map)
     return true;
 }
 
-/// @brief 设置规划路径的起点。以栅格坐标形式，而非行列形式。
-/// @param x 栅格坐标系的x值
-/// @param y 栅格坐标系的y值
-/// @return 该点是否能够成为起点。即该点在地图内部且不在障碍物上。
 bool Astar::setStartPoint(const int x, const int y)
 {
     if ((x >= 0 && x < cols_ && y >= 0 && y < rows_) == false)
@@ -177,18 +159,11 @@ bool Astar::setStartPoint(const int x, const int y)
     return true;
 }
 
-/// @brief 设置规划路径的起点。以栅格坐标形式，而非行列形式。
-/// @param p 栅格坐标系的点
-/// @return 该点是否能够成为起点。即该点在地图内部且不在障碍物上。
 bool Astar::setStartPoint(const cv::Point2i p)
 {
     return setStartPoint(p.x, p.y);
 }
 
-/// @brief 设置规划路径的终点。以栅格坐标形式，而非行列形式。
-/// @param x 栅格坐标系的x值
-/// @param y 栅格坐标系的y值
-/// @return 该点是否能够成为终点。即该点在地图内部且不在障碍物上。
 bool Astar::setEndPoint(const int x, const int y)
 {
     if ((x >= 0 && x < cols_ && y >= 0 && y < rows_) == false)
@@ -211,18 +186,12 @@ bool Astar::setEndPoint(const int x, const int y)
     return true;
 }
 
-/// @brief 设置规划路径的终点。以栅格坐标形式，而非行列形式。
-/// @param p 栅格坐标系的点
-/// @return 该点是否能够成为终点。即该点在地图内部且不在障碍物上。
 bool Astar::setEndPoint(const cv::Point2i p)
 {
     return setEndPoint(p.x, p.y);
 }
 
-/// @brief 获得处理后的地图，即算法内部真正使用的，经过二值化后的地图
-/// @param map 地图将存入该变量
-/// @return 存入是否成功
-bool Astar::getProcessedMap(cv::Mat & map)
+bool Astar::getProcessedMap(cv::Mat & map) const
 {
     if (!init_map_)
     {
@@ -241,9 +210,6 @@ bool Astar::getProcessedMap(cv::Mat & map)
     return true;
 }
 
-/// @brief 通过给定的地图、起点、终点规划出一条从起点到终点的路径。
-/// @param path 规划出的路径。该路径是栅格坐标系下原始路径点。
-/// @return 是否规划成功
 bool Astar::getRawPath(std::vector<cv::Point2i> & path)
 {
     if ( !(init_map_ && init_start_node_ && init_end_node_) )
@@ -351,9 +317,6 @@ bool Astar::getRawPath(std::vector<cv::Point2i> & path)
     return path.size() > 1;
 }
 
-/// @brief 通过给定的地图、起点、终点规划出一条从起点到终点的路径。目前并无平滑。
-/// @param path 规划出的路径。该路径是真实地图下的坐标点。此外目前无其他功能。
-/// @return 是否规划成功
 bool Astar::getSmoothPath(std::vector<cv::Point2d> & path)
 {
     if (init_map_info_ == false)
@@ -381,9 +344,7 @@ bool Astar::getSmoothPath(std::vector<cv::Point2d> & path)
 }
 
 
-/// @brief 根据启发类型，得到节点n到终点的启发值
-/// @param n 待计算的节点，计算该节点到终点的启发值
-double Astar::getH(const cv::Point2i & p)
+double Astar::getH(const cv::Point2i & p) const
 {
     double h = 0;
     double dx = 0.0;

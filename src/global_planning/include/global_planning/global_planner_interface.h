@@ -25,15 +25,25 @@ public:
         GlobalPlannerHelper(GlobalPlannerInterface * planner) : planner_(planner) {}
         virtual ~GlobalPlannerHelper() = default;
 
-        virtual void showAllInfo(const bool save = false, const std::string & save_dir_path = "") = 0;
+        /// @brief 打印所有的信息，包括规划器参数信息、规划地图信息、规划结果信息，并可以将结果保存到指定路径中。由外部planner调用后执行
+        /// @param save 是否保存到本地
+        /// @param save_dir_path 保存的路径
+        virtual void showAllInfo(const bool save = false, const std::string & save_dir_path = "") const = 0;
+        /// @brief 清空当前记录的所有结果信息，便于下次记录
         virtual void resetResultInfo() = 0;
 
     protected:
-        GlobalPlannerInterface * planner_ = nullptr;
+        GlobalPlannerInterface * planner_ = nullptr;    // helper对应的规划器，在构造时指定
 
-        virtual std::string paramsInfo() = 0;
-        virtual std::string mapInfo() = 0;
-        virtual std::string resultInfo() = 0;
+        /// @brief 将规划器中设置的参数以字符串的形式输出
+        /// @return 规划器的参数
+        virtual std::string paramsInfo() const = 0;
+        /// @brief 将规划器所使用的地图信息、起点、终点以字符串的形式输出
+        /// @return 地图信息、起点、终点信息
+        virtual std::string mapInfo() const = 0;
+        /// @brief 将helper中保存的所有有关规划的结果以字符串的形式输出
+        /// @return 规划的结果数值
+        virtual std::string resultInfo() const = 0;
 
         /// @brief 将给定的内容info直接写入file_path中
         /// @param info 待写入的内容
@@ -50,7 +60,6 @@ public:
             ofs.close();
             return true;
         }
-
         /// @brief 以字符串形式"%Y-%m-%d %H:%M:%S"获得当前日前和时间。
         /// @return 日期时间字符串
         static std::string daytime()
@@ -69,8 +78,13 @@ public:
     GlobalPlannerInterface() = default;
     virtual ~GlobalPlannerInterface() = default;
 
-    virtual void initParams(const GlobalPlannerParams & params) = 0;                    // 初始化规划器参数
-    virtual bool setMap(const cv::Mat & map) = 0;                                       // 设置栅格地图
+    /// @brief 初始化规划器参数，使用拷贝进行传递
+    /// @param params 待设置的规划器参数
+    virtual void initParams(const GlobalPlannerParams & params) = 0;
+    /// @brief 设置栅格地图，默认所有规划器都是使用栅格地图进行规划
+    /// @param map 栅格地图
+    /// @return 设置是否成功
+    virtual bool setMap(const cv::Mat & map) = 0;
     /// @brief 设置地图的参数信息
     /// @param res 分辨率
     /// @param ori_x 原点x
@@ -82,15 +96,40 @@ public:
         ori_y_ = ori_y;
         init_map_info_ = true;
     }
-    virtual bool setStartPoint(const int x, const int y) = 0;                           // 设置起点栅格坐标
-    virtual bool setStartPoint(const cv::Point2i p) = 0;                                // 设置起点栅格坐标
-    virtual bool setEndPoint(const int x, const int y) = 0;                             // 设置终点栅格坐标
-    virtual bool setEndPoint(const cv::Point2i p) = 0;                                  // 设置终点栅格坐标
-
-    virtual bool getProcessedMap(cv::Mat & map) = 0;                                                // 处理后的地图，即算法内部真正使用的地图
-    virtual bool getRawPath(std::vector<cv::Point2i> & path) = 0;                                   // 原始的以栅格为单位的路径
-    virtual bool getSmoothPath(std::vector<cv::Point2d> & path) = 0;                                // 平滑优化后的离散路径，会补齐因栅格坐标系而偏移出的0.5个单位长度的偏差
-    virtual void showAllInfo(const bool save = false, const std::string & save_dir_path = "") = 0;  // 用于打印规划的所有信息，包括参数、地图、结果信息
+    /// @brief 设置规划路径的起点。以栅格坐标形式，而非行列形式。
+    /// @param x 栅格坐标系的x值
+    /// @param y 栅格坐标系的y值
+    /// @return 该点是否能够成为起点。即该点在地图内部且不在障碍物上。
+    virtual bool setStartPoint(const int x, const int y) = 0;
+    /// @brief 设置规划路径的起点。以栅格坐标形式，而非行列形式。
+    /// @param p 栅格坐标系的点
+    /// @return 该点是否能够成为起点。即该点在地图内部且不在障碍物上。
+    virtual bool setStartPoint(const cv::Point2i p) = 0;
+    /// @brief 设置规划路径的终点。以栅格坐标形式，而非行列形式。
+    /// @param x 栅格坐标系的x值
+    /// @param y 栅格坐标系的y值
+    /// @return 该点是否能够成为终点。即该点在地图内部且不在障碍物上。
+    virtual bool setEndPoint(const int x, const int y) = 0;
+    /// @brief 设置规划路径的终点。以栅格坐标形式，而非行列形式。
+    /// @param p 栅格坐标系的点
+    /// @return 该点是否能够成为终点。即该点在地图内部且不在障碍物上。
+    virtual bool setEndPoint(const cv::Point2i p) = 0;
+    /// @brief 获得处理后的地图，即算法内部真正使用的地图，常用于实际观察调参结果
+    /// @param map 地图将存入该变量
+    /// @return 存入是否成功
+    virtual bool getProcessedMap(cv::Mat & map) const = 0;
+    /// @brief 通过给定的地图、起点、终点规划出一条从起点到终点的原始路径，不经过任何导致出栅格的操作。
+    /// @param path 规划出的路径。该路径是栅格坐标系下原始路径点。
+    /// @return 是否规划成功
+    virtual bool getRawPath(std::vector<cv::Point2i> & path) = 0;
+    /// @brief 通过给定的地图、起点、终点规划出一条从起点到终点的路径。可通过例如平滑等操作，使得路径点是非整数栅格点。
+    /// @param path 规划出的路径。该路径是真实地图下的坐标点。
+    /// @return 是否规划成功
+    virtual bool getSmoothPath(std::vector<cv::Point2d> & path) = 0;
+    /// @brief 打印所有的信息，包括规划器参数信息、规划地图信息、规划结果信息，并可以将结果保存到指定路径中。直接调用内部helper_的显示
+    /// @param save 是否保存到本地
+    /// @param save_dir_path 保存的路径
+    virtual void showAllInfo(const bool save = false, const std::string & save_dir_path = "") const = 0;
     
 protected:
     // 地图属性

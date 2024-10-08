@@ -153,7 +153,7 @@ private:
         bool operator<(const Node & other) const { return f > other.f; }
         struct NodePointerCmp
         {
-            bool operator()(Node * l, Node * r) const { return l->f > r->f; }
+            bool operator()(const Node * const l, const Node * const r) const { return l->f > r->f; }
         };
     };
     
@@ -161,31 +161,83 @@ public:
     MCAstar() = default;
     ~MCAstar() = default;
 
+    /// @brief 对规划器相关变量进行初始化设置，进行参数拷贝设置
+    /// @param params 传入的参数
     void initParams(const GlobalPlannerParams & params) override;
+    /// @brief 对输入的map的进行预处理膨胀、过滤小代价值栅格，然后设置成为规划器中需要使用的地图
+    /// @param map 输入的原始地图
+    /// @return 地图设置是否成功
     bool setMap(const cv::Mat & map) override;
+    /// @brief 设置规划路径的起点。以栅格坐标形式，而非行列形式。
+    /// @param x 栅格坐标系的x值
+    /// @param y 栅格坐标系的y值
+    /// @return 该点是否能够成为起点。即该点在地图内部且不在障碍物上。
     bool setStartPoint(const int x, const int y) override;
+    /// @brief 设置规划路径的起点。以栅格坐标形式，而非行列形式。
+    /// @param p 栅格坐标系的点
+    /// @return 该点是否能够成为起点。即该点在地图内部且不在障碍物上。
     bool setStartPoint(const cv::Point2i p) override;
+    /// @brief 设置规划路径的终点。以栅格坐标形式，而非行列形式。
+    /// @param x 栅格坐标系的x值
+    /// @param y 栅格坐标系的y值
+    /// @return 该点是否能够成为终点。即该点在地图内部且不在障碍物上。
     bool setEndPoint(const int x, const int y) override;
+    /// @brief 设置规划路径的终点。以栅格坐标形式，而非行列形式。
+    /// @param p 栅格坐标系的点
+    /// @return 该点是否能够成为终点。即该点在地图内部且不在障碍物上。
     bool setEndPoint(const cv::Point2i p) override;
-
-    bool getProcessedMap(cv::Mat & map) override;
+    /// @brief 获得处理后的地图，即算法内部真正使用的，经过膨胀、忽视小代价值后的地图
+    /// @param map 地图将存入该变量
+    /// @return 存入是否成功
+    bool getProcessedMap(cv::Mat & map) const override;
+    /// @brief 通过给定的地图、起点、终点规划出一条从起点到终点的路径。
+    /// @param path 规划出的路径。该路径是栅格坐标系下原始路径点，没有冗余点剔除、平滑、降采样操作。
+    /// @return 是否规划成功
     bool getRawPath(std::vector<cv::Point2i> & path) override;
+    /// @brief 通过给定的地图、地图信息、起点、终点规划出一条从起点到终点的平滑路径。
+    /// @param path 规划出的路径。该路径是真实地图下的坐标点，进行冗余点剔除、分段三阶贝塞尔曲线平滑、降采样操作。并且补齐0.5个单位长度的栅格偏差。
+    /// @return 是否规划成功
     bool getSmoothPath(std::vector<cv::Point2d> & path) override;
-    void showAllInfo(const bool save, const std::string & save_dir_path) override { /*helper_.showAllInfo(save, save_dir_path);*/ }
+    /// @brief 打印所有的信息，包括规划器参数信息、规划地图信息、规划结果信息，并可以将结果保存到指定路径中。调用内部辅助helper实现
+    /// @param save 是否保存到本地
+    /// @param save_dir_path 保存的路径
+    void showAllInfo(const bool save, const std::string & save_dir_path) const override { /*helper_.showAllInfo(save, save_dir_path);*/ }
 
 private:
-    MCAstarParams params_;
+    MCAstarParams params_;                  // 规划器参数
     
-    std::vector<std::vector<Node>> map_;
-    Node * start_node_;
-    Node * end_node_;
+    std::vector<std::vector<Node>> map_;    // 实际使用地图
+    Node * start_node_ = nullptr;           // 起点节点
+    Node * end_node_   = nullptr;           // 终点节点
 
-    void getH(Node * const n);
-    void getW(Node * const n);
+    /// @brief 根据启发类型，得到节点n到终点的启发值
+    /// @param n 待计算的节点，计算该节点到终点的启发值
+    void getH(Node * const n) const;
+    /// @brief 计算p点到终点的启发权重
+    /// @param p 待计算的点，计算该点到终点的启发权重
+    void getW(Node * const n) const;
+    /// @brief 通过代价地图计算得到的原始路径，未经过去除冗余点、平滑操作
+    /// @param raw_nodes 输出规划的原始结果
+    /// @return 规划是否成功。如果起点和终点不可达则规划失败
     bool generateRawNodes(std::vector<Node *> & raw_nodes);
-    void nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Point2i> & path);
-    void removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2i> & reduced_path);
-    bool smoothPath(const std::vector<cv::Point2i> & reduced_path, std::vector<cv::Point2d> & smooth_path);
-    void downsampling(std::vector<cv::Point2d> & path);
+    /// @brief 将节点Node数据类型转换成便于后续计算的Point数据类型
+    /// @param nodes 输入的待转换节点
+    /// @param path 输出的路径
+    void nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Point2i> & path) const;
+    /// @brief 根据路径节点之间的关系，去除中间的冗余点，只保留关键点，如：起始点、转弯点
+    /// @param raw_path 输入的待去除冗余点的路径
+    /// @param reduced_path 输出的去除冗余点后的路径
+    void removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2i> & reduced_path) const;
+    /// @brief 使用分段三阶贝塞尔曲线进行平滑。该函数将栅格整数坐标xy的值进行平滑，得到平滑路径后再消除栅格偏差的0.5个单位长度
+    /// @param raw_path 待平滑路径
+    /// @param soomth_path 输出平滑后的路径
+    /// @param control_nums_per_subpath 每个子路径的点的数目
+    /// @return 平滑操作是否成功。若缺少地图信息或输入路径为空，返回false
+    bool smoothPath(const std::vector<cv::Point2i> & reduced_path, std::vector<cv::Point2d> & smooth_path) const;
+    /// @brief 对路径进行降采样。在进行完贝塞尔曲线平滑后进行，避免规划出的路径过于稠密
+    /// @param path 待降采样的路径
+    /// @param dis 两点间最小间距
+    void downsampling(std::vector<cv::Point2d> & path) const;
+    /// @brief 将当前地图中的参数全部初始化。一般在完成一次规划的所有步骤后进行。
     void resetMap();
 };

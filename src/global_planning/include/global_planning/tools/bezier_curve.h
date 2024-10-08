@@ -95,13 +95,13 @@ public:
     }
 
 private:
-    static std::vector<std::vector<size_t>> combination_table_;
+    static std::vector<std::vector<size_t>> combination_table_;     // 记录组合数的表，用动态规划进行扩展
 
     /// @brief 计算组合数
     /// @param n 下标n
     /// @param r 上表r
     /// @return 组合数结果
-    static size_t C_n_r(size_t n, size_t r)
+    static size_t C_n_r(const size_t n, const size_t r)
     {
         const size_t size = combination_table_.size();
         if (n < size)

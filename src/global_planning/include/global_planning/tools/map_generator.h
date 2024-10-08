@@ -152,7 +152,7 @@ public:
     /// @brief 保存地图数据（非图片效果）到目标地址
     /// @param path_and_name 保存的路径及文件名
     /// @return 是否保存成功
-    bool save_map(const std::string & path_and_name)
+    bool save_map(const std::string & path_and_name) const
     {
         if (rows_ == 0 || cols_ == 0 || path_and_name.empty())
         {
@@ -221,7 +221,7 @@ public:
     }
 
     /// @brief 用于测试最终每栅格颜色
-    void color_test()
+    void color_test() const
     {
         cv::Mat color_test_image = cv::Mat::zeros(1, 8, CV_8UC3);
         color_test_image.at<cv::Vec3b>(0, 0)[0] = GridType::GROUND;
@@ -244,14 +244,14 @@ public:
     }
 
 private:
-    int rows_ = 0;
-    int cols_ = 0;
-    cv::Mat grid_map_;          // 用于储存栅格原始数据
-    cv::Mat grid_map_property_; // 用于储存栅格附加的特征信息
-    cv::Mat show_image_;        // 用于最终结果可视化
-    int scale_ = 4;             // 用于将原始栅格放大到可视化图形中，也方便后续绘制路径
-    GlobalPlannerInterface * planner_ = nullptr; // 规划器
-    std::string result_dir_path_;   // 规划结果保存目录路径
+    int rows_ = 0;                                  // 用于记录地图的行数
+    int cols_ = 0;                                  // 用于记录地图的列数
+    cv::Mat grid_map_;                              // 用于储存栅格原始数据
+    cv::Mat grid_map_property_;                     // 用于储存栅格附加的特征信息
+    cv::Mat show_image_;                            // 用于最终结果可视化
+    int scale_ = 4;                                 // 用于将原始栅格放大到可视化图形中，也方便后续绘制路径
+    GlobalPlannerInterface * planner_ = nullptr;    // 规划器
+    std::string result_dir_path_;                   // 规划结果保存目录路径
 
     /// @brief 栅格的属性
     enum GridType : uint8_t
