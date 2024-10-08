@@ -75,12 +75,12 @@ std::string Astar::AstarHelper::resultInfo() const
 
 // ========================= Astar =========================
 
-REGISTER_ENUM_BODY(HeuristicsType,
-                   REGISTER_MEMBER(HeuristicsType::None),
-                   REGISTER_MEMBER(HeuristicsType::Manhattan),
-                   REGISTER_MEMBER(HeuristicsType::Euclidean),
-                   REGISTER_MEMBER(HeuristicsType::Chebyshev),
-                   REGISTER_MEMBER(HeuristicsType::Octile));
+REGISTER_ENUM_BODY(AstarHeuristicsType,
+                   REGISTER_MEMBER(AstarHeuristicsType::None),
+                   REGISTER_MEMBER(AstarHeuristicsType::Manhattan),
+                   REGISTER_MEMBER(AstarHeuristicsType::Euclidean),
+                   REGISTER_MEMBER(AstarHeuristicsType::Chebyshev),
+                   REGISTER_MEMBER(AstarHeuristicsType::Octile));
 
 void Astar::initParams(const GlobalPlannerParams & params)
 {
@@ -299,7 +299,8 @@ bool Astar::getRawPath(std::vector<cv::Point2i> & path)
     }
     std::reverse(path.begin(), path.end());
     auto end_time = std::chrono::steady_clock::now();
-    helper_.search_result.cost_time = (end_time - start_time).count() / 1000000.0;    // 算法耗时 ms
+    helper_.search_result.path_length = path.size();                                // 路径长度
+    helper_.search_result.cost_time = (end_time - start_time).count() / 1000000.0;  // 算法耗时 ms
     
     // 复原地图
     for (int i = 0; i < rows_; i++)

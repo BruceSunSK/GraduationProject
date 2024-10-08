@@ -43,7 +43,7 @@ public:
                         REGISTER_MEMBER(cost_function_params));
     };
 
-    /// @brief 用于Astar规划器的辅助类，实现数据记录和打印
+    /// @brief 用于Astar规划器的辅助类，实现数据记录和结果打印
     class AstarHelper : public GlobalPlannerHelper
     {
     public:
@@ -52,12 +52,14 @@ public:
 
         struct 
         {
-            int node_nums = 0;          // 搜索到节点的数量，不包括障碍物节点
-            int node_counter = 0;       // 搜索到节点的次数，会重复计算同一个节点，不包括障碍物节点
+            size_t node_nums = 0;       // 搜索到节点的数量，不包括障碍物节点
+            size_t node_counter = 0;    // 搜索到节点的次数，会重复计算同一个节点，不包括障碍物节点
+            size_t path_length = 0;     // 规划出的路径长度，单位为栅格数，包含起点和终点
             double cost_time = 0;       // 搜索总耗时，单位ms
 
             REGISTER_STRUCT(REGISTER_MEMBER(node_nums),
                             REGISTER_MEMBER(node_counter),
+                            REGISTER_MEMBER(path_length),
                             REGISTER_MEMBER(cost_time))
         } search_result;
 
@@ -69,9 +71,7 @@ public:
         /// @brief 清空当前记录的所有结果信息，便于下次记录
         void resetResultInfo() override
         {
-            search_result.node_nums = 0;
-            search_result.node_counter = 0;
-            search_result.cost_time = 0;
+            search_result = {0, 0, 0, 0};
         }
 
     private:
@@ -175,5 +175,5 @@ private:
     double getH(const cv::Point2i & p) const;
 };
 
-using HeuristicsType = Astar::HeuristicsType;
-REGISTER_ENUM(HeuristicsType);
+using AstarHeuristicsType = Astar::HeuristicsType;
+REGISTER_ENUM(AstarHeuristicsType);

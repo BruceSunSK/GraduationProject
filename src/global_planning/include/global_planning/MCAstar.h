@@ -1,11 +1,10 @@
 #pragma once
-#include <iostream>
-#include <vector>
 #include <queue>
 #include <unordered_map>
 #include <algorithm>
 
 #include "global_planning/global_planner_interface.h"
+#include "global_planning/tools/print_struct_and_enum.h"
 #include "global_planning/tools/bezier_curve.h"
 #include "global_planning/tools/path_simplification.h"
 
@@ -59,14 +58,20 @@ public:
     {
         ~MCAstarParams() = default;
 
-        // 地图相关参数
+        // 地图相关参数，uint16_t类型原本为uint8_t类型，但cout输出uint8_t类型时按照ASCII码输出字符，而非整数。
         struct 
         {
             double EXPANDED_K = 1.0;                // 地图膨胀时，膨胀系数
-            uint8_t EXPANDED_MIN_THRESHOLD = 0;     // 原始地图栅格代价值大于等于(>=)该值的栅格，才进行膨胀
-            uint8_t EXPANDED_MAX_THRESHOLD = 100;   // 原始地图栅格代价值小于等于(<=)该值的栅格，才进行膨胀
-            uint8_t COST_THRESHOLD = 10;            // 膨胀地图中栅格代价值大于等于(>=)该值的栅格，会被视为有代价值的栅格，否则代价值为0
-            uint8_t OBSTACLE_THRESHOLD = 100;       // 膨胀地图中栅格代价值大于等于(>=)该值的栅格，会被视为障碍物，搜索过程中将直接跳过该栅格
+            uint16_t EXPANDED_MIN_THRESHOLD = 0;    // 原始地图栅格代价值大于等于(>=)该值的栅格，才进行膨胀
+            uint16_t EXPANDED_MAX_THRESHOLD = 100;  // 原始地图栅格代价值小于等于(<=)该值的栅格，才进行膨胀
+            uint16_t COST_THRESHOLD = 10;           // 膨胀地图中栅格代价值大于等于(>=)该值的栅格，会被视为有代价值的栅格，否则代价值为0
+            uint16_t OBSTACLE_THRESHOLD = 100;      // 膨胀地图中栅格代价值大于等于(>=)该值的栅格，会被视为障碍物，搜索过程中将直接跳过该栅格
+
+            REGISTER_STRUCT(REGISTER_MEMBER(EXPANDED_K),
+                            REGISTER_MEMBER(EXPANDED_MIN_THRESHOLD),
+                            REGISTER_MEMBER(EXPANDED_MAX_THRESHOLD),
+                            REGISTER_MEMBER(COST_THRESHOLD),
+                            REGISTER_MEMBER(OBSTACLE_THRESHOLD));
         } map_params;
 
         // 代价函数相关参数
@@ -74,6 +79,9 @@ public:
         {
             MCAstar::HeuristicsType HEURISTICS_TYPE = MCAstar::HeuristicsType::Euclidean;   // 启发值类型，共有五种
             double TRAV_COST_K = 2.0;   // 计算可通行度代价值时的系数
+
+            REGISTER_STRUCT(REGISTER_MEMBER(HEURISTICS_TYPE),
+                            REGISTER_MEMBER(TRAV_COST_K));
         } cost_function_params;
 
         // 冗余点去除相关参数
@@ -81,19 +89,105 @@ public:
         {
             MCAstar::PathSimplificationType PATH_SIMPLIFICATION_TYPE = MCAstar::PathSimplificationType::DouglasPeucker; // 去除冗余点方法，共有三种
             double THRESHOLD = 1.0;     // 去除冗余点的阈值。DouglasPeucker 和 DistanceThreshold 方法单位为m， AngleThreshold 方法单位为rad
+
+            REGISTER_STRUCT(REGISTER_MEMBER(PATH_SIMPLIFICATION_TYPE),
+                            REGISTER_MEMBER(THRESHOLD));
         } path_simplification_params;
 
         // 贝塞尔曲线平滑相关参数
         struct
         {
             double T_STEP = 0.01;       // 贝塞尔曲线的步长，t∈(0, 1)， t越大，生成的贝塞尔曲线离散点的密度就越大。
+
+            REGISTER_STRUCT(REGISTER_MEMBER(T_STEP));
         } bezier_curve_params;
 
         // 降采样相关参数
         struct
         {
             double INTERVAL = 0.3;      // 根据res_转化到实际地图上后的尺寸进行判断，降采样后的路径上两点间距至少大于INTERVAL
+
+            REGISTER_STRUCT(REGISTER_MEMBER(INTERVAL));
         } downsampling_params;
+
+        REGISTER_STRUCT(REGISTER_MEMBER(map_params),
+                        REGISTER_MEMBER(cost_function_params),
+                        REGISTER_MEMBER(path_simplification_params),
+                        REGISTER_MEMBER(bezier_curve_params),
+                        REGISTER_MEMBER(downsampling_params));
+    };
+
+    /// @brief 用于MCAstar规划器使用的辅助类，实现数据记录和结果打印
+    class MCAstarHelper : public GlobalPlannerHelper
+    {
+    public:
+        using GlobalPlannerHelper::GlobalPlannerHelper;
+        ~MCAstarHelper() = default;
+
+        struct
+        {
+            size_t raw_node_nums = 0;       // 搜索到节点的数量，不包括障碍物节点
+            size_t raw_node_counter = 0;    // 搜索到节点的次数，会重复计算同一个节点，不包括障碍物节点
+            size_t raw_path_length = 0;     // 规划出的路径长度，单位为栅格数，包含起点和终点
+            double cost_time = 0;           // 搜索总耗时，单位ms
+
+            REGISTER_STRUCT(REGISTER_MEMBER(raw_node_nums),
+                            REGISTER_MEMBER(raw_node_counter),
+                            REGISTER_MEMBER(raw_path_length),
+                            REGISTER_MEMBER(cost_time))
+        } search_result;
+
+        struct
+        {
+            size_t reduced_path_length = 0;         // 去除冗余点后的路径长度
+            double cost_time = 0;                   // 去除冗余点后搜索总耗时，单位ms
+
+            REGISTER_STRUCT(REGISTER_MEMBER(reduced_path_length),
+                            REGISTER_MEMBER(cost_time))
+        } remove_redundant_result;
+
+        struct
+        {
+            size_t smooth_path_length = 0;          // 贝塞尔曲线平滑后的路径长度
+            double cost_time = 0;                   // 贝塞尔曲线平滑后搜索总耗时，单位ms
+
+            REGISTER_STRUCT(REGISTER_MEMBER(smooth_path_length),
+                            REGISTER_MEMBER(cost_time))
+        } bezier_curve_result;
+
+        struct
+        {
+            size_t path_length = 0;                 // 降采样后的路径长度
+            double cost_time = 0;                   // 降采样后搜索总耗时，单位ms
+
+            REGISTER_STRUCT(REGISTER_MEMBER(path_length),
+                            REGISTER_MEMBER(cost_time))
+        } downsampling_result;
+
+    public:
+        /// @brief 打印所有的信息，包括规划器参数信息、规划地图信息、规划结果信息，并可以将结果保存到指定路径中。
+        /// @param save 是否保存到本地
+        /// @param save_dir_path 保存的路径
+        void showAllInfo(const bool save = false, const std::string & save_dir_path = "") const override;
+        /// @brief 清空当前记录的所有结果信息，便于下次记录
+        void resetResultInfo() override
+        {
+            search_result = { 0, 0, 0, 0 };
+            remove_redundant_result = { 0, 0 };
+            bezier_curve_result = { 0, 0 };
+            downsampling_result = { 0, 0 };
+        }
+
+    private:
+        /// @brief 将规划器中设置的参数以字符串的形式输出
+        /// @return 规划器的参数
+        std::string paramsInfo() const override;
+        /// @brief 将规划器所使用的地图信息、起点、终点以字符串的形式输出
+        /// @return 地图信息、起点、终点信息
+        std::string mapInfo() const override;
+        /// @brief 将helper中保存的所有有关规划的结果以字符串的形式输出
+        /// @return 规划的结果数值
+        std::string resultInfo() const override;
     };
 
 private:
@@ -158,7 +252,7 @@ private:
     };
     
 public:
-    MCAstar() = default;
+    MCAstar() : helper_(this) {}
     ~MCAstar() = default;
 
     /// @brief 对规划器相关变量进行初始化设置，进行参数拷贝设置
@@ -201,11 +295,12 @@ public:
     /// @brief 打印所有的信息，包括规划器参数信息、规划地图信息、规划结果信息，并可以将结果保存到指定路径中。调用内部辅助helper实现
     /// @param save 是否保存到本地
     /// @param save_dir_path 保存的路径
-    void showAllInfo(const bool save, const std::string & save_dir_path) const override { /*helper_.showAllInfo(save, save_dir_path);*/ }
+    void showAllInfo(const bool save, const std::string & save_dir_path) const override { helper_.showAllInfo(save, save_dir_path); }
 
 private:
     MCAstarParams params_;                  // 规划器参数
-    
+    MCAstarHelper helper_;                  // 规划器辅助
+
     std::vector<std::vector<Node>> map_;    // 实际使用地图
     Node * start_node_ = nullptr;           // 起点节点
     Node * end_node_   = nullptr;           // 终点节点
@@ -227,17 +322,22 @@ private:
     /// @brief 根据路径节点之间的关系，去除中间的冗余点，只保留关键点，如：起始点、转弯点
     /// @param raw_path 输入的待去除冗余点的路径
     /// @param reduced_path 输出的去除冗余点后的路径
-    void removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2i> & reduced_path) const;
+    void removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2i> & reduced_path);
     /// @brief 使用分段三阶贝塞尔曲线进行平滑。该函数将栅格整数坐标xy的值进行平滑，得到平滑路径后再消除栅格偏差的0.5个单位长度
     /// @param raw_path 待平滑路径
     /// @param soomth_path 输出平滑后的路径
     /// @param control_nums_per_subpath 每个子路径的点的数目
     /// @return 平滑操作是否成功。若缺少地图信息或输入路径为空，返回false
-    bool smoothPath(const std::vector<cv::Point2i> & reduced_path, std::vector<cv::Point2d> & smooth_path) const;
+    bool smoothPath(const std::vector<cv::Point2i> & reduced_path, std::vector<cv::Point2d> & smooth_path);
     /// @brief 对路径进行降采样。在进行完贝塞尔曲线平滑后进行，避免规划出的路径过于稠密
     /// @param path 待降采样的路径
     /// @param dis 两点间最小间距
-    void downsampling(std::vector<cv::Point2d> & path) const;
+    void downsampling(std::vector<cv::Point2d> & path);
     /// @brief 将当前地图中的参数全部初始化。一般在完成一次规划的所有步骤后进行。
     void resetMap();
 };
+
+using MCAstarHeuristicsType = MCAstar::HeuristicsType;
+REGISTER_ENUM(MCAstarHeuristicsType);
+using MCAstarPathSimplificationType = MCAstar::PathSimplificationType;
+REGISTER_ENUM(MCAstarPathSimplificationType);

@@ -1,5 +1,80 @@
 #include "global_planning/MCAstar.h"
 
+// ========================= MCAstar::MCAstarHelper =========================
+
+void MCAstar::MCAstarHelper::showAllInfo(const bool save, const std::string & save_dir_path) const
+{
+    const std::string dt = daytime();
+
+    std::stringstream info;
+    info << "--------------- [MCAstar Info] ---------------\n"
+         << "Daytime: " << dt << "\tAuthor: BruceSun\n\n"
+         << paramsInfo() << std::endl
+         << mapInfo() << std::endl
+         << resultInfo()
+         << "--------------- [MCAstar Info] ---------------\n\n";
+    std::cout << info.str();
+    
+    if (save)
+    {
+        std::string file_path = save_dir_path;
+        if (file_path.back() != '/')
+        {
+            file_path.push_back('/');
+        }
+        file_path += "MCAstar/";
+        file_path += (dt + " MCAstar_All_Info.txt");
+
+        if (saveInfo(info.str(), file_path))
+        {
+            std::cout << "[MCAstar Info]: All Info Has Saved to " << file_path << std::endl;
+        }
+        else
+        {
+            std::cerr << "[MCAstar Info]: All Info Failed to Save to " << file_path << std::endl;
+        }
+    }
+}
+
+
+std::string MCAstar::MCAstarHelper::paramsInfo() const
+{
+    const MCAstar * MCAstar_planner = dynamic_cast<const MCAstar *>(planner_);
+    const MCAstarParams & MCAstar_params = MCAstar_planner->params_;
+
+    std::stringstream params_info;
+    params_info << "[Params Info]:\n";
+    PRINT_STRUCT(params_info, MCAstar_params);
+    return params_info.str();
+}
+
+std::string MCAstar::MCAstarHelper::mapInfo() const
+{
+    const MCAstar * MCAstar_planner = dynamic_cast<const MCAstar *>(planner_);
+
+    std::stringstream map_info;
+    map_info << "[Map Info]:\n"
+             << "  rows: " << MCAstar_planner->rows_ << std::endl
+             << "  cols: " << MCAstar_planner->cols_ << std::endl
+             << "  resolution: " << MCAstar_planner->res_ << std::endl
+             << "  start point: " << MCAstar_planner->start_node_->point << std::endl
+             << "  end point:   " << MCAstar_planner->end_node_->point << std::endl;
+    return map_info.str();
+}
+
+std::string MCAstar::MCAstarHelper::resultInfo() const
+{
+    std::stringstream result_info;
+    result_info << "[Result Info]:\n";
+    PRINT_STRUCT(result_info, search_result);
+    PRINT_STRUCT(result_info, remove_redundant_result);
+    PRINT_STRUCT(result_info, bezier_curve_result);
+    PRINT_STRUCT(result_info, downsampling_result);
+    return result_info.str();
+}
+
+// ========================= MCAstar::MCAstarHelper =========================
+
 
 // ========================= MCAstar::Node =========================
 
@@ -21,6 +96,18 @@ const std::unordered_map<std::pair<int, int>,
 
 
 // ========================= MCAstar =========================
+
+REGISTER_ENUM_BODY(MCAstarHeuristicsType,
+                   REGISTER_MEMBER(MCAstarHeuristicsType::None),
+                   REGISTER_MEMBER(MCAstarHeuristicsType::Manhattan),
+                   REGISTER_MEMBER(MCAstarHeuristicsType::Euclidean),
+                   REGISTER_MEMBER(MCAstarHeuristicsType::Chebyshev),
+                   REGISTER_MEMBER(MCAstarHeuristicsType::Octile));
+
+REGISTER_ENUM_BODY(MCAstarPathSimplificationType,
+                   REGISTER_MEMBER(MCAstarPathSimplificationType::DouglasPeucker),
+                   REGISTER_MEMBER(MCAstarPathSimplificationType::DistanceThreshold),
+                   REGISTER_MEMBER(MCAstarPathSimplificationType::AngleThreshold));
 
 void MCAstar::initParams(const GlobalPlannerParams & params)
 {
@@ -264,6 +351,9 @@ bool MCAstar::getSmoothPath(std::vector<cv::Point2d> & path)
         return false;
     }
 
+    // 0.初始化helper
+    helper_.resetResultInfo();
+
     // 1.规划原始路径
     std::vector<Node *> raw_nodes;
     if (!generateRawNodes(raw_nodes))
@@ -412,6 +502,7 @@ void MCAstar::getW(Node * const n) const
 bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
 {
     // 初始节点
+    auto start_time = std::chrono::steady_clock::now();
     start_node_->g = 0;
     getH(start_node_);
     getW(start_node_);
@@ -463,6 +554,8 @@ bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
                         new_node->parent_node = this_node;
                         new_node->direction_to_parent = Node::index_direction_map.at({k, l});
                         queue.push(std::move(new_node));
+
+                        helper_.search_result.raw_node_nums++;      // 访问到的节点个数
                     }
                     else //new_node->type == NodeType::OPENED
                     {
@@ -474,6 +567,8 @@ bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
                             new_node->direction_to_parent = Node::index_direction_map.at({k, l});
                         }
                     }
+
+                    helper_.search_result.raw_node_counter++;       // 访问节点的总次数
                 }
             }
         }    
@@ -488,7 +583,10 @@ bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
         raw_nodes.push_back(path_node);
         path_node = path_node->parent_node;
     }
-    std::reverse(raw_nodes.begin(), raw_nodes.end()); // 翻转使得路径点从起点到终点排列
+    std::reverse(raw_nodes.begin(), raw_nodes.end());   // 翻转使得路径点从起点到终点排列
+    auto end_time = std::chrono::steady_clock::now();
+    helper_.search_result.raw_path_length = raw_nodes.size();                       // 路径长度
+    helper_.search_result.cost_time = (end_time - start_time).count() / 1000000.0;  // 算法耗时 ms
     return raw_nodes.size() > 1;
 }
 
@@ -501,15 +599,18 @@ void MCAstar::nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Poi
     }
 }
 
-void MCAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2i> & reduced_path) const
+void MCAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2i> & reduced_path)
 {
     reduced_path.clear();
     if (raw_path.size() <= 2)  // 只有两个点，说明只是起点和终点
     {
         reduced_path.insert(reduced_path.end(), raw_path.begin(), raw_path.end());
+        helper_.remove_redundant_result.reduced_path_length = reduced_path.size();
+        helper_.remove_redundant_result.cost_time = 0;
         return;
     }
 
+    auto start_time = std::chrono::steady_clock::now();
     switch (params_.path_simplification_params.PATH_SIMPLIFICATION_TYPE)
     {
     // 1.使用Douglas-Peucker法去除冗余点
@@ -538,9 +639,13 @@ void MCAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, s
         reduced_path = raw_path;
         break;
     }
+    auto end_time = std::chrono::steady_clock::now();
+
+    helper_.remove_redundant_result.reduced_path_length = reduced_path.size();
+    helper_.remove_redundant_result.cost_time = (end_time - start_time).count() / 1000000.0;
 }
 
-bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2d> & smooth_path) const
+bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2d> & smooth_path)
 {
     if (init_map_info_ == false)
     {
@@ -556,8 +661,13 @@ bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<
     }
     
     // 使用优化后的分段三阶贝塞尔曲线进行平滑
+    auto start_time = std::chrono::steady_clock::now();
     BezierCurve::piecewise_smooth_curve(raw_path, smooth_path, params_.bezier_curve_params.T_STEP);
+    auto end_time = std::chrono::steady_clock::now();
 
+    helper_.bezier_curve_result.smooth_path_length = smooth_path.size();
+    helper_.bezier_curve_result.cost_time = (end_time - start_time).count() / 1000000.0;
+    
     // 消除0.5个栅格偏差
     std::for_each(smooth_path.begin(), smooth_path.end(), [this](cv::Point2d & p){
             p.x = (p.x + 0.5) * res_ + ori_x_;
@@ -567,14 +677,15 @@ bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<
     return true;
 }
 
-void MCAstar::downsampling(std::vector<cv::Point2d> & path) const
+void MCAstar::downsampling(std::vector<cv::Point2d> & path) 
 {
     const size_t size = path.size();
     if (size == 0)
     {
         return;
     }
-    
+
+    auto start_time = std::chrono::steady_clock::now();
     std::vector<cv::Point2d> temp;
     temp.push_back(path.front());   // 保证起点
     cv::Point2d temp_p = path.front();
@@ -589,6 +700,10 @@ void MCAstar::downsampling(std::vector<cv::Point2d> & path) const
     }
     temp.push_back(path.back());    // 保证终点
     path = temp;
+    auto end_time = std::chrono::steady_clock::now();
+
+    helper_.downsampling_result.path_length = path.size();
+    helper_.downsampling_result.cost_time = (end_time - start_time).count() / 1000000.0;
 }
 
 void MCAstar::resetMap()
