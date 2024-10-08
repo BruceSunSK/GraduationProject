@@ -1,6 +1,96 @@
 #include "global_planning/astar.h"
 
 
+// ========================= Astar::AstarHelper =========================
+
+/// @brief 打印所有的信息，包括规划器参数信息、规划地图信息、规划结果信息。并可以将结果保存到指定路径中
+/// @param save 是否保存到本地
+/// @param save_dir_path 保存的路径
+void Astar::AstarHelper::showAllInfo(const bool save, const std::string & save_dir_path)
+{
+    const std::string dt = daytime();
+
+    std::stringstream info;
+    info << "--------------- [Astar Info] ---------------\n"
+         << "Daytime: " << dt << "\tAuthor: BruceSun\n\n"
+         << paramsInfo() << std::endl
+         << mapInfo() << std::endl
+         << resultInfo()
+         << "--------------- [Astar Info] ---------------\n\n";
+    std::cout << info.str();
+    
+    if (save)
+    {
+        std::string file_path = save_dir_path;
+        if (file_path.back() != '/')
+        {
+            file_path.push_back('/');
+        }
+        file_path += "Astar/";
+        file_path += (dt + " Astar_All_Info.txt");
+
+        if (saveInfo(info.str(), file_path))
+        {
+            std::cout << "[Astar Info]: All Info Has Saved to " << file_path << std::endl;
+        }
+        else
+        {
+            std::cerr << "[Astar Info]: All Info Failed to Save to " << file_path << std::endl;
+        }
+    }
+}
+
+
+/// @brief 将规划器中设置的参数以字符串的形式输出
+/// @return 规划器的参数
+std::string Astar::AstarHelper::paramsInfo()
+{
+    const Astar * astar_planner = dynamic_cast<const Astar *>(planner_);
+    const AstarParams & astar_params = astar_planner->params_;
+
+    std::stringstream params_info;
+    params_info << "[Params Info]:\n";
+    PRINT_STRUCT(params_info, astar_params);
+    return params_info.str();
+}
+
+/// @brief 将规划器所使用的地图信息、起点、终点以字符串的形式输出
+/// @return 地图信息、起点、终点信息
+std::string Astar::AstarHelper::mapInfo()
+{
+    const Astar * astar_planner = dynamic_cast<const Astar *>(planner_);
+
+    std::stringstream map_info;
+    map_info << "[Map Info]:\n"
+             << "  rows: " << astar_planner->rows_ << std::endl
+             << "  cols: " << astar_planner->cols_ << std::endl
+             << "  resolution: " << astar_planner->res_ << std::endl
+             << "  start point: " << astar_planner->start_node_->point << std::endl
+             << "  end point:   " << astar_planner->end_node_->point << std::endl;
+    return map_info.str();
+}
+
+/// @brief 将helper中保存的所有有关规划的结果以字符串的形式输出
+/// @return 规划的结果数值
+std::string Astar::AstarHelper::resultInfo()
+{
+    std::stringstream result_info;
+    result_info << "[Result Info]:\n";
+    PRINT_STRUCT(result_info, search_result);
+    return result_info.str();
+}
+// ========================= Astar::AstarHelper =========================
+
+
+// ========================= Astar =========================
+
+REGISTER_ENUM_BODY(HeuristicsType,
+                   REGISTER_MEMBER(HeuristicsType::None),
+                   REGISTER_MEMBER(HeuristicsType::Manhattan),
+                   REGISTER_MEMBER(HeuristicsType::Euclidean),
+                   REGISTER_MEMBER(HeuristicsType::Chebyshev),
+                   REGISTER_MEMBER(HeuristicsType::Octile));
+
 /// @brief 对规划器相关变量进行初始化设置，进行参数拷贝设置
 /// @param params 传入的参数
 void Astar::initParams(const GlobalPlannerParams & params)
@@ -9,37 +99,9 @@ void Astar::initParams(const GlobalPlannerParams & params)
     params_ = p;
 }
 
-double Astar::getH(const cv::Point2i & p)
-{
-    double h = 0;
-    double dx = 0.0;
-    double dy = 0.0;
-    switch (params_.cost_function_params.HEURISTICS_TYPE)
-    {
-    case HeuristicsType::None:
-        break;
-    case HeuristicsType::Manhattan:
-        h = std::fabs(p.x - end_node_->point.x) + std::fabs(p.y - end_node_->point.y);
-        break;
-    case HeuristicsType::Euclidean:
-        h = std::sqrt(std::pow(p.x - end_node_->point.x, 2) + std::pow(p.y - end_node_->point.y, 2));
-        break;
-    case HeuristicsType::Chebyshev:
-        h = std::max(std::abs(p.x - end_node_->point.x), std::abs(p.y - end_node_->point.y));
-        break;
-    case HeuristicsType::Octile:
-        static constexpr double k = 0.4142135623730950; // std::sqrt(2) - 1
-        dx = std::fabs(p.x - end_node_->point.x);
-        dy = std::fabs(p.y - end_node_->point.y);
-        h = std::max(dx, dy) + k * std::min(dx, dy);
-        break;
-    default:
-        break;
-    }
-    return h;
-}
-
-
+/// @brief 对输入的map进行二值化，然后设置成为规划器中需要使用的地图
+/// @param map 输入的原始地图
+/// @return 地图设置是否成功
 bool Astar::setMap(const cv::Mat & map)
 {
     rows_ = map.rows;
@@ -84,12 +146,15 @@ bool Astar::setMap(const cv::Mat & map)
         map_[i] = std::move(row);
     }
 
-    printf("地图设置成功，大小 %d x %d\n", rows_, cols_);
-
+    // printf("地图设置成功，大小 %d x %d\n", rows_, cols_);
     init_map_ = true;
     return true;
 }
 
+/// @brief 设置规划路径的起点。以栅格坐标形式，而非行列形式。
+/// @param x 栅格坐标系的x值
+/// @param y 栅格坐标系的y值
+/// @return 该点是否能够成为起点。即该点在地图内部且不在障碍物上。
 bool Astar::setStartPoint(const int x, const int y)
 {
     if ((x >= 0 && x < cols_ && y >= 0 && y < rows_) == false)
@@ -106,18 +171,24 @@ bool Astar::setStartPoint(const int x, const int y)
         return false;
     }
 
-    printf("起点设置成功，位置：(%d, %d)\n", x, y);
-    
+    // printf("起点设置成功，位置：(%d, %d)\n", x, y);
     start_node_ = &map_[y][x];
     init_start_node_ = true;
     return true;
 }
 
+/// @brief 设置规划路径的起点。以栅格坐标形式，而非行列形式。
+/// @param p 栅格坐标系的点
+/// @return 该点是否能够成为起点。即该点在地图内部且不在障碍物上。
 bool Astar::setStartPoint(const cv::Point2i p)
 {
     return setStartPoint(p.x, p.y);
 }
 
+/// @brief 设置规划路径的终点。以栅格坐标形式，而非行列形式。
+/// @param x 栅格坐标系的x值
+/// @param y 栅格坐标系的y值
+/// @return 该点是否能够成为终点。即该点在地图内部且不在障碍物上。
 bool Astar::setEndPoint(const int x, const int y)
 {
     if ((x >= 0 && x < cols_ && y >= 0 && y < rows_) == false)
@@ -134,18 +205,23 @@ bool Astar::setEndPoint(const int x, const int y)
         return false;
     }
 
-    printf("终点设置成功，位置：(%d, %d)\n", x, y);
-
+    // printf("终点设置成功，位置：(%d, %d)\n", x, y);
     end_node_ = &map_[y][x];
     init_end_node_ = true;
     return true;
 }
 
+/// @brief 设置规划路径的终点。以栅格坐标形式，而非行列形式。
+/// @param p 栅格坐标系的点
+/// @return 该点是否能够成为终点。即该点在地图内部且不在障碍物上。
 bool Astar::setEndPoint(const cv::Point2i p)
 {
     return setEndPoint(p.x, p.y);
 }
 
+/// @brief 获得处理后的地图，即算法内部真正使用的，经过二值化后的地图
+/// @param map 地图将存入该变量
+/// @return 存入是否成功
 bool Astar::getProcessedMap(cv::Mat & map)
 {
     if (!init_map_)
@@ -165,6 +241,9 @@ bool Astar::getProcessedMap(cv::Mat & map)
     return true;
 }
 
+/// @brief 通过给定的地图、起点、终点规划出一条从起点到终点的路径。
+/// @param path 规划出的路径。该路径是栅格坐标系下原始路径点。
+/// @return 是否规划成功
 bool Astar::getRawPath(std::vector<cv::Point2i> & path)
 {
     if ( !(init_map_ && init_start_node_ && init_end_node_) )
@@ -175,6 +254,8 @@ bool Astar::getRawPath(std::vector<cv::Point2i> & path)
     
     
     // 初始节点
+    helper_.resetResultInfo();
+    auto start_time = std::chrono::steady_clock::now();
     start_node_->g = 0;
     start_node_->h = getH(start_node_->point);
     start_node_->f = start_node_->g + start_node_->h;
@@ -222,6 +303,8 @@ bool Astar::getRawPath(std::vector<cv::Point2i> & path)
                         new_node->parent_node = this_node;
                         new_node->type = Node::NodeType::OPENED;
                         queue.push(std::move(new_node));
+
+                        helper_.search_result.node_nums++;      // 访问到的节点个数
                     }
                     else //new_node->type == NodeType::OPENED
                     {
@@ -232,6 +315,8 @@ bool Astar::getRawPath(std::vector<cv::Point2i> & path)
                             new_node->parent_node = this_node;
                         }
                     }
+
+                    helper_.search_result.node_counter++;       // 访问节点的总次数
                 }
             }
         }    
@@ -247,7 +332,9 @@ bool Astar::getRawPath(std::vector<cv::Point2i> & path)
         path_node = path_node->parent_node;
     }
     std::reverse(path.begin(), path.end());
-
+    auto end_time = std::chrono::steady_clock::now();
+    helper_.search_result.cost_time = (end_time - start_time).count() / 1000000.0;    // 算法耗时 ms
+    
     // 复原地图
     for (int i = 0; i < rows_; i++)
     {
@@ -264,6 +351,9 @@ bool Astar::getRawPath(std::vector<cv::Point2i> & path)
     return path.size() > 1;
 }
 
+/// @brief 通过给定的地图、起点、终点规划出一条从起点到终点的路径。目前并无平滑。
+/// @param path 规划出的路径。该路径是真实地图下的坐标点。此外目前无其他功能。
+/// @return 是否规划成功
 bool Astar::getSmoothPath(std::vector<cv::Point2d> & path)
 {
     if (init_map_info_ == false)
@@ -289,3 +379,37 @@ bool Astar::getSmoothPath(std::vector<cv::Point2d> & path)
 
     return true;
 }
+
+
+/// @brief 根据启发类型，得到节点n到终点的启发值
+/// @param n 待计算的节点，计算该节点到终点的启发值
+double Astar::getH(const cv::Point2i & p)
+{
+    double h = 0;
+    double dx = 0.0;
+    double dy = 0.0;
+    switch (params_.cost_function_params.HEURISTICS_TYPE)
+    {
+    case HeuristicsType::None:
+        break;
+    case HeuristicsType::Manhattan:
+        h = std::fabs(p.x - end_node_->point.x) + std::fabs(p.y - end_node_->point.y);
+        break;
+    case HeuristicsType::Euclidean:
+        h = std::sqrt(std::pow(p.x - end_node_->point.x, 2) + std::pow(p.y - end_node_->point.y, 2));
+        break;
+    case HeuristicsType::Chebyshev:
+        h = std::max(std::abs(p.x - end_node_->point.x), std::abs(p.y - end_node_->point.y));
+        break;
+    case HeuristicsType::Octile:
+        static constexpr double k = 0.4142135623730950; // std::sqrt(2) - 1
+        dx = std::fabs(p.x - end_node_->point.x);
+        dy = std::fabs(p.y - end_node_->point.y);
+        h = std::max(dx, dy) + k * std::min(dx, dy);
+        break;
+    default:
+        break;
+    }
+    return h;
+}
+// ========================= Astar =========================

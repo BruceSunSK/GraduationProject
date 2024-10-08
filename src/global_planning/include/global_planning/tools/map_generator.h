@@ -17,7 +17,7 @@ public:
     MapGenerator() = default;
     ~MapGenerator() = default;
 
-    /// @brief 设置要使用的规划期
+    /// @brief 设置要使用的规划器
     /// @param planner 规划器
     void set_planner(GlobalPlannerInterface * const planner)
     {
@@ -29,6 +29,13 @@ public:
         }
     }
 
+    /// @brief 设置规划结果保存的目录路径
+    /// @param result_dir_path 目录路径
+    void set_result_path(const std::string & result_dir_path)
+    {
+        result_dir_path_ = result_dir_path;
+    }
+    
     /// @brief 生成单通道的随机地图，后续可以调用函数扩充阴影
     /// @param rows 地图的行数
     /// @param cols 地图的列数
@@ -244,7 +251,7 @@ private:
     cv::Mat show_image_;        // 用于最终结果可视化
     int scale_ = 4;             // 用于将原始栅格放大到可视化图形中，也方便后续绘制路径
     GlobalPlannerInterface * planner_ = nullptr; // 规划器
-
+    std::string result_dir_path_;   // 规划结果保存目录路径
 
     /// @brief 栅格的属性
     enum GridType : uint8_t
@@ -371,6 +378,7 @@ private:
                             obj->set_show_image_color(p, get_grid_color(GridType::PATH));
                         }
 
+                        obj->planner_->showAllInfo(true, obj->result_dir_path_);
                         std::cout << "路径规划成功，raw路径长度：" << path.size() << "，smooth路径长度：" << smooth_path.size() << std::endl << std::endl;
                     }
                     else

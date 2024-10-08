@@ -87,8 +87,9 @@ int main(int argc, char * argv[])
 
     // 4.测试最终功能
     generator.load_map(ros::package::getPath("global_planning") + "/map/map1.png");
-    // generator.set_planner(astar_planner);
-    generator.set_planner(MCAstar_planner);
+    generator.set_planner(astar_planner);
+    generator.set_result_path(ros::package::getPath("global_planning") + "/result/test_result/");
+    // generator.set_planner(MCAstar_planner);
     generator.show_map("test", 10);
 
     delete astar_planner;

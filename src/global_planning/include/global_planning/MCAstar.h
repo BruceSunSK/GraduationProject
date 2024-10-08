@@ -171,6 +171,7 @@ public:
     bool getProcessedMap(cv::Mat & map) override;
     bool getRawPath(std::vector<cv::Point2i> & path) override;
     bool getSmoothPath(std::vector<cv::Point2d> & path) override;
+    void showAllInfo(const bool save, const std::string & save_dir_path) override { /*helper_.showAllInfo(save, save_dir_path);*/ }
 
 private:
     MCAstarParams params_;
