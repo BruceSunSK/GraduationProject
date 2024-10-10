@@ -10,14 +10,19 @@
 
 
 /// @brief Multi-layered Costmap Astar
-/// [1] 实现栅格代价值离散化，0~100和255。代价值低处更易通过；100为障碍物，彻底不可通过；255为未探索区域（与建图相关），直接当做障碍物处理。
+/// [1] 实现栅格代价值离散化，0~100和255。代价值低处更易通过；OBSTACLE值(默认为100)以上为障碍物，彻底不可通过；255为未探索区域（与建图相关），直接当做障碍物处理。
+///     具体操作为：使用预处理对原始离散地图进行膨胀。只对代价值处于[min, max]区间的栅格进行按照距离反比进行膨胀，且乘以系数K，目前为1.3
+///     膨胀后的地图若代价值小于COST_THRESHOLD，则置为0，降低较小值带来的无效计算。
 /// [2] 代价函数 f = g + w * h
 ///      1. h和原版AStar保持一致，为距离启发代价。此处选择Euclidean距离启发。
-///      2. g为考虑可通行度的已探索距离代价，在考虑距离时也考虑可通行度代价。
-///         具体实现为：根据栅格代价值计算出一个大于1的系数与原有的g相乘，实现考虑可通行度的距离代价。
-///         cost为栅格的可通行代价；g0为距离代价，等价于原版astar中的g
-///         g = \sigma gi = \sigma exp(k * costi / 100) * g0i
-///         其中，k为自定义系数，k值越大，则远离障碍的趋势越明显，但也会导致出现绕弯。目前k = 2
+///      2. g为综合距离代价值。考虑距离时乘以可通行度代价系数和转向代价系数的总已探索代价。
+///         2.1 具体实现为：根据栅格代价值计算出一个大于1的可通行度代价系数与原有的g相乘；根据栅格转向角度，计算不同转向代价系数与g相乘。
+///         2.2 cost为栅格的可通行代价；C为转向代价系数；g0为距离代价，等价于原版astar中的g
+///             g = \sigma gi = \sigma exp(k * costi / 100) * Ci *g0i
+///             其中，k为自定义系数，k值越大，则远离障碍的趋势越明显，但也会导致出现绕弯。目前k = 2
+///                  根据栅格转向角度(同向直行，同向斜行，垂向直行，反向斜行)，赋予不同转向代价系数C为：c1, c2, c3, c4，目前分别为1.0, 1.4, 2.0, 3.0。
+///         2.3 使用可通行度代价系数可以有效利用离散的栅格代价值，而非二值化；
+///             使用转向代价系数可以针对不能倒车的情形进行约束，且能够通过调参实现不同的倾向，而非5领域扩展法的一刀切。
 ///      3. [暂未使用] w为加权系数，此处选择为动态加权。
 ///         引入障碍物密度的概念P(p1, p2) = (\sigma cost) / (100 * (|p1.x - p2.x| + 1) * (|p1.y - p2.y| + 1)), \sigma cost为矩形区域内的总代价值。
 ///         然后，w = (1 - lnP), P ∈ (0, 1), w ∈ (1, ∞)。
@@ -61,7 +66,7 @@ public:
         // 地图相关参数，uint16_t类型原本为uint8_t类型，但cout输出uint8_t类型时按照ASCII码输出字符，而非整数。
         struct 
         {
-            double EXPANDED_K = 1.0;                // 地图膨胀时，膨胀系数
+            double EXPANDED_K = 1.3;                // 地图膨胀时，膨胀系数
             uint16_t EXPANDED_MIN_THRESHOLD = 0;    // 原始地图栅格代价值大于等于(>=)该值的栅格，才进行膨胀
             uint16_t EXPANDED_MAX_THRESHOLD = 100;  // 原始地图栅格代价值小于等于(<=)该值的栅格，才进行膨胀
             uint16_t COST_THRESHOLD = 10;           // 膨胀地图中栅格代价值大于等于(>=)该值的栅格，会被视为有代价值的栅格，否则代价值为0
@@ -78,10 +83,18 @@ public:
         struct
         {
             MCAstar::HeuristicsType HEURISTICS_TYPE = MCAstar::HeuristicsType::Euclidean;   // 启发值类型，共有五种
-            double TRAV_COST_K = 2.0;   // 计算可通行度代价值时的系数
+            double TRAV_COST_K = 2.0;                   // 计算可通行度代价值时的系数
+            double TURN_COST_STRAIGHT = 1.0;            // 同向直行转向代价系数，C1
+            double TURN_COST_SLANT = 1.4;               // 同向斜行转向代价系数，C2
+            double TURN_COST_VERTICAL = 2.0;            // 垂向直行转向代价系数，C3
+            double TURN_COST_REVERSE_SLANT = 3.0;       // 反向斜行转向代价系数，C4
 
             REGISTER_STRUCT(REGISTER_MEMBER(HEURISTICS_TYPE),
-                            REGISTER_MEMBER(TRAV_COST_K));
+                            REGISTER_MEMBER(TRAV_COST_K),
+                            REGISTER_MEMBER(TURN_COST_STRAIGHT),
+                            REGISTER_MEMBER(TURN_COST_SLANT),
+                            REGISTER_MEMBER(TURN_COST_VERTICAL),
+                            REGISTER_MEMBER(TURN_COST_REVERSE_SLANT));
         } cost_function_params;
 
         // 冗余点去除相关参数
@@ -295,7 +308,7 @@ public:
     /// @brief 打印所有的信息，包括规划器参数信息、规划地图信息、规划结果信息，并可以将结果保存到指定路径中。调用内部辅助helper实现
     /// @param save 是否保存到本地
     /// @param save_dir_path 保存的路径
-    void showAllInfo(const bool save, const std::string & save_dir_path) const override { helper_.showAllInfo(save, save_dir_path); }
+    void showAllInfo(const bool save = false, const std::string & save_dir_path = "") const override { helper_.showAllInfo(save, save_dir_path); }
 
 private:
     MCAstarParams params_;                  // 规划器参数
@@ -305,6 +318,12 @@ private:
     Node * start_node_ = nullptr;           // 起点节点
     Node * end_node_   = nullptr;           // 终点节点
 
+    /// @brief 准确讲应为getGi，即返回节点n到其父节点的G综合代价值。即为带有可通行度代价和转向代价的综合距离代价值。
+    /// @param n 待计算的节点，计算该节点到其父节点的综合距离代价值
+    /// @param direction 待计算的节点相对父节点的方向
+    /// @param par_direction 待计算的父节点相对其父节点的方向
+    /// @return 综合距离代价值，用于进一步判断该该节点是否需要被更新。
+    double getG(const Node * const n, const Node::Direction direction, const Node::Direction par_direction) const;
     /// @brief 根据启发类型，得到节点n到终点的启发值
     /// @param n 待计算的节点，计算该节点到终点的启发值
     void getH(Node * const n) const;
@@ -319,7 +338,7 @@ private:
     /// @param nodes 输入的待转换节点
     /// @param path 输出的路径
     void nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Point2i> & path) const;
-    /// @brief 根据路径节点之间的关系，去除中间的冗余点，只保留关键点，如：起始点、转弯点
+    /// @brief 根据路径节点之间的关系，去除中间的冗余点，只保留关键点，如：起始点、转向点
     /// @param raw_path 输入的待去除冗余点的路径
     /// @param reduced_path 输出的去除冗余点后的路径
     void removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2i> & reduced_path);

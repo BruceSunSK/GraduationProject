@@ -1,4 +1,5 @@
 #include <ros/ros.h>
+#include <ros/package.h>
 #include <nav_msgs/Path.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <geometry_msgs/PoseStamped.h>
@@ -117,6 +118,8 @@ void pub_path()
     
     path_pub.publish(msg);
     smooth_path_pub.publish(msg2);
+
+    planner.showAllInfo(true, ros::package::getPath("global_planning") + "/result/test_result/");
 }
 
 
@@ -133,17 +136,21 @@ int main(int argc, char *argv[])
     processed_map_pub = nh.advertise<nav_msgs::OccupancyGrid>("processed_map", 1, true);
 
     MCAstar::MCAstarParams MCAstar_params;
-    MCAstar_params.map_params.EXPANDED_K = 1;
+    MCAstar_params.map_params.EXPANDED_K = 1.3;
     MCAstar_params.map_params.EXPANDED_MIN_THRESHOLD = 0;
     MCAstar_params.map_params.EXPANDED_MAX_THRESHOLD = 100;
     MCAstar_params.map_params.COST_THRESHOLD = 10;
     MCAstar_params.map_params.OBSTACLE_THRESHOLD = 100;
     MCAstar_params.cost_function_params.HEURISTICS_TYPE = MCAstar::HeuristicsType::Euclidean;
     MCAstar_params.cost_function_params.TRAV_COST_K = 2.0;
+    MCAstar_params.cost_function_params.TURN_COST_STRAIGHT = 1.0;
+    MCAstar_params.cost_function_params.TURN_COST_SLANT = 1.4;
+    MCAstar_params.cost_function_params.TURN_COST_VERTICAL = 2.0;
+    MCAstar_params.cost_function_params.TURN_COST_REVERSE_SLANT = 3.0;
     MCAstar_params.path_simplification_params.PATH_SIMPLIFICATION_TYPE = MCAstar::PathSimplificationType::DouglasPeucker;
-    MCAstar_params.path_simplification_params.THRESHOLD = 1.5;
+    MCAstar_params.path_simplification_params.THRESHOLD = 1.0;
     MCAstar_params.bezier_curve_params.T_STEP = 0.01;
-    MCAstar_params.downsampling_params.INTERVAL = 0.3;
+    MCAstar_params.downsampling_params.INTERVAL = 0.4;
     planner.initParams(MCAstar_params);
 
     // Astar::AstarParams astar_params;

@@ -231,8 +231,7 @@ bool MCAstar::setMap(const cv::Mat & map)
         map_[i] = std::move(row);
     }
 
-    printf("地图设置成功，大小 %d x %d\n", rows_, cols_);
-
+    // printf("地图设置成功，大小 %d x %d\n", rows_, cols_);
     init_map_ = true;
     return true;
 }
@@ -253,8 +252,7 @@ bool MCAstar::setStartPoint(const int x, const int y)
         return false;
     }
 
-    printf("起点设置成功，位置：(%d, %d)\n", x, y);
-    
+    // printf("起点设置成功，位置：(%d, %d)\n", x, y);
     start_node_ = &map_[y][x];
     init_start_node_ = true;
     return true;
@@ -281,8 +279,7 @@ bool MCAstar::setEndPoint(const int x, const int y)
         return false;
     }
 
-    printf("终点设置成功，位置：(%d, %d)\n", x, y);
-
+    // printf("终点设置成功，位置：(%d, %d)\n", x, y);
     end_node_ = &map_[y][x];
     init_end_node_ = true;
     return true;
@@ -330,11 +327,11 @@ bool MCAstar::getRawPath(std::vector<cv::Point2i> & path)
 
     // 2.节点转成路径点
     std::vector<cv::Point2i> raw_path;
-    nodesToPath(raw_nodes, raw_path);
-    // nodesToPath(raw_nodes, path);
+    // nodesToPath(raw_nodes, raw_path);
+    nodesToPath(raw_nodes, path);
 
     ////////
-    removeRedundantPoints(raw_path, path);
+    // removeRedundantPoints(raw_path, path);
     ////////
 
     // 3.复原地图
@@ -382,6 +379,34 @@ bool MCAstar::getSmoothPath(std::vector<cv::Point2d> & path)
     return true;
 }
 
+double MCAstar::getG(const Node * const n, const Node::Direction direction, const Node::Direction par_direction) const
+{
+    uint8_t dir = static_cast<uint8_t>(direction);
+    uint8_t par_dir = static_cast<uint8_t>(par_direction);
+
+    const double dis_cost = (dir & 0x10) == 0x00 ? 1 : 1.4142135623730950;                          // 扩展该节点的距离代价
+    const double trav_cost = std::exp(n->cost * 0.01 * params_.cost_function_params.TRAV_COST_K);   // 可通行度代价系数
+    double turn_cost = 1;
+    // 不可能出现反向直行的情况，因为parent的parent一定已经加入了CLOSE集合，在搜索parent的扩展节点时一定不会有parent的parent
+    if (dir == par_dir)                         // 同向直行
+    {
+        turn_cost = params_.cost_function_params.TURN_COST_STRAIGHT;
+    }
+    else if ((dir & par_dir) == dir ||
+             (dir & par_dir) == par_dir)        // 同向斜行
+    {
+        turn_cost = params_.cost_function_params.TURN_COST_SLANT;
+    }
+    else if (((dir ^ par_dir) & 0x10) == 0x00)  // 垂向直行
+    {
+        turn_cost = params_.cost_function_params.TURN_COST_VERTICAL;
+    }
+    else                                        // 反向斜行
+    {
+        turn_cost = params_.cost_function_params.TURN_COST_REVERSE_SLANT;
+    }    
+    return trav_cost * turn_cost * dis_cost;
+}
 
 void MCAstar::getH(Node * const n) const
 {
@@ -537,39 +562,39 @@ bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
                 
                 Node * const new_node = &map_[this_point.y + k][this_point.x + l];
                 const cv::Point2i & new_point = new_node->point;
-
-                if (new_node->cost < params_.map_params.OBSTACLE_THRESHOLD &&   // 保证该节点是非障碍物节点，才能联通。代价地图[0, 100] 0可通过 100不可通过 
-                    new_node->type != Node::NodeType::CLOSED)                   // 不对已加入CLOSED的数据再次判断
+                if ((new_node->cost < params_.map_params.OBSTACLE_THRESHOLD &&   // 保证该节点是非障碍物节点，才能联通。代价地图[0, 100] 0可通过 100不可通过 
+                     new_node->type != Node::NodeType::CLOSED) == false)         // 不对已加入CLOSED的数据再次判断
                 {
-                    const double dis = std::hypot(new_point.x - this_point.x, new_point.y - this_point.y);
-                    const double dis_with_trav_cost = dis * std::exp(new_node->cost * 0.01 * params_.cost_function_params.TRAV_COST_K);
-
-                    if (new_node->type == Node::NodeType::UNKNOWN)
-                    {
-                        new_node->g = this_node->g + dis_with_trav_cost;
-                        getH(new_node);
-                        getW(new_node);
-                        new_node->f = new_node->g + new_node->w * new_node->h;
-                        new_node->type = Node::NodeType::OPENED;
-                        new_node->parent_node = this_node;
-                        new_node->direction_to_parent = Node::index_direction_map.at({k, l});
-                        queue.push(std::move(new_node));
-
-                        helper_.search_result.raw_node_nums++;      // 访问到的节点个数
-                    }
-                    else //new_node->type == NodeType::OPENED
-                    {
-                        if (new_node->g > this_node->g + dis_with_trav_cost)   // 更新最近距离
-                        {
-                            new_node->g = this_node->g + dis_with_trav_cost;
-                            new_node->f = new_node->g + new_node->w * new_node->h;
-                            new_node->parent_node = this_node;
-                            new_node->direction_to_parent = Node::index_direction_map.at({k, l});
-                        }
-                    }
-
-                    helper_.search_result.raw_node_counter++;       // 访问节点的总次数
+                    continue;
                 }
+
+                const Node::Direction direction = Node::index_direction_map.at({ k, l });
+                const double gi = getG(new_node, direction, this_node->direction_to_parent);
+                if (new_node->type == Node::NodeType::UNKNOWN)
+                {
+                    new_node->g = this_node->g + gi;
+                    getH(new_node);
+                    getW(new_node);
+                    new_node->f = new_node->g + new_node->w * new_node->h;
+                    new_node->type = Node::NodeType::OPENED;
+                    new_node->parent_node = this_node;
+                    new_node->direction_to_parent = direction;
+                    queue.push(std::move(new_node));
+
+                    helper_.search_result.raw_node_nums++;      // 访问到的节点个数
+                }
+                else //new_node->type == NodeType::OPENED
+                {
+                    if (new_node->g > this_node->g + gi)        // 更新最近距离
+                    {
+                        new_node->g = this_node->g + gi;
+                        new_node->f = new_node->g + new_node->w * new_node->h;
+                        new_node->parent_node = this_node;
+                        new_node->direction_to_parent = direction;
+                    }
+                }
+
+                helper_.search_result.raw_node_counter++;       // 访问节点的总次数  
             }
         }    
     }

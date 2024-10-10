@@ -160,7 +160,7 @@ public:
     /// @brief 打印所有的信息，包括规划器参数信息、规划地图信息、规划结果信息，并可以将结果保存到指定路径中。调用内部辅助helper实现
     /// @param save 是否保存到本地
     /// @param save_dir_path 保存的路径
-    void showAllInfo(const bool save, const std::string & save_dir_path) const override { helper_.showAllInfo(save, save_dir_path); }
+    void showAllInfo(const bool save = false, const std::string & save_dir_path = "") const override { helper_.showAllInfo(save, save_dir_path); }
 
 private:
     AstarParams params_;                    // 规划器参数

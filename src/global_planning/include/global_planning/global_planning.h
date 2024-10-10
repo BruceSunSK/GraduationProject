@@ -35,6 +35,10 @@ private:
     ros::Publisher pub_path_;
     ros::Publisher pub_smooth_path_;
 
+    bool info_flag_ = false;
+    bool save_flag_ = false;
+    std::string save_dir_path_;
+
     tf2_ros::Buffer buffer_;
     tf2_ros::TransformListener listener_;
 

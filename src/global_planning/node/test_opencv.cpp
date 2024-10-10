@@ -21,17 +21,21 @@ int main(int argc, char * argv[])
     // MCAstar规划器
     MCAstar * MCAstar_planner = new MCAstar;
     MCAstar::MCAstarParams MCAstar_params;
-    MCAstar_params.map_params.EXPANDED_K = 1;
+    MCAstar_params.map_params.EXPANDED_K = 1.3;
     MCAstar_params.map_params.EXPANDED_MIN_THRESHOLD = 0;
     MCAstar_params.map_params.EXPANDED_MAX_THRESHOLD = 100;
     MCAstar_params.map_params.COST_THRESHOLD = 10;
     MCAstar_params.map_params.OBSTACLE_THRESHOLD = 100;
     MCAstar_params.cost_function_params.HEURISTICS_TYPE = MCAstar::HeuristicsType::Euclidean;
     MCAstar_params.cost_function_params.TRAV_COST_K = 2.0;
+    MCAstar_params.cost_function_params.TURN_COST_STRAIGHT = 1.0;
+    MCAstar_params.cost_function_params.TURN_COST_SLANT = 1.4;
+    MCAstar_params.cost_function_params.TURN_COST_VERTICAL = 2.0;
+    MCAstar_params.cost_function_params.TURN_COST_REVERSE_SLANT = 3.0;
     MCAstar_params.path_simplification_params.PATH_SIMPLIFICATION_TYPE = MCAstar::PathSimplificationType::DouglasPeucker;
-    MCAstar_params.path_simplification_params.THRESHOLD = 12;
+    MCAstar_params.path_simplification_params.THRESHOLD = 11;
     MCAstar_params.bezier_curve_params.T_STEP = 0.01;
-    MCAstar_params.downsampling_params.INTERVAL = 0.3;
+    MCAstar_params.downsampling_params.INTERVAL = 2;
     MCAstar_planner->initParams(MCAstar_params);
 
     MapGenerator generator;

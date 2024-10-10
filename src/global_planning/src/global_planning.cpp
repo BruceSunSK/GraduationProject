@@ -10,7 +10,10 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
     nh_.param<std::string>("input_goal_topic", input_goal_topic_, "/move_base_simple/goal");
     nh_.param<std::string>("output_processed_map_topic", output_processed_map_topic_, "processed_map");
     nh_.param<std::string>("output_path_topic",          output_path_topic_,          "path");
-    nh_.param<std::string>("output_smooth_path_topic",   output_smooth_path_topic_,   "smooth_path");
+    nh_.param<std::string>("output_smooth_path_topic",   output_smooth_path_topic_, "smooth_path");
+    nh_.param<bool>("info_flag", info_flag_, true);
+    nh_.param<bool>("save_flag", save_flag_, false);
+    nh_.param<std::string>("save_dir_path", save_dir_path_, "");
 
     sub_map_  = nh_.subscribe(input_map_topic_ , 1, &GlobalPlanning::set_map, this);
     sub_goal_ = nh_.subscribe(input_goal_topic_, 1, &GlobalPlanning::set_goal, this);
@@ -24,28 +27,32 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
     {
         planner_ = new MCAstar;
         MCAstar::MCAstarParams p;
-        p.map_params.EXPANDED_K                = nh_.param<double>("MCAstar/map_params/EXPANDED_K", 1.0);
-        p.map_params.EXPANDED_MIN_THRESHOLD    = nh_.param<int>("MCAstar/map_params/EXPANDED_MIN_THRESHOLD", 0);
-        p.map_params.EXPANDED_MAX_THRESHOLD    = nh_.param<int>("MCAstar/map_params/EXPANDED_MAX_THRESHOLD", 100);
-        p.map_params.COST_THRESHOLD            = nh_.param<int>("MCAstar/map_params/COST_THRESHOLD", 10);
-        p.map_params.OBSTACLE_THRESHOLD        = nh_.param<int>("MCAstar/map_params/OBSTACLE_THRESHOLD", 100);
-        p.cost_function_params.HEURISTICS_TYPE = static_cast<MCAstar::HeuristicsType>(
-                                                 nh_.param<int>("MCAstar/cost_function_params/HEURISTICS_TYPE", 2));
-        p.cost_function_params.TRAV_COST_K     = nh_.param<double>("MCAstar/cost_function_params/TRAV_COST_K", 2.0);
+        p.map_params.EXPANDED_K                         = nh_.param<double>("MCAstar/map_params/EXPANDED_K", 1.3);
+        p.map_params.EXPANDED_MIN_THRESHOLD             = nh_.param<int>("MCAstar/map_params/EXPANDED_MIN_THRESHOLD", 0);
+        p.map_params.EXPANDED_MAX_THRESHOLD             = nh_.param<int>("MCAstar/map_params/EXPANDED_MAX_THRESHOLD", 100);
+        p.map_params.COST_THRESHOLD                     = nh_.param<int>("MCAstar/map_params/COST_THRESHOLD", 10);
+        p.map_params.OBSTACLE_THRESHOLD                 = nh_.param<int>("MCAstar/map_params/OBSTACLE_THRESHOLD", 100);
+        p.cost_function_params.HEURISTICS_TYPE          = static_cast<MCAstar::HeuristicsType>(
+                                                          nh_.param<int>("MCAstar/cost_function_params/HEURISTICS_TYPE", 2));
+        p.cost_function_params.TRAV_COST_K              = nh_.param<double>("MCAstar/cost_function_params/TRAV_COST_K", 2.0);
+        p.cost_function_params.TURN_COST_STRAIGHT       = nh_.param<double>("MCAstar/cost_function_params/TURN_COST_STRAIGHT", 1.0);
+        p.cost_function_params.TURN_COST_SLANT          = nh_.param<double>("MCAstar/cost_function_params/TURN_COST_SLANT", 1.4);
+        p.cost_function_params.TURN_COST_VERTICAL       = nh_.param<double>("MCAstar/cost_function_params/TURN_COST_VERTICAL", 2.0);
+        p.cost_function_params.TURN_COST_REVERSE_SLANT  = nh_.param<double>("MCAstar/cost_function_params/TURN_COST_REVERSE_SLANT", 3.0);
         p.path_simplification_params.PATH_SIMPLIFICATION_TYPE = static_cast<MCAstar::PathSimplificationType>(
-                                                 nh_.param<int>("MCAstar/path_simplification_params/PATH_SIMPLIFICATION_TYPE", 0));
-        p.path_simplification_params.THRESHOLD = nh_.param<double>("MCAstar/path_simplification_params/THRESHOLD", 1.0);
-        p.bezier_curve_params.T_STEP           = nh_.param<double>("MCAstar/bezier_curve_params/T_STEP", 0.01);
-        p.downsampling_params.INTERVAL         = nh_.param<double>("MCAstar/downsampling_params/INTERVAL", 0.3);
+                                                          nh_.param<int>("MCAstar/path_simplification_params/PATH_SIMPLIFICATION_TYPE", 0));
+        p.path_simplification_params.THRESHOLD          = nh_.param<double>("MCAstar/path_simplification_params/THRESHOLD", 1.0);
+        p.bezier_curve_params.T_STEP                    = nh_.param<double>("MCAstar/bezier_curve_params/T_STEP", 0.01);
+        p.downsampling_params.INTERVAL                  = nh_.param<double>("MCAstar/downsampling_params/INTERVAL", 0.3);
         planner_->initParams(p);
     }
     else if (planner_name == "Astar")
     {
         planner_ = new Astar;
         Astar::AstarParams p;
-        p.map_params.OBSTACLE_THRESHOLD        = nh_.param<int>("Astar/map_params/OBSTACLE_THRESHOLD", 50);
-        p.cost_function_params.HEURISTICS_TYPE = static_cast<Astar::HeuristicsType>(
-                                                 nh_.param<int>("Astar/cost_function_params/HEURISTICS_TYPE", 2));
+        p.map_params.OBSTACLE_THRESHOLD                 = nh_.param<int>("Astar/map_params/OBSTACLE_THRESHOLD", 50);
+        p.cost_function_params.HEURISTICS_TYPE          = static_cast<Astar::HeuristicsType>(
+                                                          nh_.param<int>("Astar/cost_function_params/HEURISTICS_TYPE", 2));
         planner_->initParams(p);
     }
     else
@@ -165,5 +172,10 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
         
         pub_path_.publish(msg);
         pub_smooth_path_.publish(msg2);
+
+        if (info_flag_)
+        {
+            planner_->showAllInfo(save_flag_, save_dir_path_);
+        }
     }
 }

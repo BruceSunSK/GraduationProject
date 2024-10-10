@@ -1,21 +1,25 @@
 MCAstar:
   map_params:
-    EXPANDED_K: 1.0             # 地图膨胀时，膨胀系数
-    EXPANDED_MIN_THRESHOLD: 0   # 原始地图栅格代价值大于等于(>=)该值的栅格，才进行膨胀
-    EXPANDED_MAX_THRESHOLD: 100 # 原始地图栅格代价值小于等于(<=)该值的栅格，才进行膨胀
-    COST_THRESHOLD: 10          # 膨胀地图中栅格代价值大于等于(>=)该值的栅格，会被视为有代价值的栅格，否则代价值为0
-    OBSTACLE_THRESHOLD: 100     # 膨胀地图中栅格代价值大于等于(>=)该值的栅格，会被视为障碍物，搜索过程中将直接跳过该栅格
+    EXPANDED_K: 1.3               # 地图膨胀时，膨胀系数
+    EXPANDED_MIN_THRESHOLD: 0     # 原始地图栅格代价值大于等于(>=)该值的栅格，才进行膨胀
+    EXPANDED_MAX_THRESHOLD: 100   # 原始地图栅格代价值小于等于(<=)该值的栅格，才进行膨胀
+    COST_THRESHOLD: 10            # 膨胀地图中栅格代价值大于等于(>=)该值的栅格，会被视为有代价值的栅格，否则代价值为0
+    OBSTACLE_THRESHOLD: 100       # 膨胀地图中栅格代价值大于等于(>=)该值的栅格，会被视为障碍物，搜索过程中将直接跳过该栅格
 
   cost_function_params:
-    HEURISTICS_TYPE: 2          # 启发值类型，0:None, 1:Manhattan, 2:Euclidean, 3:Chebyshev, 4:Octile
-    TRAV_COST_K: 2.0            # 计算可通行度代价值时的系数
+    HEURISTICS_TYPE: 2            # 启发值类型，0:None, 1:Manhattan, 2:Euclidean, 3:Chebyshev, 4:Octile
+    TRAV_COST_K: 2.0              # 计算可通行度代价值时的系数
+    TURN_COST_STRAIGHT: 1.0       # 同向直行转向代价系数，C1
+    TURN_COST_SLANT: 1.4          # 同向斜行转向代价系数，C2
+    TURN_COST_VERTICAL: 2.0       # 垂向直行转向代价系数，C3
+    TURN_COST_REVERSE_SLANT: 3.0  # 反向斜行转向代价系数，C4
 
   path_simplification_params:
-    PATH_SIMPLIFICATION_TYPE: 0 # 去除冗余点方法， 0:DouglasPeucker, 1:DistanceThreshold, 2:AngleThreshold
-    THRESHOLD: 1.2              # 去除冗余点的阈值。DouglasPeucker 和 DistanceThreshold 方法单位为m， AngleThreshold 方法单位为rad
+    PATH_SIMPLIFICATION_TYPE: 0   # 去除冗余点方法， 0:DouglasPeucker, 1:DistanceThreshold, 2:AngleThreshold
+    THRESHOLD: 1.2                # 去除冗余点的阈值。DouglasPeucker 和 DistanceThreshold 方法单位为m， AngleThreshold 方法单位为rad
       
   bezier_curve_params:
-    T_STEP: 0.01                # 贝塞尔曲线的步长，t∈(0, 1)， t越大，生成的贝塞尔曲线离散点的密度就越大。
+    T_STEP: 0.01                  # 贝塞尔曲线的步长，t∈(0, 1)， t越大，生成的贝塞尔曲线离散点的密度就越大。
 
   downsampling_params:
-    INTERVAL: 0.3               # 根据res_转化到实际地图上后的尺寸进行判断，降采样后的路径上两点间距至少大于INTERVAL
+    INTERVAL: 0.3                 # 根据res_转化到实际地图上后的尺寸进行判断，降采样后的路径上两点间距至少大于INTERVAL
