@@ -338,6 +338,8 @@ private:
             {
                 if (obj->planner_->setStartPoint(grid_x, grid_y))
                 {
+                    // obj->planner_->setStartPointYaw(M_PI_2);
+
                     // 每次复原
                     grid_map_property_clone.copyTo(obj->grid_map_property_);
                     show_image_clone.copyTo(obj->show_image_);

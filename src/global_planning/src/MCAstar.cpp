@@ -263,6 +263,55 @@ bool MCAstar::setStartPoint(const cv::Point2i p)
     return setStartPoint(p.x, p.y);
 }
 
+bool MCAstar::setStartPointYaw(const double yaw)
+{
+    if (!init_start_node_)
+    {
+        std::cout << "设置起点朝向前必须先设置起点！\n";
+        return false;
+    }
+
+    // 确定起点的朝向
+    if (yaw > -M_PI / 8 && yaw <= M_PI / 8)
+    {
+        start_node_->direction_to_parent = Node::Direction::E;
+    }
+    else if (yaw > M_PI / 8 && yaw <= 3 * M_PI / 8)
+    {
+        start_node_->direction_to_parent = Node::Direction::SE;
+    }
+    else if (yaw > 3 * M_PI / 8 && yaw <= 5 * M_PI / 8)
+    {
+        start_node_->direction_to_parent = Node::Direction::S;
+    }
+    else if (yaw > 5 * M_PI / 8 && yaw <= 7 * M_PI / 8)
+    {
+        start_node_->direction_to_parent = Node::Direction::SW;
+    }
+    else if (yaw > 7 * M_PI / 8 || yaw <= -7 * M_PI / 8)
+    {
+        start_node_->direction_to_parent = Node::Direction::W;
+    }
+    else if (yaw > -7 * M_PI / 8 && yaw <= -5 * M_PI / 8)
+    {
+        start_node_->direction_to_parent = Node::Direction::NW;
+    }
+    else if (yaw > -5 * M_PI / 8 && yaw <= -3 * M_PI / 8)
+    {
+        start_node_->direction_to_parent = Node::Direction::N;
+    }
+    else if (yaw > -3 * M_PI / 8 && yaw <= -M_PI / 8)
+    {
+        start_node_->direction_to_parent = Node::Direction::NE;
+    }
+    else
+    {
+        std::cout << "设置起点朝向失败！\n";
+        return false;
+    }
+    return true;
+}
+
 bool MCAstar::setEndPoint(const int x, const int y)
 {
     if ((x >= 0 && x < cols_ && y >= 0 && y < rows_) == false)
@@ -288,6 +337,10 @@ bool MCAstar::setEndPoint(const int x, const int y)
 bool MCAstar::setEndPoint(const cv::Point2i p)
 {
     return setEndPoint(p.x, p.y);
+}
+
+bool MCAstar::setEndPointYaw(const double yaw)
+{
 }
 
 bool MCAstar::getProcessedMap(cv::Mat & map) const
@@ -404,7 +457,7 @@ double MCAstar::getG(const Node * const n, const Node::Direction direction, cons
     else                                        // 反向斜行
     {
         turn_cost = params_.cost_function_params.TURN_COST_REVERSE_SLANT;
-    }    
+    }
     return trav_cost * turn_cost * dis_cost;
 }
 
@@ -441,87 +494,34 @@ void MCAstar::getH(Node * const n) const
 
 void MCAstar::getW(Node * const n) const
 {
-    n->w = 1;
-    return;
+    // n->w = 1;
+    // return;
 
-    // 暂时不好用，以下全部不用
-    const int min_y = std::min(n->point.y, end_node_->point.y);
-    const int max_y = std::max(n->point.y, end_node_->point.y);
-    const int min_x = std::min(n->point.x, end_node_->point.x);
-    const int max_x = std::max(n->point.x, end_node_->point.x);
-    
-    n->w_cost = 0;
-    for (int i = min_y; i <= max_y; i++)
+    if (n->w >= 0) // 有数据说明已经存在针对当前地图的计算结果，直接返回
     {
-        for (int j = min_x; j <= max_x; j++)
-        {
-            n->w_cost += map_[i][j].cost;
-        }
+        return;
     }
 
-    // 可能是一种优化的方法，todo
-    // // 针对起点，需要首次计算全部代价值
-    // if (n->parent_node == nullptr)
-    // {
-
-    //     for (int i = min_y; i <= max_y; i++)
-    //     {
-    //         for (int j = min_x; j <= max_x; j++)
-    //         {
-    //             n->w_cost += map_[i][j].cost;
-    //         }
-    //     }
-    // }
-    // // 其余点可以简化计算，利用父节点处计算出的代价值减去扩展的值
-    // else
-    // {
-    //     if (n->point.y == n->parent_node->point.y)   // 同一行
-    //     {
-    //         // false 表明需要减去代价值；true表示需要新增代价值
-    //         bool add_flag = (n->point.x > n->parent_node->point.x) ^ (end_node_->point.x > n->parent_node->point.x); 
-
-    //         if (add_flag)
-    //         {
-    //             for (int i = min_y; i <= max_y; i++)
-    //             {
-    //                 n->w_cost += map_[i][n->point.x].cost;
-    //             }
-    //         }
-    //         else
-    //         {
-    //             for (int i = min_y; i <= max_y; i++)
-    //             {
-    //                 n->w_cost -= map_[i][n->parent_node->point.x].cost;
-    //             }
-    //         }
-    //     }
-
-    //     if (n->point.x == n->parent_node->point.x)  // 同一列
-    //     {
-    //         // false 表明需要减去代价值；true表示需要新增代价值
-    //         bool add_flag = (n->point.y > n->parent_node->point.y) ^ (end_node_->point.y > n->parent_node->point.y); 
-
-    //         if (add_flag)
-    //         {
-    //             for (int j = min_x; j <= max_x; j++)
-    //             {
-    //                 n->w_cost += map_[n->point.y][j].cost;
-    //             }
-    //         }
-    //         else
-    //         {
-    //             for (int j = min_x; j <= max_x; j++)
-    //             {
-    //                 n->w_cost -= map_[n->parent_node->point.y][j].cost;
-    //             }
-    //         }
-    //     }
-    // }
-    
+    // 计算周围节点的平均代价
+    const int kernel_size = 11;
+    int num = 0;
+    double sum = 0.0;
+    for (int k = -kernel_size / 2; k <= kernel_size / 2; k++)
+    {
+        for (int l = -kernel_size / 2; l <= kernel_size / 2; l++)   
+        {
+            if ((n->point.y + k >= 0 && n->point.y + k < rows_) &&
+                (n->point.x + l >= 0 && n->point.x + l < cols_)) // 保证当前索引不溢出
+            {
+                num++;
+                sum += map_[n->point.y + k][n->point.x + l].cost;
+            }
+        }
+    }
     // 障碍物密度 P ∈ (0, 1)
-    const double P = n->w_cost * 0.01 / ((std::abs(n->point.x - end_node_->point.x) + 1) * (std::abs(n->point.y - end_node_->point.y) + 1));
+    const double P = sum / num / 100.0;
     // 权重 w ∈ (1, ∞)
-    n->w = 1 - std::log(P);
+    n->w = 1 - 1 * std::log(P);
 }
 
 bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
@@ -739,8 +739,7 @@ void MCAstar::resetMap()
         {
             map_[i][j].g = 0;
             map_[i][j].h = 0;
-            map_[i][j].w = 1;
-            map_[i][j].w_cost = 0;
+            // map_[i][j].w = -1;  // 该值不重新刷新，因为对于每张地图而言，代价值是相同的。只有初始化地图时才初始化该值。
             map_[i][j].f = 0;
             map_[i][j].type = Node::NodeType::UNKNOWN;
             map_[i][j].parent_node = nullptr;

@@ -248,8 +248,7 @@ private:
         uint8_t cost = 0;   // 栅格中的代价值
         double g = 0;       // 起点到该点已探索的可通行距离代价值
         double h = 0;       // 该点到终点的启发值
-        double w = 1;       // 该点的权重值，为动态加权
-        double w_cost = 0;  // 该点到终点矩形区域内代价值的和，为计算权重的中间量
+        double w = -1;      // 该点的权重值，为动态加权。同一张地图，只需要计算一次，后续不再更新
         double f = 0;       // 该点总共的代价值 f = g + w * h
         NodeType type = NodeType::UNKNOWN;  // 节点种类，标识是否已探索
         Node * parent_node = nullptr;       // 该节点的父节点
@@ -284,6 +283,10 @@ public:
     /// @param p 栅格坐标系的点
     /// @return 该点是否能够成为起点。即该点在地图内部且不在障碍物上。
     bool setStartPoint(const cv::Point2i p) override;
+    /// @brief 设置规划路径的起点的朝向。
+    /// @param yaw x轴为0，右手坐标系；单位为弧度；范围为[-pi, pi]。
+    /// @return 该设置有效。规划器无设置起点朝向的功能时，返回false，否则返回true。
+    bool setStartPointYaw(const double yaw) override;
     /// @brief 设置规划路径的终点。以栅格坐标形式，而非行列形式。
     /// @param x 栅格坐标系的x值
     /// @param y 栅格坐标系的y值
@@ -293,6 +296,10 @@ public:
     /// @param p 栅格坐标系的点
     /// @return 该点是否能够成为终点。即该点在地图内部且不在障碍物上。
     bool setEndPoint(const cv::Point2i p) override;
+    /// @brief 设置规划路径的终点的朝向。
+    /// @param yaw x轴为0，右手坐标系；单位为弧度；范围为[-pi, pi]。
+    /// @return 该设置有效。规划器无设置终点朝向的功能时，返回false，否则返回true。
+    bool setEndPointYaw(const double yaw) override;
     /// @brief 获得处理后的地图，即算法内部真正使用的，经过膨胀、忽视小代价值后的地图
     /// @param map 地图将存入该变量
     /// @return 存入是否成功
