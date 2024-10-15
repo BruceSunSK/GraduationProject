@@ -530,8 +530,9 @@ bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
     auto start_time = std::chrono::steady_clock::now();
     start_node_->g = 0;
     getH(start_node_);
-    getW(start_node_);
-    start_node_->f = start_node_->g + start_node_->w * start_node_->h;
+    // getW(start_node_);
+    // start_node_->f = start_node_->g + start_node_->w * start_node_->h;
+    start_node_->f = start_node_->g + start_node_->h;
     start_node_->parent_node = nullptr;
     std::priority_queue<Node *, std::vector<Node*>, Node::NodePointerCmp> queue;
     queue.push(start_node_);
@@ -574,8 +575,9 @@ bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
                 {
                     new_node->g = this_node->g + gi;
                     getH(new_node);
-                    getW(new_node);
-                    new_node->f = new_node->g + new_node->w * new_node->h;
+                    // getW(new_node);
+                    // new_node->f = new_node->g + new_node->w * new_node->h;
+                    new_node->f = new_node->g + new_node->h;
                     new_node->type = Node::NodeType::OPENED;
                     new_node->parent_node = this_node;
                     new_node->direction_to_parent = direction;
@@ -588,7 +590,8 @@ bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
                     if (new_node->g > this_node->g + gi)        // 更新最近距离
                     {
                         new_node->g = this_node->g + gi;
-                        new_node->f = new_node->g + new_node->w * new_node->h;
+                        // new_node->f = new_node->g + new_node->w * new_node->h;
+                        new_node->f = new_node->g + new_node->h;
                         new_node->parent_node = this_node;
                         new_node->direction_to_parent = direction;
                     }
@@ -739,7 +742,7 @@ void MCAstar::resetMap()
         {
             map_[i][j].g = 0;
             map_[i][j].h = 0;
-            // map_[i][j].w = -1;  // 该值不重新刷新，因为对于每张地图而言，代价值是相同的。只有初始化地图时才初始化该值。
+            map_[i][j].w = 1;
             map_[i][j].f = 0;
             map_[i][j].type = Node::NodeType::UNKNOWN;
             map_[i][j].parent_node = nullptr;

@@ -71,7 +71,10 @@ public:
         /// @brief 清空当前记录的所有结果信息，便于下次记录
         void resetResultInfo() override
         {
-            search_result = {0, 0, 0, 0};
+            search_result.node_nums = 0;
+            search_result.node_counter = 0;
+            search_result.path_length = 0;
+            search_result.cost_time = 0.0;
         }
 
     private:

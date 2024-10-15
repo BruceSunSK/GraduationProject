@@ -18,12 +18,13 @@
 ///      2. g为综合距离代价值。考虑距离时乘以可通行度代价系数和转向代价系数的总已探索代价。
 ///         2.1 具体实现为：根据栅格代价值计算出一个大于1的可通行度代价系数与原有的g相乘；根据栅格转向角度，计算不同转向代价系数与g相乘。
 ///         2.2 cost为栅格的可通行代价；C为转向代价系数；g0为距离代价，等价于原版astar中的g
-///             g = \sigma gi = \sigma exp(k * costi / 100) * Ci *g0i
+///             g = \sigma gi = \sigma exp(k * costi / 100) * Ci * g0i
 ///             其中，k为自定义系数，k值越大，则远离障碍的趋势越明显，但也会导致出现绕弯。目前k = 2
 ///                  根据栅格转向角度(同向直行，同向斜行，垂向直行，反向斜行)，赋予不同转向代价系数C为：c1, c2, c3, c4，目前分别为1.0, 1.4, 2.0, 3.0。
 ///         2.3 使用可通行度代价系数可以有效利用离散的栅格代价值，而非二值化；
 ///             使用转向代价系数可以针对不能倒车的情形进行约束，且能够通过调参实现不同的倾向，而非5领域扩展法的一刀切。
-///      3. [暂未使用] w为加权系数，此处选择为动态加权。
+///      3. 【效果很差，暂未使用】w为加权系数，此处选择为动态加权。
+///         【无论是下述当前点到终点间的矩形区域，还是当前点周围的部分区域，效果都很差】
 ///         引入障碍物密度的概念P(p1, p2) = (\sigma cost) / (100 * (|p1.x - p2.x| + 1) * (|p1.y - p2.y| + 1)), \sigma cost为矩形区域内的总代价值。
 ///         然后，w = (1 - lnP), P ∈ (0, 1), w ∈ (1, ∞)。
 ///         可以实现在障碍物密集的区域实现避免搜索步长过大，出现局部最优，有效避开障碍物；在障碍物较少的区域中，加快搜索，减少搜索栅格个数。
@@ -185,10 +186,19 @@ public:
         /// @brief 清空当前记录的所有结果信息，便于下次记录
         void resetResultInfo() override
         {
-            search_result = { 0, 0, 0, 0 };
-            remove_redundant_result = { 0, 0 };
-            bezier_curve_result = { 0, 0 };
-            downsampling_result = { 0, 0 };
+            search_result.raw_node_nums = 0;
+            search_result.raw_node_counter = 0;
+            search_result.raw_path_length = 0;
+            search_result.cost_time = 0.0;
+
+            remove_redundant_result.reduced_path_length = 0;
+            remove_redundant_result.cost_time = 0.0;
+
+            bezier_curve_result.smooth_path_length = 0;
+            bezier_curve_result.cost_time = 0.0;
+
+            downsampling_result.path_length = 0;
+            downsampling_result.cost_time = 0.0;
         }
 
     private:
@@ -248,7 +258,7 @@ private:
         uint8_t cost = 0;   // 栅格中的代价值
         double g = 0;       // 起点到该点已探索的可通行距离代价值
         double h = 0;       // 该点到终点的启发值
-        double w = -1;      // 该点的权重值，为动态加权。同一张地图，只需要计算一次，后续不再更新
+        double w = 1;       // 该点的权重值，为动态加权。
         double f = 0;       // 该点总共的代价值 f = g + w * h
         NodeType type = NodeType::UNKNOWN;  // 节点种类，标识是否已探索
         Node * parent_node = nullptr;       // 该节点的父节点
@@ -334,7 +344,7 @@ private:
     /// @brief 根据启发类型，得到节点n到终点的启发值
     /// @param n 待计算的节点，计算该节点到终点的启发值
     void getH(Node * const n) const;
-    /// @brief 计算p点到终点的启发权重
+    /// @brief 计算p点到终点的启发权重。【效果很差，暂不使用】
     /// @param p 待计算的点，计算该点到终点的启发权重
     void getW(Node * const n) const;
     /// @brief 通过代价地图计算得到的原始路径，未经过去除冗余点、平滑操作
