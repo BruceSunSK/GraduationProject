@@ -13,8 +13,20 @@
 /// [1] 实现栅格代价值离散化，0~100和255。代价值低处更易通过；OBSTACLE值(默认为100)以上为障碍物，彻底不可通过；255为未探索区域（与建图相关），直接当做障碍物处理。
 ///     具体操作为：使用预处理对原始离散地图进行膨胀。只对代价值处于[min, max]区间的栅格进行按照距离反比进行膨胀，且乘以系数K，目前为1.3
 ///     膨胀后的地图若代价值小于COST_THRESHOLD，则置为0，降低较小值带来的无效计算。
-/// [2] 代价函数 f = g + w * h
-///      1. h和原版AStar保持一致，为距离启发代价。此处选择Euclidean距离启发。
+/// [2] 搜索领域从8领域扩展改为5领域扩展。原因是8领域扩展会导致搜索步长过大，出现局部最优，且不易处理障碍物密集的区域。
+///     1. 4领域扩展：左、右、上、下
+///        效果非常差。原始路线存着硬弯，再经过冗余点去除和平滑后效果更差。
+///     2. 5领域扩展：左、右、上、下、对角线
+///        效果最好。实际扩展到的节点数目和8领域基本一致，意味着路径和8领域是一样最优的；但是5领域可以减少扩展节点的次数，降低计算量。
+///     3. 8领域扩展：左、右、上、下、左上、右上、左下、右下
+///        效果一般。虽然可以实现最优路径，但与搜索方向相反的节点基本无需搜索，导致不必要的计算。    
+/// [3] 代价函数 f = g + w * h
+///      1. h用法和原版AStar保持一致，为距离启发代价。此处选择Euclidean距离启发。
+///         None：无启发类型，此时退化会成为Dijkstra算法。
+///         Manhattan：曼哈顿距离，计算公式为 |x1 - x2| + |y1 - y2|，适用于对角线距离较远的情况。
+///         Euclidean：欧式距离，计算公式为 sqrt((x1 - x2)^2 + (y1 - y2)^2)，适用于直线距离较远的情况。
+///         Chebyshev：切比雪夫距离，计算公式为 max(|x1 - x2|, |y1 - y2|)，适用于对角线距离较近的情况。
+///         Octile：对角线距离，计算公式为 max(dx, dy) + (sqrt(2) - 1) * min(dx, dy)
 ///      2. g为综合距离代价值。考虑距离时乘以可通行度代价系数和转向代价系数的总已探索代价。
 ///         2.1 具体实现为：根据栅格代价值计算出一个大于1的可通行度代价系数与原有的g相乘；根据栅格转向角度，计算不同转向代价系数与g相乘。
 ///         2.2 cost为栅格的可通行代价；C为转向代价系数；g0为距离代价，等价于原版astar中的g
@@ -28,19 +40,27 @@
 ///         引入障碍物密度的概念P(p1, p2) = (\sigma cost) / (100 * (|p1.x - p2.x| + 1) * (|p1.y - p2.y| + 1)), \sigma cost为矩形区域内的总代价值。
 ///         然后，w = (1 - lnP), P ∈ (0, 1), w ∈ (1, ∞)。
 ///         可以实现在障碍物密集的区域实现避免搜索步长过大，出现局部最优，有效避开障碍物；在障碍物较少的区域中，加快搜索，减少搜索栅格个数。
-/// [3] 去除冗余点
+/// [4] 去除冗余点
 ///      1. DouglasPeucker法。以起点终点连线为基线，找到最远的点，超过threshold则只保留起点终点；否则以该点递归左右两侧。
 ///      2. DistanceThreshold法。以起点开始依次向该点之后连线，判断该点之后的点到该直线距离，超过阈值则保留该点，并重置上述过程；否则舍去，继续向后。
 ///      3. AngleThreshold法。逻辑和DistanceThreshold法一致，只不过判断方法变成了角度（<新点，原直线起点连线> 和 <原直线>的角度）。
-/// [4] 引入贝塞尔曲线进行分段平滑。
+/// [5] 引入贝塞尔曲线进行分段平滑。
 ///      1. 首先将路径点去除起点和终点后每两个划分为1组。第一组额外包括起点，最后一组额外包括终点
 ///      2. 然后第i组的第二个点与第i+1组的第一个点线性插值的中点作为新插入节点，同时作为第i组和第i+1组的成员。
 ///      3. 这样每组都拥有四个节点成员，使用三阶贝塞尔曲线进行平滑。这样在分段处基本保持连续和曲率平滑。
 ///      4. 最后一组可能由于点的数量不够，只有三个点，此时使用二阶贝塞尔曲线进行平滑。
-/// [5] 由于生成的贝塞尔曲线是稠密的，因此手动进行降采样。按照两点间距离进行判断，使得路径离散。
+/// [6] 由于生成的贝塞尔曲线是稠密的，因此手动进行降采样。按照两点间距离进行判断，使得路径离散。
 class MCAstar : public GlobalPlannerInterface
 {
 public:
+    /// @brief 领域扩展类型
+    enum class NeighborType : uint8_t
+    {
+        FourConnected,
+        FiveConnected,
+        EightConnected
+    };
+    
     /// @brief 搜索过程的启发值类型
     enum class HeuristicsType : uint8_t
     {
@@ -83,6 +103,7 @@ public:
         // 代价函数相关参数
         struct
         {
+            MCAstar::NeighborType NEIGHBOR_TYPE = MCAstar::NeighborType::FiveConnected;     // 领域扩展类型，共有三种
             MCAstar::HeuristicsType HEURISTICS_TYPE = MCAstar::HeuristicsType::Euclidean;   // 启发值类型，共有五种
             double TRAV_COST_K = 2.0;                   // 计算可通行度代价值时的系数
             double TURN_COST_STRAIGHT = 1.0;            // 同向直行转向代价系数，C1
@@ -90,7 +111,8 @@ public:
             double TURN_COST_VERTICAL = 2.0;            // 垂向直行转向代价系数，C3
             double TURN_COST_REVERSE_SLANT = 3.0;       // 反向斜行转向代价系数，C4
 
-            REGISTER_STRUCT(REGISTER_MEMBER(HEURISTICS_TYPE),
+            REGISTER_STRUCT(REGISTER_MEMBER(NEIGHBOR_TYPE),
+                            REGISTER_MEMBER(HEURISTICS_TYPE),
                             REGISTER_MEMBER(TRAV_COST_K),
                             REGISTER_MEMBER(TURN_COST_STRAIGHT),
                             REGISTER_MEMBER(TURN_COST_SLANT),
@@ -250,6 +272,8 @@ private:
             template<typename T, typename U>
             bool operator ()(const std::pair<T, U> & p1, const std::pair<T, U> & p2) const { return p1.first == p2.first && p1.second == p2.second; }
         };
+        /// @brief 包含最多八个方向的相邻节点的偏移量表，根据需求调用不同index的值，使用OpenCV坐标系
+        static const int neighbor_offset_table[8][2];
         /// @brief 索引-枚举的映射
         static const std::unordered_map<std::pair<int, int>, Direction, HashPair, EqualPair> index_direction_map;
 
@@ -335,6 +359,10 @@ private:
     Node * start_node_ = nullptr;           // 起点节点
     Node * end_node_   = nullptr;           // 终点节点
 
+    /// @brief 根据配置参数，确定当前当前节点的相邻节点在Node::neightbor_offset_table中的索引值列表
+    /// @param n 当前节点
+    /// @return Node::neightbor_offset_table中的索引值列表
+    std::vector<size_t> getNeighborsIndex(const Node * const n) const;
     /// @brief 准确讲应为getGi，即返回节点n到其父节点的G综合代价值。即为带有可通行度代价和转向代价的综合距离代价值。
     /// @param n 待计算的节点，计算该节点到其父节点的综合距离代价值
     /// @param direction 待计算的节点相对父节点的方向
@@ -373,6 +401,8 @@ private:
     void resetMap();
 };
 
+using MCAstarNeighborType = MCAstar::NeighborType;
+REGISTER_ENUM(MCAstarNeighborType);
 using MCAstarHeuristicsType = MCAstar::HeuristicsType;
 REGISTER_ENUM(MCAstarHeuristicsType);
 using MCAstarPathSimplificationType = MCAstar::PathSimplificationType;

@@ -141,6 +141,7 @@ int main(int argc, char *argv[])
     MCAstar_params.map_params.EXPANDED_MAX_THRESHOLD = 100;
     MCAstar_params.map_params.COST_THRESHOLD = 10;
     MCAstar_params.map_params.OBSTACLE_THRESHOLD = 100;
+    MCAstar_params.cost_function_params.NEIGHBOR_TYPE = MCAstar::NeighborType::FiveConnected;
     MCAstar_params.cost_function_params.HEURISTICS_TYPE = MCAstar::HeuristicsType::Euclidean;
     MCAstar_params.cost_function_params.TRAV_COST_K = 2.0;
     MCAstar_params.cost_function_params.TURN_COST_STRAIGHT = 1.0;

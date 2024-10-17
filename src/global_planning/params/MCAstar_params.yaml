@@ -7,6 +7,7 @@ MCAstar:
     OBSTACLE_THRESHOLD: 100       # 膨胀地图中栅格代价值大于等于(>=)该值的栅格，会被视为障碍物，搜索过程中将直接跳过该栅格
 
   cost_function_params:
+    NEIGHBOR_TYPE: 1              # 领域扩展类型，0:FourConnected, 1:FiveConnected, 2:EightConnected
     HEURISTICS_TYPE: 2            # 启发值类型，0:None, 1:Manhattan, 2:Euclidean, 3:Chebyshev, 4:Octile
     TRAV_COST_K: 2.0              # 计算可通行度代价值时的系数
     TURN_COST_STRAIGHT: 1.0       # 同向直行转向代价系数，C1

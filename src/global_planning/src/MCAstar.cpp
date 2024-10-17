@@ -78,6 +78,18 @@ std::string MCAstar::MCAstarHelper::resultInfo() const
 
 // ========================= MCAstar::Node =========================
 
+const int MCAstar::Node::neighbor_offset_table[8][2] =
+    {
+        {-1,  0},
+        { 1,  0},
+        { 0, -1},    
+        { 0,  1},
+        {-1, -1},
+        {-1,  1},
+        { 1, -1},
+        { 1,  1}
+    };
+
 const std::unordered_map<std::pair<int, int>,
                          MCAstar::Node::Direction, 
                          MCAstar::Node::HashPair, 
@@ -96,6 +108,11 @@ const std::unordered_map<std::pair<int, int>,
 
 
 // ========================= MCAstar =========================
+
+REGISTER_ENUM_BODY(MCAstarNeighborType,
+                   REGISTER_MEMBER(MCAstarNeighborType::FourConnected),
+                   REGISTER_MEMBER(MCAstarNeighborType::FiveConnected),
+                   REGISTER_MEMBER(MCAstarNeighborType::EightConnected));
 
 REGISTER_ENUM_BODY(MCAstarHeuristicsType,
                    REGISTER_MEMBER(MCAstarHeuristicsType::None),
@@ -432,6 +449,55 @@ bool MCAstar::getSmoothPath(std::vector<cv::Point2d> & path)
     return true;
 }
 
+std::vector<size_t> MCAstar::getNeighborsIndex(const Node * const node) const
+{
+    std::vector<size_t> index_range;
+    switch (params_.cost_function_params.NEIGHBOR_TYPE)
+    {
+    case NeighborType::FourConnected:
+        index_range = { 0, 1, 2, 3 };
+        break;
+    case NeighborType::FiveConnected:
+        switch (node->direction_to_parent)
+        {
+        case Node::Direction::N:
+            index_range = { 0, 2, 3, 4, 5 };
+            break;
+        case Node::Direction::S:
+            index_range = { 1, 2, 3, 6, 7 };
+            break;
+        case Node::Direction::W:
+            index_range = { 0, 1, 2, 4, 6 };
+            break;
+        case Node::Direction::E:
+            index_range = { 0, 1, 3, 5, 7 };
+            break;
+        case Node::Direction::NW:
+            index_range = { 0, 2, 4, 5, 6 };
+            break;
+        case Node::Direction::NE:
+            index_range = { 0, 3, 4, 5, 7 };
+            break;
+        case Node::Direction::SW:
+            index_range = { 1, 2, 4, 6, 7 };
+            break;
+        case Node::Direction::SE:
+            index_range = { 1, 3, 5, 6, 7 };
+            break;
+        default:    // UNKNOWN情形下，返回全部邻居
+            index_range = { 0, 1, 2, 3, 4, 5, 6, 7 };
+            break;
+        }
+        break;
+    case NeighborType::EightConnected:
+        index_range = { 0, 1, 2, 3, 4, 5, 6, 7 };
+        break;
+    default:
+        break;
+    }
+    return index_range;
+}
+
 double MCAstar::getG(const Node * const n, const Node::Direction direction, const Node::Direction par_direction) const
 {
     uint8_t dir = static_cast<uint8_t>(direction);
@@ -549,57 +615,56 @@ bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
         if (this_node == end_node_)  // 已经到达终点
             break;
         
-        // 八个方向扩展搜索，即3x3方格内部
-        for (int k = -1; k <= 1; k++)
+        // 根据参数，确定搜素领域的范围
+        std::vector<size_t> index_range = getNeighborsIndex(this_node);
+        for (size_t & index : index_range)
         {
-            for (int l = -1; l <= 1; l++)
+            const int & k = Node::neighbor_offset_table[index][0];
+            const int & l = Node::neighbor_offset_table[index][1];
+            if (((this_point.y + k >= 0 && this_point.y + k < rows_) &&
+                 (this_point.x + l >= 0 && this_point.x + l < cols_)) == false) // 保证当前索引不溢出
             {
-                if (((k != 0 || l != 0) &&                                          // 排除自身节点
-                     (this_point.y + k >= 0 && this_point.y + k < rows_) &&
-                     (this_point.x + l >= 0 && this_point.x + l < cols_)) == false) // 保证当前索引不溢出
-                {
-                    continue;
-                }
-                
-                Node * const new_node = &map_[this_point.y + k][this_point.x + l];
-                const cv::Point2i & new_point = new_node->point;
-                if ((new_node->cost < params_.map_params.OBSTACLE_THRESHOLD &&   // 保证该节点是非障碍物节点，才能联通。代价地图[0, 100] 0可通过 100不可通过 
-                     new_node->type != Node::NodeType::CLOSED) == false)         // 不对已加入CLOSED的数据再次判断
-                {
-                    continue;
-                }
+                continue;
+            }
+            
+            Node * const new_node = &map_[this_point.y + k][this_point.x + l];
+            const cv::Point2i & new_point = new_node->point;
+            if ((new_node->cost < params_.map_params.OBSTACLE_THRESHOLD &&  // 保证该节点是非障碍物节点，才能联通。代价地图[0, 100] 0可通过 100不可通过 
+                    new_node->type != Node::NodeType::CLOSED) == false)     // 不对已加入CLOSED的数据再次判断
+            {
+                continue;
+            }
 
-                const Node::Direction direction = Node::index_direction_map.at({ k, l });
-                const double gi = getG(new_node, direction, this_node->direction_to_parent);
-                if (new_node->type == Node::NodeType::UNKNOWN)
+            const Node::Direction direction = Node::index_direction_map.at({ k, l });
+            const double gi = getG(new_node, direction, this_node->direction_to_parent);
+            if (new_node->type == Node::NodeType::UNKNOWN)
+            {
+                new_node->g = this_node->g + gi;
+                getH(new_node);
+                // getW(new_node);
+                // new_node->f = new_node->g + new_node->w * new_node->h;
+                new_node->f = new_node->g + new_node->h;
+                new_node->type = Node::NodeType::OPENED;
+                new_node->parent_node = this_node;
+                new_node->direction_to_parent = direction;
+                queue.push(std::move(new_node));
+
+                helper_.search_result.raw_node_nums++;      // 访问到的节点个数
+            }
+            else //new_node->type == NodeType::OPENED
+            {
+                if (new_node->g > this_node->g + gi)        // 更新最近距离
                 {
                     new_node->g = this_node->g + gi;
-                    getH(new_node);
-                    // getW(new_node);
                     // new_node->f = new_node->g + new_node->w * new_node->h;
                     new_node->f = new_node->g + new_node->h;
-                    new_node->type = Node::NodeType::OPENED;
                     new_node->parent_node = this_node;
                     new_node->direction_to_parent = direction;
-                    queue.push(std::move(new_node));
-
-                    helper_.search_result.raw_node_nums++;      // 访问到的节点个数
                 }
-                else //new_node->type == NodeType::OPENED
-                {
-                    if (new_node->g > this_node->g + gi)        // 更新最近距离
-                    {
-                        new_node->g = this_node->g + gi;
-                        // new_node->f = new_node->g + new_node->w * new_node->h;
-                        new_node->f = new_node->g + new_node->h;
-                        new_node->parent_node = this_node;
-                        new_node->direction_to_parent = direction;
-                    }
-                }
-
-                helper_.search_result.raw_node_counter++;       // 访问节点的总次数  
             }
-        }    
+
+            helper_.search_result.raw_node_counter++;       // 访问节点的总次数
+        }
     }
 
 

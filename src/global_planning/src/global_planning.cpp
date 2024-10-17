@@ -32,6 +32,8 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
         p.map_params.EXPANDED_MAX_THRESHOLD             = nh_.param<int>("MCAstar/map_params/EXPANDED_MAX_THRESHOLD", 100);
         p.map_params.COST_THRESHOLD                     = nh_.param<int>("MCAstar/map_params/COST_THRESHOLD", 10);
         p.map_params.OBSTACLE_THRESHOLD                 = nh_.param<int>("MCAstar/map_params/OBSTACLE_THRESHOLD", 100);
+        p.cost_function_params.NEIGHBOR_TYPE            = static_cast<MCAstar::NeighborType>(
+                                                          nh_.param<int>("MCAstar/cost_function_params/NEIGHBOR_TYPE", 1));
         p.cost_function_params.HEURISTICS_TYPE          = static_cast<MCAstar::HeuristicsType>(
                                                           nh_.param<int>("MCAstar/cost_function_params/HEURISTICS_TYPE", 2));
         p.cost_function_params.TRAV_COST_K              = nh_.param<double>("MCAstar/cost_function_params/TRAV_COST_K", 2.0);
