@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
     MCAstar_params.cost_function_params.TURN_COST_VERTICAL = 2.0;
     MCAstar_params.cost_function_params.TURN_COST_REVERSE_SLANT = 3.0;
     MCAstar_params.path_simplification_params.PATH_SIMPLIFICATION_TYPE = MCAstar::PathSimplificationType::DouglasPeucker;
-    MCAstar_params.path_simplification_params.THRESHOLD = 1.0;
+    MCAstar_params.path_simplification_params.THRESHOLD = 1.5;
     MCAstar_params.bezier_curve_params.T_STEP = 0.01;
     MCAstar_params.downsampling_params.INTERVAL = 0.4;
     planner.initParams(MCAstar_params);

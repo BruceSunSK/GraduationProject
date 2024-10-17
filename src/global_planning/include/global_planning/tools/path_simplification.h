@@ -130,7 +130,7 @@ public:
             return;
         }
 
-        // 递归实现
+        // 递归实现，r指递归，dp指算法名
         std::function<void(const int, const int)> rdp =
             [&in_path, &out_path, threshold, &rdp](const int i_l, const int i_r) -> void
             {

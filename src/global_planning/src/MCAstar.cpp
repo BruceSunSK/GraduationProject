@@ -90,19 +90,16 @@ const int MCAstar::Node::neighbor_offset_table[8][2] =
         { 1,  1}
     };
 
-const std::unordered_map<std::pair<int, int>,
-                         MCAstar::Node::Direction, 
-                         MCAstar::Node::HashPair, 
-                         MCAstar::Node::EqualPair> MCAstar::Node::index_direction_map = 
+const MCAstar::Node::Direction MCAstar::Node::direction_table[8] =
     {
-        {{-1,  0}, Direction::N},
-        {{ 1,  0}, Direction::S},
-        {{ 0, -1}, Direction::W},
-        {{ 0,  1}, Direction::E},
-        {{-1, -1}, Direction::NW},
-        {{-1,  1}, Direction::NE},
-        {{ 1, -1}, Direction::SW},
-        {{ 1,  1}, Direction::SE}
+        Direction::N,
+        Direction::S,
+        Direction::W,
+        Direction::E,
+        Direction::NW,
+        Direction::NE,
+        Direction::SW,
+        Direction::SE
     };
 // ========================= MCAstar::Node =========================
 
@@ -635,7 +632,7 @@ bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
                 continue;
             }
 
-            const Node::Direction direction = Node::index_direction_map.at({ k, l });
+            const Node::Direction direction = Node::direction_table[index];
             const double gi = getG(new_node, direction, this_node->direction_to_parent);
             if (new_node->type == Node::NodeType::UNKNOWN)
             {

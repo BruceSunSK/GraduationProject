@@ -260,22 +260,10 @@ private:
             SE = S | E | 0x10,
             SW = S | W | 0x10
         };
-        /// @brief stl的std::unordered_map不支持std::pair的映射...自己写对应的hash的仿函数
-        struct HashPair
-        {
-            template<typename T, typename U>
-            size_t operator()(const std::pair<T, U> & p) const { return std::hash<T>()(p.first) ^ std::hash<U>()(p.second); }
-        };
-        /// @brief 同上，用于std::pair的键值比较，哈希碰撞的比较定义，需要直到两个自定义对象是否相等
-        struct EqualPair 
-        {
-            template<typename T, typename U>
-            bool operator ()(const std::pair<T, U> & p1, const std::pair<T, U> & p2) const { return p1.first == p2.first && p1.second == p2.second; }
-        };
         /// @brief 包含最多八个方向的相邻节点的偏移量表，根据需求调用不同index的值，使用OpenCV坐标系
         static const int neighbor_offset_table[8][2];
-        /// @brief 索引-枚举的映射
-        static const std::unordered_map<std::pair<int, int>, Direction, HashPair, EqualPair> index_direction_map;
+        /// @brief 不用方向枚举的映射标，输入索引，输出方向
+        static const Direction direction_table[8];
 
         /// @brief 节点属性
         cv::Point2i point;  // 栅格的xy值
