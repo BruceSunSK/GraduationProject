@@ -44,6 +44,12 @@
 ///      1. DouglasPeucker法。以起点终点连线为基线，找到最远的点，超过threshold则只保留起点终点；否则以该点递归左右两侧。
 ///      2. DistanceThreshold法。以起点开始依次向该点之后连线，判断该点之后的点到该直线距离，超过阈值则保留该点，并重置上述过程；否则舍去，继续向后。
 ///      3. AngleThreshold法。逻辑和DistanceThreshold法一致，只不过判断方法变成了角度（<新点，原直线起点连线> 和 <原直线>的角度）。
+///      4. DPPlus法。DPPlus法是改进的DouglasPeucker法。
+///         4.1 初始过程和DouglasPeucker法一致，以起点终点连线为基线，对于每一个点，计算其与基线的距离，得到最远具体的点。
+///         4.2 如果最远距离超过DISTANCE_THRESHOLD，则直接对左右两侧进行递归处理；否则，进行如下障碍物判断：
+///         4.3 对该起点和终点使用Bresenham算法，得到该起点终点连线(所连直线宽度由LINE_THRESHOLD控制)上的所有点位置，判断其所在栅格代价值是否大于等于OBSTACLE_THRESHOLD。
+///             若存在任意一个栅格是障碍物，则认为该两点直接存在障碍物，无法直接连接，不进行简化。仍选择最原距离点两侧分别进行递归处理。
+///             若所有连接点栅格均不存在障碍物，则认为该两点间无障碍物，可以连接，进行简化，只保留起点和终点。
 /// [5] 引入贝塞尔曲线进行分段平滑。
 ///      1. 首先将路径点去除起点和终点后每两个划分为1组。第一组额外包括起点，最后一组额外包括终点
 ///      2. 然后第i组的第二个点与第i+1组的第一个点线性插值的中点作为新插入节点，同时作为第i组和第i+1组的成员。
@@ -76,7 +82,8 @@ public:
     {
         DouglasPeucker,
         DistanceThreshold,
-        AngleThreshold
+        AngleThreshold,
+        DPPlus
     };
 
     /// @brief 用于MCAstar规划器使用的参数类型
@@ -123,11 +130,17 @@ public:
         // 冗余点去除相关参数
         struct 
         {
-            MCAstar::PathSimplificationType PATH_SIMPLIFICATION_TYPE = MCAstar::PathSimplificationType::DouglasPeucker; // 去除冗余点方法，共有三种
-            double THRESHOLD = 1.0;     // 去除冗余点的阈值。DouglasPeucker 和 DistanceThreshold 方法单位为m， AngleThreshold 方法单位为rad
-
+            MCAstar::PathSimplificationType PATH_SIMPLIFICATION_TYPE = MCAstar::PathSimplificationType::DPPlus; // 去除冗余点方法，共有四种
+            double DISTANCE_THRESHOLD = 1.8;    // 去除冗余点时的距离阈值，仅在DouglasPeucker、DistanceThreshold和DPPlus方法中使用。单位为m。
+            double ANGLE_THRESHOLD = 0.17;      // 去除冗余点时的角度阈值，仅在AngleThreshold方法中使用。单位为rad。
+            uint16_t OBSTACLE_THRESHOLD = 70;   // 去除冗余点时的障碍物阈值，仅在DPPlus方法中使用。范围为[0, 100]。在去除冗余点连线上，如果有大于等于≥该值的栅格，将被视为存在障碍物，取消本次连线。建议略小于map_params.OBSTACLE_THRESHOLD。
+            double LINE_WIDTH = 1.5;            // 去除冗余点时的线宽，仅在DPPlus方法中使用。单位为m。在去除冗余点连线上，按照该宽度进行障碍物检测。
+            
             REGISTER_STRUCT(REGISTER_MEMBER(PATH_SIMPLIFICATION_TYPE),
-                            REGISTER_MEMBER(THRESHOLD));
+                            REGISTER_MEMBER(DISTANCE_THRESHOLD),
+                            REGISTER_MEMBER(ANGLE_THRESHOLD),
+                            REGISTER_MEMBER(OBSTACLE_THRESHOLD),
+                            REGISTER_MEMBER(LINE_WIDTH));
         } path_simplification_params;
 
         // 贝塞尔曲线平滑相关参数
@@ -343,7 +356,8 @@ private:
     MCAstarParams params_;                  // 规划器参数
     MCAstarHelper helper_;                  // 规划器辅助
 
-    std::vector<std::vector<Node>> map_;    // 实际使用地图
+    cv::Mat obs_map_;                       // 仅有代价值的障碍物地图
+    std::vector<std::vector<Node>> map_;    // 在规划中实际使用地图
     Node * start_node_ = nullptr;           // 起点节点
     Node * end_node_   = nullptr;           // 终点节点
 

@@ -121,7 +121,8 @@ REGISTER_ENUM_BODY(MCAstarHeuristicsType,
 REGISTER_ENUM_BODY(MCAstarPathSimplificationType,
                    REGISTER_MEMBER(MCAstarPathSimplificationType::DouglasPeucker),
                    REGISTER_MEMBER(MCAstarPathSimplificationType::DistanceThreshold),
-                   REGISTER_MEMBER(MCAstarPathSimplificationType::AngleThreshold));
+                   REGISTER_MEMBER(MCAstarPathSimplificationType::AngleThreshold),
+                   REGISTER_MEMBER(MCAstarPathSimplificationType::DPPlus));
 
 void MCAstar::initParams(const GlobalPlannerParams & params)
 {
@@ -221,6 +222,7 @@ bool MCAstar::setMap(const cv::Mat & map)
 
 
     // 设置地图
+    obs_map_ = out.clone();
     map_.clear();
     map_.resize(rows_);
     for (int i = 0; i < rows_; i++)
@@ -238,6 +240,7 @@ bool MCAstar::setMap(const cv::Mat & map)
             else
             {
                 node.cost = 0;
+                obs_map_.at<uchar>(i, j) = 0;
             }
             
             row[j] = std::move(node);
@@ -394,11 +397,11 @@ bool MCAstar::getRawPath(std::vector<cv::Point2i> & path)
 
     // 2.节点转成路径点
     std::vector<cv::Point2i> raw_path;
-    // nodesToPath(raw_nodes, raw_path);
-    nodesToPath(raw_nodes, path);
+    nodesToPath(raw_nodes, raw_path);
+    // nodesToPath(raw_nodes, path);
 
     ////////
-    // removeRedundantPoints(raw_path, path);
+    removeRedundantPoints(raw_path, path);
     ////////
 
     // 3.复原地图
@@ -706,25 +709,33 @@ void MCAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, s
     // 1.使用Douglas-Peucker法去除冗余点
     // 测试结果：× 1. 也会破坏对称结构。
     //         √ 2. 但保留的点都很具有特征点代表性
-    //         √ 3. 感觉在徐工地图上超级棒，甚至感觉不用平滑，用原始的折现也不错。
+    //         √ 3. 感觉在徐工地图上超级棒，甚至感觉不用平滑，用原始的折线也不错。
     case PathSimplificationType::DouglasPeucker:
-        PathSimplification::Douglas_Peucker(raw_path, reduced_path, params_.path_simplification_params.THRESHOLD / res_);
+        PathSimplification::Douglas_Peucker(raw_path, reduced_path, params_.path_simplification_params.DISTANCE_THRESHOLD / res_);
         break;
 
     // 2.使用垂距限值法去除冗余点
     // 测试结果：√ 1. 能够较为有效的保留对称的形状；
     //         × 2. 但是只去除一轮的话，（由于节点特别密集）会存在连续的2 / 3个点都存在，还需要二次去除
     case PathSimplificationType::DistanceThreshold:
-        PathSimplification::distance_threshold(raw_path, reduced_path, params_.path_simplification_params.THRESHOLD / res_);
+        PathSimplification::distance_threshold(raw_path, reduced_path, params_.path_simplification_params.DISTANCE_THRESHOLD / res_);
         break;
 
     // 3.使用角度限值法去除冗余点
     // 测试结果：× 1. 感觉容易破坏对称结构。本来对称的节点去除冗余点后有较为明显的差异，导致效果变差。
     //         √ 2. 在长直线路径下，能够有效去除多余歪点，只剩起点终点。
     case PathSimplificationType::AngleThreshold:
-        PathSimplification::angle_threshold(raw_path, reduced_path, params_.path_simplification_params.THRESHOLD);
+        PathSimplification::angle_threshold(raw_path, reduced_path, params_.path_simplification_params.ANGLE_THRESHOLD);
         break;
 
+    // 4.使用改进的Douglas-Peucker法去除冗余点
+    // 测试结果：在DP的基础上，增加了对障碍物的处理。
+    case PathSimplificationType::DPPlus:
+        PathSimplification::DPPlus(obs_map_, raw_path, reduced_path, params_.path_simplification_params.OBSTACLE_THRESHOLD,
+                                                                     params_.path_simplification_params.DISTANCE_THRESHOLD / res_, 
+                                                    static_cast<int>(params_.path_simplification_params.LINE_WIDTH / res_ + 0.5));
+        break;
+        
     default:
         reduced_path = raw_path;
         break;
