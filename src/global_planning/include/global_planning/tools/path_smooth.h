@@ -4,6 +4,7 @@
 #include <opencv2/core.hpp>
 
 
+/// @brief 贝塞尔曲线。可以用所有控制点生成一段曲线，也可以用分段的三阶贝塞尔曲线进行平滑拟合。
 class BezierCurve
 {
 public:
@@ -101,27 +102,68 @@ private:
     /// @param n 下标n
     /// @param r 上表r
     /// @return 组合数结果
-    static size_t C_n_r(const size_t n, const size_t r)
+    static size_t C_n_r(const size_t n, const size_t r);
+};
+
+
+/// @brief B样条曲线。控制点个数为n+1，阶数为k，函数次数为k-1。
+class BSplineCurve
+{
+public:
+    BSplineCurve() = default;
+    ~BSplineCurve() = default;
+
+    /// @brief 使用控制点生成B样条曲线。
+    /// @tparam PointType 支持OpenCV格式的整型和浮点型数据点
+    /// @param control_points 输入的原始路径点
+    /// @param bspline_points 输出的平滑后的稠密序列点
+    /// @param k B样条曲线的阶数，生成k-1次函数。通常使用4阶，此时保证曲率平滑。
+    /// @param u_step B样条曲线中u的步增长度，t∈[0, 1]，每一步生成一个输出点
+    template <typename PointType>
+    static void smooth_curve(const std::vector<cv::Point_<PointType>> & control_points, std::vector<cv::Point2d> & bspline_points, const size_t k = 4, const double u_step = 0.005)
     {
-        const size_t size = combination_table_.size();
-        if (n < size)
+        bspline_points.clear();
+
+        if (control_points.size() == 0)
         {
-            return combination_table_[n][r];
+            return;
         }
-        else
+        if (control_points.size() == 1)
         {
-            for (size_t i = size; i <= n; i++)
+            bspline_points.push_back(cv::Point2d(control_points.front().x, control_points.front().y));
+            return;
+        }
+        
+        const size_t n = control_points.size() - 1;
+        generate_knots(k, n);
+        for (double u = 0.0; u <= 1.0; u += u_step)
+        {
+            bik_u(u, k, n);
+            cv::Point2d pt(0.0, 0.0);
+            for (size_t i = 0; i <= n; i++)
             {
-                std::vector<size_t> row(i + 1);
-                row[0] = 1;
-                row[i] = 1;
-                for (size_t j = 1; j < i; j++)
-                {
-                    row[j] = combination_table_[i - 1][j - 1] + combination_table_[i - 1][j];
-                }
-                combination_table_.push_back(std::move(row));
+                const double & coff = b_matrix_[k - 1][i];
+                pt.x += (coff * control_points[i].x);
+                pt.y += (coff * control_points[i].y);
             }
-            return combination_table_[n][r];
+            bspline_points.push_back(std::move(pt));
         }
     }
+
+private:
+    static std::vector<double> knots_;                  // 记录knots的表，大小为n+k+1
+    static std::vector<std::vector<double>> b_matrix_;  // 记录B矩阵的表，第0行大小为n+k，第i行大小为n+k-i，只记录当前u所在区间的B值
+
+    /// @brief 生成准均匀B样条的knots
+    /// @param k 阶数
+    /// @param n 控制点数-1
+    /// @param min 最小值
+    /// @param max 最大值
+    static void generate_knots(const size_t k, const size_t n, const double min = 0.0, const double max = 1.0);
+
+    /// @brief 用于生成在给定的u下，所有的Bik的计算值，储存在表中，每次调用都会重新生成。
+    /// @param u 当前的u值。
+    /// @param k 阶数，即生成k阶B样条曲线，k-1次函数
+    /// @param n 控制点数-1
+    static void bik_u(const double u, const size_t k, const size_t n);
 };

@@ -124,6 +124,10 @@ REGISTER_ENUM_BODY(MCAstarPathSimplificationType,
                    REGISTER_MEMBER(MCAstarPathSimplificationType::AngleThreshold),
                    REGISTER_MEMBER(MCAstarPathSimplificationType::DPPlus));
 
+REGISTER_ENUM_BODY(MCAstarPathSmoothType,
+                   REGISTER_MEMBER(MCAstarPathSmoothType::Bezier),
+                   REGISTER_MEMBER(MCAstarPathSmoothType::BSpline));
+
 void MCAstar::initParams(const GlobalPlannerParams & params)
 {
     const MCAstarParams & p = dynamic_cast<const MCAstarParams &>(params);
@@ -761,9 +765,29 @@ bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<
         return false;
     }
     
-    // 使用优化后的分段三阶贝塞尔曲线进行平滑
     auto start_time = std::chrono::steady_clock::now();
-    BezierCurve::piecewise_smooth_curve(raw_path, smooth_path, params_.path_smooth_params.T_STEP);
+    switch (params_.path_smooth_params.PATH_SMOOTH_TYPE)
+    {
+    // 使用优化后的分段三阶贝塞尔曲线进行平滑
+    // 测试结果：不好。
+    //         1. 手动拼接处曲率变化较为明显。
+    //         2. 曲线会更倾向于中间，而非控制点。在两个控制点间隔较远时会更加明显，效果更差。
+    //         3. 速度比B样条慢。毕竟B样条我狠狠优化过，贝塞尔貌似只能搞dp计算组合数打表。
+    case PathSmoothType::Bezier:
+        BezierCurve::piecewise_smooth_curve(raw_path, smooth_path, params_.path_smooth_params.T_STEP);
+        break;
+
+    // 使用B样条曲线进行平滑
+    // 测试结果：不错。
+    //         1. 效果很好，曲线平滑，作用在全局，控制点均匀分布。
+    //         2. 速度快。
+    case PathSmoothType::BSpline:
+        BSplineCurve::smooth_curve(raw_path, smooth_path, 4, params_.path_smooth_params.T_STEP);
+        break;
+
+    default:
+        break;
+    }
     auto end_time = std::chrono::steady_clock::now();
 
     helper_.path_smooth_result.smooth_path_length = smooth_path.size();

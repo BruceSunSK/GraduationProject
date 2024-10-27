@@ -47,7 +47,9 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
         p.path_simplification_params.ANGLE_THRESHOLD    = nh_.param<double>("MCAstar/path_simplification_params/ANGLE_THRESHOLD", 0.17);
         p.path_simplification_params.OBSTACLE_THRESHOLD = nh_.param<int>("MCAstar/path_simplification_params/OBSTACLE_THRESHOLD", 70);
         p.path_simplification_params.LINE_WIDTH         = nh_.param<double>("MCAstar/path_simplification_params/LINE_WIDTH", 1.5);
-        p.path_smooth_params.T_STEP                     = nh_.param<double>("MCAstar/path_smooth_params/T_STEP", 0.01);
+        p.path_smooth_params.PATH_SMOOTH_TYPE           = static_cast<MCAstar::PathSmoothType>(
+                                                          nh_.param<int>("MCAstar/path_smooth_params/PATH_SMOOTH_TYPE", 1));
+        p.path_smooth_params.T_STEP                     = nh_.param<double>("MCAstar/path_smooth_params/T_STEP", 0.0005);
         p.downsampling_params.INTERVAL                  = nh_.param<double>("MCAstar/downsampling_params/INTERVAL", 0.3);
         planner_->initParams(p);
     }

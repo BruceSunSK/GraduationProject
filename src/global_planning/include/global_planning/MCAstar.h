@@ -50,11 +50,14 @@
 ///         4.3 对该起点和终点使用Bresenham算法，得到该起点终点连线(所连直线宽度由LINE_THRESHOLD控制)上的所有点位置，判断其所在栅格代价值是否大于等于OBSTACLE_THRESHOLD。
 ///             若存在任意一个栅格是障碍物，则认为该两点直接存在障碍物，无法直接连接，不进行简化。仍选择最原距离点两侧分别进行递归处理。
 ///             若所有连接点栅格均不存在障碍物，则认为该两点间无障碍物，可以连接，进行简化，只保留起点和终点。
-/// [5] 引入贝塞尔曲线进行分段平滑。
-///      1. 首先将路径点去除起点和终点后每两个划分为1组。第一组额外包括起点，最后一组额外包括终点
-///      2. 然后第i组的第二个点与第i+1组的第一个点线性插值的中点作为新插入节点，同时作为第i组和第i+1组的成员。
-///      3. 这样每组都拥有四个节点成员，使用三阶贝塞尔曲线进行平滑。这样在分段处基本保持连续和曲率平滑。
-///      4. 最后一组可能由于点的数量不够，只有三个点，此时使用二阶贝塞尔曲线进行平滑。
+/// [5] 使用曲线平滑路径。
+///     5.1 引入贝塞尔曲线进行分段平滑。
+///         1. 首先将路径点去除起点和终点后每两个划分为1组。第一组额外包括起点，最后一组额外包括终点
+///         2. 然后第i组的第二个点与第i+1组的第一个点线性插值的中点作为新插入节点，同时作为第i组和第i+1组的成员。
+///         3. 这样每组都拥有四个节点成员，使用三阶贝塞尔曲线进行平滑。这样在分段处基本保持连续和曲率平滑。
+///         4. 最后一组可能由于点的数量不够，只有三个点，此时使用二阶贝塞尔曲线进行平滑。
+///     5.2 引入B样条曲线进行全局平滑。对去除冗余点后的路径直接使用4阶3次B样条曲线进行全局平滑。
+///     总体使用而言，B样条更快，更平滑。
 /// [6] 由于生成的贝塞尔曲线是稠密的，因此手动进行降采样。按照两点间距离进行判断，使得路径离散。
 class MCAstar : public GlobalPlannerInterface
 {
@@ -84,6 +87,13 @@ public:
         DistanceThreshold,
         AngleThreshold,
         DPPlus
+    };
+
+    /// @brief 曲线平滑方法类型
+    enum class PathSmoothType : uint8_t
+    {
+        Bezier,
+        BSpline
     };
 
     /// @brief 用于MCAstar规划器使用的参数类型
@@ -143,12 +153,14 @@ public:
                             REGISTER_MEMBER(LINE_WIDTH));
         } path_simplification_params;
 
-        // 贝塞尔曲线平滑相关参数
+        // 曲线平滑相关参数
         struct
         {
-            double T_STEP = 0.01;       // 贝塞尔曲线的步长，t∈(0, 1)， t越大，生成的贝塞尔曲线离散点的密度就越大。
+            MCAstar::PathSmoothType PATH_SMOOTH_TYPE = MCAstar::PathSmoothType::BSpline;    // 曲线平滑方法，共有两种
+            double T_STEP = 0.0005;     // 平滑曲线的步长，t∈(0, 1)， t越大，生成的曲线离散点的密度就越大。贝塞尔曲线是分段的，T_STEP作用于每一段；B样条曲线是全局的，T_STEP作用于全局。
 
-            REGISTER_STRUCT(REGISTER_MEMBER(T_STEP));
+            REGISTER_STRUCT(REGISTER_MEMBER(PATH_SMOOTH_TYPE),
+                            REGISTER_MEMBER(T_STEP));
         } path_smooth_params;
 
         // 降采样相关参数
@@ -197,8 +209,8 @@ public:
 
         struct
         {
-            size_t smooth_path_length = 0;          // 贝塞尔曲线平滑后的路径长度
-            double cost_time = 0;                   // 贝塞尔曲线平滑后搜索总耗时，单位ms
+            size_t smooth_path_length = 0;          // 曲线平滑后的路径长度
+            double cost_time = 0;                   // 曲线平滑后搜索总耗时，单位ms
 
             REGISTER_STRUCT(REGISTER_MEMBER(smooth_path_length),
                             REGISTER_MEMBER(cost_time))
@@ -409,3 +421,5 @@ using MCAstarHeuristicsType = MCAstar::HeuristicsType;
 REGISTER_ENUM(MCAstarHeuristicsType);
 using MCAstarPathSimplificationType = MCAstar::PathSimplificationType;
 REGISTER_ENUM(MCAstarPathSimplificationType);
+using MCAstarPathSmoothType = MCAstar::PathSmoothType;
+REGISTER_ENUM(MCAstarPathSmoothType);
