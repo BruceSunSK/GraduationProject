@@ -22,7 +22,7 @@ MCAstar:
     OBSTACLE_THRESHOLD: 70        # 去除冗余点时的障碍物阈值，仅在DPPlus方法中使用。范围为[0, 100]。在去除冗余点连线上，如果有大于等于≥该值的栅格，将被视为存在障碍物，取消本次连线。建议略小于map_params.OBSTACLE_THRESHOLD。
     LINE_WIDTH: 1.5               # 去除冗余点时的线宽，仅在DPPlus方法中使用。单位为m。在去除冗余点连线上，按照该宽度进行障碍物检测。
       
-  bezier_curve_params:
+  path_smooth_params:
     T_STEP: 0.01                  # 贝塞尔曲线的步长，t∈(0, 1)， t越大，生成的贝塞尔曲线离散点的密度就越大。
 
   downsampling_params:

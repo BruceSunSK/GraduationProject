@@ -125,15 +125,16 @@ include_directories(
 )
 
 ## Declare a C++ library
-add_library(bezier_curve  SHARED  src/tools/bezier_curve.cpp)
-add_library(astars        SHARED  src/astar.cpp
-                                  src/MCAstar.cpp)
+add_library(path_simplification SHARED  src/tools/path_simplification.cpp)
+add_library(path_smooth         SHARED  src/tools/path_smooth.cpp)
+add_library(astars              SHARED  src/astar.cpp
+                                        src/MCAstar.cpp)
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
 ## either from message generation or dynamic reconfigure
 add_dependencies(astars ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
-target_link_libraries(astars ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} bezier_curve)
+target_link_libraries(astars ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} path_simplification path_smooth)
 
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
@@ -141,7 +142,7 @@ target_link_libraries(astars ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} bezier_curv
 add_executable(test_opencv              node/test_opencv.cpp)
 add_executable(test_ros                 node/test_ros.cpp)
 add_executable(test_path_simplification node/test_path_simplification.cpp)
-add_executable(test_bezier_curve        node/test_bezier_curve.cpp)
+add_executable(test_path_smooth         node/test_path_smooth.cpp)
 add_executable(global_planning          node/global_planning_node.cpp
                                         src/global_planning.cpp)
 
@@ -156,14 +157,14 @@ add_executable(global_planning          node/global_planning_node.cpp
 add_dependencies(test_opencv              ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(test_ros                 ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(test_path_simplification ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(test_bezier_curve        ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(test_path_smooth         ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(global_planning          ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(test_opencv               ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} astars)
 target_link_libraries(test_ros                  ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} astars)
-target_link_libraries(test_path_simplification  ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
-target_link_libraries(test_bezier_curve         ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} bezier_curve)
+target_link_libraries(test_path_simplification  ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} path_simplification)
+target_link_libraries(test_path_smooth          ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} path_smooth)
 target_link_libraries(global_planning           ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} astars)
 
 #############

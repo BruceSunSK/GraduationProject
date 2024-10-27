@@ -1,0 +1,5 @@
+<launch>
+
+    <node pkg="global_planning" name="test_path_smooth" type="test_path_smooth" output="screen" /> 
+
+</launch>

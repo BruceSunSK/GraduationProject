@@ -38,7 +38,7 @@ int main(int argc, char * argv[])
     MCAstar_params.path_simplification_params.ANGLE_THRESHOLD = 10 / 180 * M_PI;
     MCAstar_params.path_simplification_params.OBSTACLE_THRESHOLD = 70;
     MCAstar_params.path_simplification_params.LINE_WIDTH = 15;
-    MCAstar_params.bezier_curve_params.T_STEP = 0.01;
+    MCAstar_params.path_smooth_params.T_STEP = 0.01;
     MCAstar_params.downsampling_params.INTERVAL = 2;
     MCAstar_planner->initParams(MCAstar_params);
 

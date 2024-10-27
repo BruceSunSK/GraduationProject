@@ -4,12 +4,12 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
-#include "global_planning/tools/bezier_curve.h"
+#include "global_planning/tools/path_smooth.h"
 
 
 int main(int argc, char * argv[])
 {
-    ros::init(argc, argv, "test_bezier_curve");
+    ros::init(argc, argv, "test_path_smooth");
     ros::NodeHandle nh;
 
     std::vector<cv::Point2d> input = {{0, 0}, {50, 0}, {50, 100}, {100, 100}};

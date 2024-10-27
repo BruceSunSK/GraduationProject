@@ -5,8 +5,8 @@
 
 #include "global_planning/global_planner_interface.h"
 #include "global_planning/tools/print_struct_and_enum.h"
-#include "global_planning/tools/bezier_curve.h"
 #include "global_planning/tools/path_simplification.h"
+#include "global_planning/tools/path_smooth.h"
 
 
 /// @brief Multi-layered Costmap Astar
@@ -149,7 +149,7 @@ public:
             double T_STEP = 0.01;       // 贝塞尔曲线的步长，t∈(0, 1)， t越大，生成的贝塞尔曲线离散点的密度就越大。
 
             REGISTER_STRUCT(REGISTER_MEMBER(T_STEP));
-        } bezier_curve_params;
+        } path_smooth_params;
 
         // 降采样相关参数
         struct
@@ -162,7 +162,7 @@ public:
         REGISTER_STRUCT(REGISTER_MEMBER(map_params),
                         REGISTER_MEMBER(cost_function_params),
                         REGISTER_MEMBER(path_simplification_params),
-                        REGISTER_MEMBER(bezier_curve_params),
+                        REGISTER_MEMBER(path_smooth_params),
                         REGISTER_MEMBER(downsampling_params));
     };
 
@@ -193,7 +193,7 @@ public:
 
             REGISTER_STRUCT(REGISTER_MEMBER(reduced_path_length),
                             REGISTER_MEMBER(cost_time))
-        } remove_redundant_result;
+        } path_simplification_result;
 
         struct
         {
@@ -202,7 +202,7 @@ public:
 
             REGISTER_STRUCT(REGISTER_MEMBER(smooth_path_length),
                             REGISTER_MEMBER(cost_time))
-        } bezier_curve_result;
+        } path_smooth_result;
 
         struct
         {
@@ -226,11 +226,11 @@ public:
             search_result.raw_path_length = 0;
             search_result.cost_time = 0.0;
 
-            remove_redundant_result.reduced_path_length = 0;
-            remove_redundant_result.cost_time = 0.0;
+            path_simplification_result.reduced_path_length = 0;
+            path_simplification_result.cost_time = 0.0;
 
-            bezier_curve_result.smooth_path_length = 0;
-            bezier_curve_result.cost_time = 0.0;
+            path_smooth_result.smooth_path_length = 0;
+            path_smooth_result.cost_time = 0.0;
 
             downsampling_result.path_length = 0;
             downsampling_result.cost_time = 0.0;

@@ -54,9 +54,9 @@ std::string MCAstar::MCAstarHelper::mapInfo() const
 
     std::stringstream map_info;
     map_info << "[Map Info]:\n"
-             << "  rows: " << MCAstar_planner->rows_ << std::endl
-             << "  cols: " << MCAstar_planner->cols_ << std::endl
-             << "  resolution: " << MCAstar_planner->res_ << std::endl
+             << "  rows: "        << MCAstar_planner->rows_ << std::endl
+             << "  cols: "        << MCAstar_planner->cols_ << std::endl
+             << "  resolution: "  << MCAstar_planner->res_ << std::endl
              << "  start point: " << MCAstar_planner->start_node_->point << std::endl
              << "  end point:   " << MCAstar_planner->end_node_->point << std::endl;
     return map_info.str();
@@ -67,8 +67,8 @@ std::string MCAstar::MCAstarHelper::resultInfo() const
     std::stringstream result_info;
     result_info << "[Result Info]:\n";
     PRINT_STRUCT(result_info, search_result);
-    PRINT_STRUCT(result_info, remove_redundant_result);
-    PRINT_STRUCT(result_info, bezier_curve_result);
+    PRINT_STRUCT(result_info, path_simplification_result);
+    PRINT_STRUCT(result_info, path_smooth_result);
     PRINT_STRUCT(result_info, downsampling_result);
     return result_info.str();
 }
@@ -698,8 +698,8 @@ void MCAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, s
     if (raw_path.size() <= 2)  // 只有两个点，说明只是起点和终点
     {
         reduced_path.insert(reduced_path.end(), raw_path.begin(), raw_path.end());
-        helper_.remove_redundant_result.reduced_path_length = reduced_path.size();
-        helper_.remove_redundant_result.cost_time = 0;
+        helper_.path_simplification_result.reduced_path_length = reduced_path.size();
+        helper_.path_simplification_result.cost_time = 0;
         return;
     }
 
@@ -742,8 +742,8 @@ void MCAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, s
     }
     auto end_time = std::chrono::steady_clock::now();
 
-    helper_.remove_redundant_result.reduced_path_length = reduced_path.size();
-    helper_.remove_redundant_result.cost_time = (end_time - start_time).count() / 1000000.0;
+    helper_.path_simplification_result.reduced_path_length = reduced_path.size();
+    helper_.path_simplification_result.cost_time = (end_time - start_time).count() / 1000000.0;
 }
 
 bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2d> & smooth_path)
@@ -763,11 +763,11 @@ bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<
     
     // 使用优化后的分段三阶贝塞尔曲线进行平滑
     auto start_time = std::chrono::steady_clock::now();
-    BezierCurve::piecewise_smooth_curve(raw_path, smooth_path, params_.bezier_curve_params.T_STEP);
+    BezierCurve::piecewise_smooth_curve(raw_path, smooth_path, params_.path_smooth_params.T_STEP);
     auto end_time = std::chrono::steady_clock::now();
 
-    helper_.bezier_curve_result.smooth_path_length = smooth_path.size();
-    helper_.bezier_curve_result.cost_time = (end_time - start_time).count() / 1000000.0;
+    helper_.path_smooth_result.smooth_path_length = smooth_path.size();
+    helper_.path_smooth_result.cost_time = (end_time - start_time).count() / 1000000.0;
     
     // 消除0.5个栅格偏差
     std::for_each(smooth_path.begin(), smooth_path.end(), [this](cv::Point2d & p){
