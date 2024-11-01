@@ -737,7 +737,8 @@ void MCAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, s
     case PathSimplificationType::DPPlus:
         PathSimplification::DPPlus(obs_map_, raw_path, reduced_path, params_.path_simplification_params.OBSTACLE_THRESHOLD,
                                                                      params_.path_simplification_params.DISTANCE_THRESHOLD / res_, 
-                                                    static_cast<int>(params_.path_simplification_params.LINE_WIDTH / res_ + 0.5));
+                                                    static_cast<int>(params_.path_simplification_params.LINE_WIDTH / res_ + 0.5),
+                                                                     params_.path_simplification_params.MAX_INTAVAL / res_);
         break;
         
     default:

@@ -43,14 +43,15 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
         p.cost_function_params.TURN_COST_REVERSE_SLANT  = nh_.param<double>("MCAstar/cost_function_params/TURN_COST_REVERSE_SLANT", 3.0);
         p.path_simplification_params.PATH_SIMPLIFICATION_TYPE = static_cast<MCAstar::PathSimplificationType>(
                                                           nh_.param<int>("MCAstar/path_simplification_params/PATH_SIMPLIFICATION_TYPE", 3));
-        p.path_simplification_params.DISTANCE_THRESHOLD = nh_.param<double>("MCAstar/path_simplification_params/DISTANCE_THRESHOLD", 1.8);
+        p.path_simplification_params.DISTANCE_THRESHOLD = nh_.param<double>("MCAstar/path_simplification_params/DISTANCE_THRESHOLD", 1.5);
         p.path_simplification_params.ANGLE_THRESHOLD    = nh_.param<double>("MCAstar/path_simplification_params/ANGLE_THRESHOLD", 0.17);
         p.path_simplification_params.OBSTACLE_THRESHOLD = nh_.param<int>("MCAstar/path_simplification_params/OBSTACLE_THRESHOLD", 70);
-        p.path_simplification_params.LINE_WIDTH         = nh_.param<double>("MCAstar/path_simplification_params/LINE_WIDTH", 1.5);
+        p.path_simplification_params.LINE_WIDTH         = nh_.param<double>("MCAstar/path_simplification_params/LINE_WIDTH", 1.0);
+        p.path_simplification_params.MAX_INTAVAL        = nh_.param<double>("MCAstar/path_simplification_params/MAX_INTAVAL", 8.0);
         p.path_smooth_params.PATH_SMOOTH_TYPE           = static_cast<MCAstar::PathSmoothType>(
                                                           nh_.param<int>("MCAstar/path_smooth_params/PATH_SMOOTH_TYPE", 1));
         p.path_smooth_params.T_STEP                     = nh_.param<double>("MCAstar/path_smooth_params/T_STEP", 0.0005);
-        p.downsampling_params.INTERVAL                  = nh_.param<double>("MCAstar/downsampling_params/INTERVAL", 0.3);
+        p.downsampling_params.INTERVAL                  = nh_.param<double>("MCAstar/downsampling_params/INTERVAL", 0.4);
         planner_->initParams(p);
     }
     else if (planner_name == "Astar")

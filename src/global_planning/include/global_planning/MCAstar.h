@@ -141,16 +141,18 @@ public:
         struct 
         {
             MCAstar::PathSimplificationType PATH_SIMPLIFICATION_TYPE = MCAstar::PathSimplificationType::DPPlus; // 去除冗余点方法，共有四种
-            double DISTANCE_THRESHOLD = 1.8;    // 去除冗余点时的距离阈值，仅在DouglasPeucker、DistanceThreshold和DPPlus方法中使用。单位为m。
+            double DISTANCE_THRESHOLD = 1.5;    // 去除冗余点时的距离阈值，仅在DouglasPeucker、DistanceThreshold和DPPlus方法中使用。单位为m。
             double ANGLE_THRESHOLD = 0.17;      // 去除冗余点时的角度阈值，仅在AngleThreshold方法中使用。单位为rad。
             uint16_t OBSTACLE_THRESHOLD = 70;   // 去除冗余点时的障碍物阈值，仅在DPPlus方法中使用。范围为[0, 100]。在去除冗余点连线上，如果有大于等于≥该值的栅格，将被视为存在障碍物，取消本次连线。建议略小于map_params.OBSTACLE_THRESHOLD。
-            double LINE_WIDTH = 1.5;            // 去除冗余点时的线宽，仅在DPPlus方法中使用。单位为m。在去除冗余点连线上，按照该宽度进行障碍物检测。
+            double LINE_WIDTH = 1.0;            // 去除冗余点时的线宽，仅在DPPlus方法中使用。单位为m。在去除冗余点连线上，按照该宽度进行障碍物检测。
+            double MAX_INTAVAL = 8.0;           // 去除冗余点时上采样的最大间隔，仅在DPPlus方法中使用。单位为m。
             
             REGISTER_STRUCT(REGISTER_MEMBER(PATH_SIMPLIFICATION_TYPE),
                             REGISTER_MEMBER(DISTANCE_THRESHOLD),
                             REGISTER_MEMBER(ANGLE_THRESHOLD),
                             REGISTER_MEMBER(OBSTACLE_THRESHOLD),
-                            REGISTER_MEMBER(LINE_WIDTH));
+                            REGISTER_MEMBER(LINE_WIDTH),
+                            REGISTER_MEMBER(MAX_INTAVAL));
         } path_simplification_params;
 
         // 曲线平滑相关参数
@@ -166,7 +168,7 @@ public:
         // 降采样相关参数
         struct
         {
-            double INTERVAL = 0.3;      // 根据res_转化到实际地图上后的尺寸进行判断，降采样后的路径上两点间距至少大于INTERVAL
+            double INTERVAL = 0.4;      // 根据res_转化到实际地图上后的尺寸进行判断，降采样后的路径上两点间距至少大于INTERVAL
 
             REGISTER_STRUCT(REGISTER_MEMBER(INTERVAL));
         } downsampling_params;

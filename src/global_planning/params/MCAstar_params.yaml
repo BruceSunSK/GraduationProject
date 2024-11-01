@@ -11,20 +11,21 @@ MCAstar:
     HEURISTICS_TYPE: 2            # 启发值类型，0:None, 1:Manhattan, 2:Euclidean, 3:Chebyshev, 4:Octile
     TRAV_COST_K: 2.0              # 计算可通行度代价值时的系数
     TURN_COST_STRAIGHT: 1.0       # 同向直行转向代价系数，C1
-    TURN_COST_SLANT: 1.4          # 同向斜行转向代价系数，C2
+    TURN_COST_SLANT: 1.1          # 同向斜行转向代价系数，C2
     TURN_COST_VERTICAL: 2.0       # 垂向直行转向代价系数，C3
     TURN_COST_REVERSE_SLANT: 3.0  # 反向斜行转向代价系数，C4
 
   path_simplification_params:
     PATH_SIMPLIFICATION_TYPE: 3   # 去除冗余点方法， 0:DouglasPeucker, 1:DistanceThreshold, 2:AngleThreshold, 3:DPPlus
-    DISTANCE_THRESHOLD: 1.8       # 去除冗余点时的距离阈值，仅在DouglasPeucker、DistanceThreshold和DPPlus方法中使用。单位为m。
+    DISTANCE_THRESHOLD: 1.5       # 去除冗余点时的距离阈值，仅在DouglasPeucker、DistanceThreshold和DPPlus方法中使用。单位为m。
     ANGLE_THRESHOLD: 0.17         # 去除冗余点时的角度阈值，仅在AngleThreshold方法中使用。单位为rad。
     OBSTACLE_THRESHOLD: 70        # 去除冗余点时的障碍物阈值，仅在DPPlus方法中使用。范围为[0, 100]。在去除冗余点连线上，如果有大于等于≥该值的栅格，将被视为存在障碍物，取消本次连线。建议略小于map_params.OBSTACLE_THRESHOLD。
-    LINE_WIDTH: 1.5               # 去除冗余点时的线宽，仅在DPPlus方法中使用。单位为m。在去除冗余点连线上，按照该宽度进行障碍物检测。
+    LINE_WIDTH: 1.0               # 去除冗余点时的线宽，仅在DPPlus方法中使用。单位为m。在去除冗余点连线上，按照该宽度进行障碍物检测。
+    MAX_INTAVAL: 8.0              # 去除冗余点时上采样的最大间隔，仅在DPPlus方法中使用。单位为m。
       
   path_smooth_params:
     PATH_SMOOTH_TYPE: 1           # 曲线平滑方法，共有两种，0:Bezier, 1:Bspline
     T_STEP: 0.0005                # 平滑曲线的步长，t∈(0, 1)， t越大，生成的曲线离散点的密度就越大。贝塞尔曲线是分段的，T_STEP作用于每一段；B样条曲线是全局的，T_STEP作用于全局。
 
   downsampling_params:
-    INTERVAL: 0.3                 # 根据res_转化到实际地图上后的尺寸进行判断，降采样后的路径上两点间距至少大于INTERVAL
+    INTERVAL: 0.4                 # 根据res_转化到实际地图上后的尺寸进行判断，降采样后的路径上两点间距至少大于INTERVAL

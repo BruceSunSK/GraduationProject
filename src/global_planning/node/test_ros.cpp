@@ -145,14 +145,15 @@ int main(int argc, char *argv[])
     MCAstar_params.cost_function_params.HEURISTICS_TYPE = MCAstar::HeuristicsType::Euclidean;
     MCAstar_params.cost_function_params.TRAV_COST_K = 2.0;
     MCAstar_params.cost_function_params.TURN_COST_STRAIGHT = 1.0;
-    MCAstar_params.cost_function_params.TURN_COST_SLANT = 1.4;
+    MCAstar_params.cost_function_params.TURN_COST_SLANT = 1.1;
     MCAstar_params.cost_function_params.TURN_COST_VERTICAL = 2.0;
     MCAstar_params.cost_function_params.TURN_COST_REVERSE_SLANT = 3.0;
     MCAstar_params.path_simplification_params.PATH_SIMPLIFICATION_TYPE = MCAstar::PathSimplificationType::DPPlus;
     MCAstar_params.path_simplification_params.DISTANCE_THRESHOLD = 1.5;
     MCAstar_params.path_simplification_params.ANGLE_THRESHOLD = 10 / 180 * M_PI;
     MCAstar_params.path_simplification_params.OBSTACLE_THRESHOLD = 70;
-    MCAstar_params.path_simplification_params.LINE_WIDTH = 1.2;
+    MCAstar_params.path_simplification_params.LINE_WIDTH = 1.0;
+    MCAstar_params.path_simplification_params.MAX_INTAVAL = 8.0;
     MCAstar_params.path_smooth_params.PATH_SMOOTH_TYPE = MCAstar::PathSmoothType::BSpline;
     MCAstar_params.path_smooth_params.T_STEP = 0.0005;
     MCAstar_params.downsampling_params.INTERVAL = 0.4;

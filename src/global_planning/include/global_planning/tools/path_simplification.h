@@ -176,9 +176,10 @@ public:
     /// @param obs_threshold obs_map中检测障碍物检测阈值。超过该阈值的点将被认为是障碍物。
     /// @param dp_threshold Douglas-Peucker法中的阈值。递归过程中超过阈值的点将保留，否则将剔除
     /// @param dis_threshold Bresenham生成直线的宽度。将对该直线上的栅格点进行检查，若与障碍物相交，则不进行简化。
+    /// @param max_intaval 最大间隔。在简化过程中，简化后的路径连线上，每隔一段距离就会进行上采样（线性插值）补点，这个间隔不高过max_intaval。
     template <typename PointType>
     static void DPPlus(const cv::Mat & obs_map, const std::vector<cv::Point_<PointType>> & in_path, std::vector<cv::Point_<PointType>> & out_path,
-                                               uint8_t obs_threshold = 50, double dp_threshold = 1.0, int dis_threshold = 1)
+                       uint8_t obs_threshold = 50, double dp_threshold = 1.0, int dis_threshold = 1, double max_intaval = 10.0)
     {
         using Point = cv::Point_<PointType>;
 
@@ -192,8 +193,7 @@ public:
 
         // 递归实现，r指递归，dp指算法名
         std::function<void(const int, const int)> rdp =
-            [&obs_map, &in_path, &out_path, &obs_threshold, &dp_threshold, &dis_threshold, &rdp]
-            (const int i_l, const int i_r) -> void
+            [&](const int i_l, const int i_r) -> void
             {
                 // 找距离最远点
                 const Point base = in_path[i_r] - in_path[i_l];
@@ -210,6 +210,20 @@ public:
                         index = i;
                     }
                 }
+                if (index == -1)            // 只有起点和终点(即相邻两点)，则不进行简化
+                {
+                    out_path.push_back(in_path[i_l]);
+
+                    int num = static_cast<int>(base_length / max_intaval) + 1;  // 区间分割数
+                    for (int i = 1; i < num; i++)
+                    {
+                        const double t = static_cast<double>(i) / static_cast<double>(num);
+                        out_path.push_back(in_path[i_l] + t * base);
+                    }
+
+                    out_path.push_back(in_path[i_r]);
+                    return;
+                }
 
                 // 判断最远点距离是否超过阈值
                 if (max > dp_threshold)     // 超过就分别对该点左右两侧进行递归计算，不进行简化路径
@@ -220,13 +234,6 @@ public:
                 }
                 else                        // 不超过就先判断该路径是否与障碍物相交
                 {
-                    if (index == -1)        // 只有起点和终点，则不进行简化
-                    {
-                        out_path.push_back(in_path[i_l]);
-                        out_path.push_back(in_path[i_r]);
-                        return;
-                    }
-
                     const std::vector<cv::Point2i> l = Bresenham(in_path[i_l], in_path[i_r], dis_threshold);
                     bool is_cross = false;
                     for (const cv::Point2i & p : l)
@@ -243,9 +250,17 @@ public:
                         out_path.pop_back();    // 左边多删除末尾点，以防重复
                         rdp(index, i_r);
                     }
-                    else            // 不相交，则不会碰撞，可以进行简化
+                    else            // 不相交，则不会碰撞，可以进行简化，但需要对中间的点进行插值
                     {
                         out_path.push_back(in_path[i_l]);
+
+                        int num = static_cast<int>(base_length / max_intaval) + 1;  // 区间分割数
+                        for (int i = 1; i < num; i++)
+                        {
+                            const double t = static_cast<double>(i) / static_cast<double>(num);
+                            out_path.push_back(in_path[i_l] + t * base);
+                        }
+
                         out_path.push_back(in_path[i_r]);
                     }
                 }
