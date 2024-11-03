@@ -128,8 +128,7 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
     try
     {
         tfs = buffer_.lookupTransform("map", "veh", ros::Time(0));
-        goal_flag = planner_->setStartPoint(static_cast<int>((tfs.transform.translation.x - ori_x_) / res_), 
-                                            static_cast<int>((tfs.transform.translation.y - ori_y_) / res_));
+        goal_flag = planner_->setStartPoint(tfs.transform.translation.x, tfs.transform.translation.y);
         if (goal_flag == false)
         {
             return;
@@ -143,8 +142,7 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
     }
 
     // 终点
-    goal_flag = planner_->setEndPoint(static_cast<int>((msg->pose.position.x - ori_x_) / res_), 
-                                      static_cast<int>((msg->pose.position.y - ori_y_) / res_));
+    goal_flag = planner_->setEndPoint(msg->pose.position.x, msg->pose.position.y);
 
     // 发布路径
     if (goal_flag && map_flag)

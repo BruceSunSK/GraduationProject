@@ -130,24 +130,24 @@ public:
     /// @param map 输入的原始地图
     /// @return 地图设置是否成功
     bool setMap(const cv::Mat & map) override;
-    /// @brief 设置规划路径的起点。以栅格坐标形式，而非行列形式。
-    /// @param x 栅格坐标系的x值
-    /// @param y 栅格坐标系的y值
+    /// @brief 设置规划路径的起点。以真实地图坐标形式，而非行列形式。
+    /// @param x 真实地图坐标系的x值
+    /// @param y 真实地图坐标系的y值
     /// @return 该点是否能够成为起点。即该点在地图内部且不在障碍物上。
-    bool setStartPoint(const int x, const int y) override;
-    /// @brief 设置规划路径的起点。以栅格坐标形式，而非行列形式。
-    /// @param p 栅格坐标系的点
+    bool setStartPoint(const double x, const double y) override;
+    /// @brief 设置规划路径的起点。以真实地图坐标形式，而非行列形式。
+    /// @param p 真实地图坐标系的点
     /// @return 该点是否能够成为起点。即该点在地图内部且不在障碍物上。
-    bool setStartPoint(const cv::Point2i p) override;
-    /// @brief 设置规划路径的终点。以栅格坐标形式，而非行列形式。
-    /// @param x 栅格坐标系的x值
-    /// @param y 栅格坐标系的y值
+    bool setStartPoint(const cv::Point2d p) override;
+    /// @brief 设置规划路径的终点。以真实地图坐标形式，而非行列形式。
+    /// @param x 真实地图坐标系的x值
+    /// @param y 真实地图坐标系的y值
     /// @return 该点是否能够成为终点。即该点在地图内部且不在障碍物上。
-    bool setEndPoint(const int x, const int y) override;
-    /// @brief 设置规划路径的终点。以栅格坐标形式，而非行列形式。
-    /// @param p 栅格坐标系的点
+    bool setEndPoint(const double x, const double y) override;
+    /// @brief 设置规划路径的终点。以真实地图坐标形式，而非行列形式。
+    /// @param p 真实地图坐标系的点
     /// @return 该点是否能够成为终点。即该点在地图内部且不在障碍物上。
-    bool setEndPoint(const cv::Point2i p) override;
+    bool setEndPoint(const cv::Point2d p) override;
     /// @brief 获得处理后的地图，即算法内部真正使用的，经过二值化后的地图
     /// @param map 地图将存入该变量
     /// @return 存入是否成功

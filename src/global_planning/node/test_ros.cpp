@@ -24,8 +24,7 @@ void pub_path();
 
 void start_point_callback(const geometry_msgs::PoseWithCovarianceStamped & msg)
 {
-    start_point_flag = planner.setStartPoint(static_cast<int>((msg.pose.pose.position.x - ori_x) / res), 
-                                             static_cast<int>((msg.pose.pose.position.y - ori_y) / res));
+    start_point_flag = planner.setStartPoint(msg.pose.pose.position.x, msg.pose.pose.position.y);
 
     if (start_point_flag && end_point_flag && map_flag)
     {
@@ -35,8 +34,7 @@ void start_point_callback(const geometry_msgs::PoseWithCovarianceStamped & msg)
 
 void end_point_callback(const geometry_msgs::PoseStamped & msg)
 {
-    end_point_flag = planner.setEndPoint(static_cast<int>((msg.pose.position.x - ori_x) / res), 
-                                         static_cast<int>((msg.pose.position.y - ori_y) / res));
+    end_point_flag = planner.setEndPoint(msg.pose.position.x, msg.pose.position.y);
 
     if (start_point_flag && end_point_flag && map_flag)
     {

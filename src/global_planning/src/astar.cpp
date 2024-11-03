@@ -137,56 +137,76 @@ bool Astar::setMap(const cv::Mat & map)
     return true;
 }
 
-bool Astar::setStartPoint(const int x, const int y)
+bool Astar::setStartPoint(const double x, const double y)
 {
-    if ((x >= 0 && x < cols_ && y >= 0 && y < rows_) == false)
+    if (init_map_info_ == false)
+    {
+        std::cout << "设置起点前需设置地图信息！" << '\n';
+        init_start_node_ = false;
+        return false;
+    }
+
+    int x_grid = static_cast<int>((x - ori_x_) / res_);
+    int y_grid = static_cast<int>((y - ori_y_) / res_);
+
+    if ((x_grid >= 0 && x_grid < cols_ && y_grid >= 0 && y_grid < rows_) == false)
     {
         std::cout << "起点必须设置在地图内部！" << '\n';
         init_start_node_ = false;
         return false;
     }
 
-    if (map_[y][x].cost >= params_.map_params.OBSTACLE_THRESHOLD)
+    if (map_[y_grid][x_grid].cost >= params_.map_params.OBSTACLE_THRESHOLD)
     {
         std::cout << "起点必须设置在非障碍物处！" << '\n';
         init_start_node_ = false;
         return false;
     }
 
-    // printf("起点设置成功，位置：(%d, %d)\n", x, y);
-    start_node_ = &map_[y][x];
+    // printf("起点设置成功，位置：(%d, %d)\n", x_grid, y_grid);
+    start_node_ = &map_[y_grid][x_grid];
     init_start_node_ = true;
     return true;
 }
 
-bool Astar::setStartPoint(const cv::Point2i p)
+bool Astar::setStartPoint(const cv::Point2d p)
 {
     return setStartPoint(p.x, p.y);
 }
 
-bool Astar::setEndPoint(const int x, const int y)
+bool Astar::setEndPoint(const double x, const double y)
 {
-    if ((x >= 0 && x < cols_ && y >= 0 && y < rows_) == false)
+    if (init_map_info_ == false)
+    {
+        std::cout << "设置终点前需设置地图信息！" << '\n';
+        init_end_node_ = false;
+        return false;
+    }
+
+    int x_grid = static_cast<int>((x - ori_x_) / res_);
+    int y_grid = static_cast<int>((y - ori_y_) / res_);
+
+    if ((x_grid >= 0 && x_grid < cols_ && y_grid >= 0 && y_grid < rows_) == false)
     {
         std::cout << "终点必须设置在地图内部！\n";
         init_end_node_ = false;
         return false;
     }
 
-    if (map_[y][x].cost >= params_.map_params.OBSTACLE_THRESHOLD)
+    if (map_[y_grid][x_grid].cost >= params_.map_params.OBSTACLE_THRESHOLD)
     {
         std::cout << "终点必须设置在非障碍物处！\n";
         init_end_node_ = false;
         return false;
     }
 
-    // printf("终点设置成功，位置：(%d, %d)\n", x, y);
-    end_node_ = &map_[y][x];
+    // printf("终点设置成功，位置：(%d, %d)\n", x_grid, y_grid);
+    end_node_ = &map_[y_grid][x_grid];
     init_end_node_ = true;
     return true;
 }
 
-bool Astar::setEndPoint(const cv::Point2i p)
+bool Astar::setEndPoint(const cv::Point2d p)
 {
     return setEndPoint(p.x, p.y);
 }

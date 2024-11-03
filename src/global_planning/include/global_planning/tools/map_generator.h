@@ -336,7 +336,7 @@ private:
             int grid_y = y / obj->scale_;
             if (left_click_count % 2 == 0)
             {
-                if (obj->planner_->setStartPoint(grid_x, grid_y))
+                if (obj->planner_->setStartPoint(x, y))
                 {
                     // obj->planner_->setStartPointYaw(M_PI_2);
 
@@ -352,7 +352,7 @@ private:
             }
             else
             {
-                if (obj->planner_->setEndPoint(grid_x, grid_y))
+                if (obj->planner_->setEndPoint(x, y))
                 {
                     // 标记终点
                     obj->grid_map_property_.at<cv::Vec2b>(grid_y, grid_x)[1] = GridType::END;
