@@ -52,10 +52,12 @@ public:
 
         struct 
         {
-            size_t node_nums = 0;       // 搜索到节点的数量，不包括障碍物节点
-            size_t node_counter = 0;    // 搜索到节点的次数，会重复计算同一个节点，不包括障碍物节点
-            size_t path_length = 0;     // 规划出的路径长度，单位为栅格数，包含起点和终点
-            double cost_time = 0;       // 搜索总耗时，单位ms
+            size_t node_nums = 0;           // 搜索到节点的数量，不包括障碍物节点
+            size_t node_counter = 0;        // 搜索到节点的次数，会重复计算同一个节点，不包括障碍物节点
+            size_t path_length = 0;         // 规划出的路径长度，单位为栅格数，包含起点和终点
+            double cost_time = 0;           // 搜索总耗时，单位ms
+
+            std::vector<cv::Point2d> nodes; // 按顺序搜索到的节点，不包括障碍物节点
 
             REGISTER_STRUCT(REGISTER_MEMBER(node_nums),
                             REGISTER_MEMBER(node_counter),
@@ -75,6 +77,7 @@ public:
             search_result.node_counter = 0;
             search_result.path_length = 0;
             search_result.cost_time = 0.0;
+            search_result.nodes.clear();
         }
 
     private:
@@ -152,14 +155,11 @@ public:
     /// @param map 地图将存入该变量
     /// @return 存入是否成功
     bool getProcessedMap(cv::Mat & map) const override;
-    /// @brief 通过给定的地图、起点、终点规划出一条从起点到终点的路径。
-    /// @param path 规划出的路径。该路径是栅格坐标系下原始路径点。
+    /// @brief 通过给定的地图、起点、终点规划出一条从起点到终点的最终路径。
+    /// @param path 规划出的路径。该路径是原始地图坐标系下原始路径点。
+    /// @param auxiliary_info 辅助信息。该信息是原始地图坐标系下路径规划过程中的各种关键路径点信息。此处包括AStar按顺序扩展到的节点。
     /// @return 是否规划成功
-    bool getRawPath(std::vector<cv::Point2i> & path) override;
-    /// @brief 通过给定的地图、起点、终点规划出一条从起点到终点的路径。目前并无平滑。
-    /// @param path 规划出的路径。该路径是真实地图下的坐标点。此外目前无其他功能。
-    /// @return 是否规划成功
-    bool getSmoothPath(std::vector<cv::Point2d> & path) override;
+    bool getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv::Point2d>> & auxiliary_info) override;
     /// @brief 打印所有的信息，包括规划器参数信息、规划地图信息、规划结果信息，并可以将结果保存到指定路径中。调用内部辅助helper实现
     /// @param save 是否保存到本地
     /// @param save_dir_path 保存的路径

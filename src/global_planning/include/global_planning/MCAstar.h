@@ -194,6 +194,9 @@ public:
             size_t raw_path_length = 0;     // 规划出的路径长度，单位为栅格数，包含起点和终点
             double cost_time = 0;           // 搜索总耗时，单位ms
 
+            std::vector<cv::Point2d> nodes;     // 按顺序搜索到的节点，不包括障碍物节点
+            std::vector<cv::Point2d> raw_path;  // 原始的规划路径结果
+
             REGISTER_STRUCT(REGISTER_MEMBER(raw_node_nums),
                             REGISTER_MEMBER(raw_node_counter),
                             REGISTER_MEMBER(raw_path_length),
@@ -204,6 +207,8 @@ public:
         {
             size_t reduced_path_length = 0;         // 去除冗余点后的路径长度
             double cost_time = 0;                   // 去除冗余点后搜索总耗时，单位ms
+
+            std::vector<cv::Point2d> reduced_path;  // 去除冗余点后的规划路径结果
 
             REGISTER_STRUCT(REGISTER_MEMBER(reduced_path_length),
                             REGISTER_MEMBER(cost_time))
@@ -239,9 +244,12 @@ public:
             search_result.raw_node_counter = 0;
             search_result.raw_path_length = 0;
             search_result.cost_time = 0.0;
-
+            search_result.nodes.clear();
+            search_result.raw_path.clear();
+            
             path_simplification_result.reduced_path_length = 0;
             path_simplification_result.cost_time = 0.0;
+            path_simplification_result.reduced_path.clear();
 
             path_smooth_result.smooth_path_length = 0;
             path_smooth_result.cost_time = 0.0;
@@ -353,14 +361,11 @@ public:
     /// @param map 地图将存入该变量
     /// @return 存入是否成功
     bool getProcessedMap(cv::Mat & map) const override;
-    /// @brief 通过给定的地图、起点、终点规划出一条从起点到终点的路径。
-    /// @param path 规划出的路径。该路径是栅格坐标系下原始路径点，没有冗余点剔除、平滑、降采样操作。
+    /// @brief 通过给定的地图、起点、终点规划出一条从起点到终点的最终路径。
+    /// @param path 规划出的路径。该路径是原始地图坐标系下原始路径点。
+    /// @param auxiliary_info 辅助信息。该信息是原始地图坐标系下路径规划过程中的各种关键路径点信息。此处包括MCAStar按顺序扩展到的节点、原始路径点、剔除冗余点后的路径点。
     /// @return 是否规划成功
-    bool getRawPath(std::vector<cv::Point2i> & path) override;
-    /// @brief 通过给定的地图、地图信息、起点、终点规划出一条从起点到终点的平滑路径。
-    /// @param path 规划出的路径。该路径是真实地图下的坐标点，进行冗余点剔除、分段三阶贝塞尔曲线平滑、降采样操作。并且补齐0.5个单位长度的栅格偏差。
-    /// @return 是否规划成功
-    bool getSmoothPath(std::vector<cv::Point2d> & path) override;
+    bool getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv::Point2d>> & auxiliary_info) override;
     /// @brief 打印所有的信息，包括规划器参数信息、规划地图信息、规划结果信息，并可以将结果保存到指定路径中。调用内部辅助helper实现
     /// @param save 是否保存到本地
     /// @param save_dir_path 保存的路径
@@ -373,7 +378,7 @@ private:
     cv::Mat obs_map_;                       // 仅有代价值的障碍物地图
     std::vector<std::vector<Node>> map_;    // 在规划中实际使用地图
     Node * start_node_ = nullptr;           // 起点节点
-    Node * end_node_   = nullptr;           // 终点节点
+    Node * end_node_ = nullptr;             // 终点节点
 
     /// @brief 根据配置参数，确定当前当前节点的相邻节点在Node::neightbor_offset_table中的索引值列表
     /// @param n 当前节点

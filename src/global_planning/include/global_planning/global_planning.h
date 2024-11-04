@@ -3,6 +3,7 @@
 #include <nav_msgs/Path.h>
 #include <nav_msgs/OccupancyGrid.h>  
 #include <geometry_msgs/PoseStamped.h>
+#include <visualization_msgs/MarkerArray.h>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 
@@ -30,14 +31,15 @@ private:
 
     std::string output_processed_map_topic_;
     std::string output_path_topic_;
-    std::string output_smooth_path_topic_;
+    std::string output_auxiliary_info_topic_;
     ros::Publisher pub_processed_map_;
     ros::Publisher pub_path_;
-    ros::Publisher pub_smooth_path_;
+    ros::Publisher pub_auxiliary_;
 
     bool info_flag_ = false;
     bool save_flag_ = false;
     std::string save_dir_path_;
+    std::string planner_name_;
 
     tf2_ros::Buffer buffer_;
     tf2_ros::TransformListener listener_;

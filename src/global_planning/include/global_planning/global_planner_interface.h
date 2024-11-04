@@ -134,14 +134,11 @@ public:
     /// @param map 地图将存入该变量
     /// @return 存入是否成功
     virtual bool getProcessedMap(cv::Mat & map) const = 0;
-    /// @brief 通过给定的地图、起点、终点规划出一条从起点到终点的原始路径，不经过任何导致出栅格的操作。
-    /// @param path 规划出的路径。该路径是栅格坐标系下原始路径点。
+    /// @brief 通过给定的地图、起点、终点规划出一条从起点到终点的最终路径。
+    /// @param path 规划出的路径。该路径是原始地图坐标系下原始路径点。
+    /// @param auxiliary_info 辅助信息。该信息是原始地图坐标系下路径规划过程中的各种关键路径点信息。例如扩展的节点，去除冗余点前的点等。
     /// @return 是否规划成功
-    virtual bool getRawPath(std::vector<cv::Point2i> & path) = 0;
-    /// @brief 通过给定的地图、起点、终点规划出一条从起点到终点的路径。可通过例如平滑等操作，使得路径点是非整数栅格点。
-    /// @param path 规划出的路径。该路径是真实地图下的坐标点。
-    /// @return 是否规划成功
-    virtual bool getSmoothPath(std::vector<cv::Point2d> & path) = 0;
+    virtual bool getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv::Point2d>> & auxiliary_info) = 0;
     /// @brief 打印所有的信息，包括规划器参数信息、规划地图信息、规划结果信息，并可以将结果保存到指定路径中。直接调用内部helper_的显示
     /// @param save 是否保存到本地
     /// @param save_dir_path 保存的路径

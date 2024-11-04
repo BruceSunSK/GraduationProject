@@ -11,13 +11,6 @@ int main(int argc, char * argv[])
     ros::init(argc, argv, "test_opencv");
     ros::NodeHandle nh;
 
-    // Astar规划器
-    Astar * astar_planner = new Astar;
-    Astar::AstarParams astar_params;
-    astar_params.map_params.OBSTACLE_THRESHOLD = 50;
-    astar_params.cost_function_params.HEURISTICS_TYPE = Astar::HeuristicsType::Euclidean;
-    astar_planner->initParams(astar_params);
-
     // MCAstar规划器
     MCAstar * MCAstar_planner = new MCAstar;
     MCAstar::MCAstarParams MCAstar_params;
@@ -43,6 +36,13 @@ int main(int argc, char * argv[])
     MCAstar_params.path_smooth_params.T_STEP = 0.0005;
     MCAstar_params.downsampling_params.INTERVAL = 2;
     MCAstar_planner->initParams(MCAstar_params);
+
+    // Astar规划器
+    Astar * astar_planner = new Astar;
+    Astar::AstarParams astar_params;
+    astar_params.map_params.OBSTACLE_THRESHOLD = 50;
+    astar_params.cost_function_params.HEURISTICS_TYPE = Astar::HeuristicsType::Euclidean;
+    astar_planner->initParams(astar_params);
 
     MapGenerator generator;
 
@@ -98,8 +98,8 @@ int main(int argc, char * argv[])
     // 4.测试最终功能
     generator.load_map(ros::package::getPath("global_planning") + "/map/map1.png");
     generator.set_result_path(ros::package::getPath("global_planning") + "/result/test_result/");
-    // generator.set_planner(astar_planner);
-    generator.set_planner(MCAstar_planner);
+    // generator.set_planner(MCAstar_planner);
+    generator.set_planner(astar_planner);
     generator.show_map("test", 10);
 
     delete astar_planner;

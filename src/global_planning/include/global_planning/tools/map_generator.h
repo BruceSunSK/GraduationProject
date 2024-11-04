@@ -260,6 +260,7 @@ private:
         OBSTACLE,           // 障碍物
         OPEN,               // 加入open集合
         CLOSE,              // 加入close集合
+        KETPOINT,           // 关键点
         START,              // 起点
         END,                // 终点
         PATH,               // 最终路径
@@ -306,6 +307,8 @@ private:
             return cv::Vec3b(255, 105, 65);
         case GridType::CLOSE:       // 蓝色
             return cv::Vec3b(255, 0, 0);
+        case GridType::KETPOINT:    // 金色
+            return cv::Vec3b(0, 215, 255);
         case GridType::START:       // 红色
             return cv::Vec3b(0, 0, 200);
         case GridType::END:         // 粉色
@@ -317,6 +320,69 @@ private:
         }
     }
 
+    /// @brief 根据不同的规划器类型，绘制结果路径以及各种辅助信息
+    /// @param path 最终的结果路径
+    /// @param auxiliary_info 辅助信息，包括open集合、close集合、关键点等
+    void paint_path(const std::vector<cv::Point2d> & path, const std::vector<std::vector<cv::Point2d>> & auxiliary_info)
+    {
+        if (dynamic_cast<MCAstar *>(planner_))
+        {
+            // 1. 绘制open集合
+            for (size_t i = 0; i < auxiliary_info[1].size(); i++)
+            {
+                cv::Point2i p;
+                p.x = auxiliary_info[1][i].x / scale_;
+                p.y = auxiliary_info[1][i].y / scale_;
+                set_show_image_color(p, get_grid_color(GridType::OPEN));
+            }
+
+            // 2. 直接绘制原始路径
+            for (size_t i = 1; i < auxiliary_info[0].size() - 1; i++)
+            {
+                cv::Point2i p;
+                p.x = auxiliary_info[0][i].x / scale_;
+                p.y = auxiliary_info[0][i].y / scale_;
+                set_show_image_color(p, get_grid_color(GridType::CLOSE));
+            }
+
+            // 3. 绘制去除冗余点后的关键点
+            for (size_t i = 1; i < auxiliary_info[2].size() - 1; i++)
+            {
+                cv::Point2i p;
+                p.x = auxiliary_info[2][i].x / scale_;
+                p.y = auxiliary_info[2][i].y / scale_;
+                set_show_image_color(p, get_grid_color(GridType::KETPOINT));
+            }
+
+            // 4. 绘制最终平滑后的路径
+            for (size_t i = 0; i < path.size(); i++)
+            {
+                const cv::Point2d & p = path[i];
+                set_show_image_color(p, get_grid_color(GridType::PATH));
+            }
+        }
+        else if (dynamic_cast<Astar *>(planner_))
+        {
+            // 1. 绘制open集合
+            for (size_t i = 0; i < auxiliary_info[0].size(); i++)
+            {
+                cv::Point2i p;
+                p.x = auxiliary_info[0][i].x / scale_;
+                p.y = auxiliary_info[0][i].y / scale_;
+                set_show_image_color(p, get_grid_color(GridType::OPEN));
+            }
+
+            // 2. 绘制Astar的路径
+            for (size_t i = 0; i < path.size(); i++)
+            {
+                cv::Point2i p;
+                p.x = path[i].x / scale_;
+                p.y = path[i].y / scale_;
+                set_show_image_color(p, get_grid_color(GridType::PATH));
+            }
+        }
+    }
+    
     /// @brief 根据鼠标的点击进行回调操作。实现依次点击的点为起点和终点。设置起点和终点后规划路径并显示
     /// @param params 由于在类内部操作，opencv不支持类成员函数绑定，因此需要传入this指针
     static void on_mouse_callback(int event, int x, int y, int flags, void * params)
@@ -360,28 +426,16 @@ private:
                     left_click_count++;
 
                     // 调用规划结果
-                    std::vector<cv::Point2i> path;
-                    if (obj->planner_->getRawPath(path))
+                    std::vector<cv::Point2d> path;
+                    std::vector<std::vector<cv::Point2d>> auxiliary_info;
+                    if (obj->planner_->getPath(path, auxiliary_info))
                     {
-                        // 1. 直接绘制原始路径
-                        for (size_t i = 1; i < path.size() - 1; i++)
-                        {
-                            cv::Point2i & p = path[i];
-                            obj->grid_map_property_.at<uchar>(p.y, p.x) = GridType::CLOSE;
-                            obj->set_show_image_color(p, get_grid_color(GridType::CLOSE));
-                        }
-
-                        // 2. 绘制贝塞尔曲线平滑后的路径
-                        std::vector<cv::Point2d> smooth_path;
-                        obj->planner_->getSmoothPath(smooth_path);
-                        for (size_t i = 0; i < smooth_path.size(); i++)
-                        {
-                            cv::Point2d & p = smooth_path[i];
-                            obj->set_show_image_color(p, get_grid_color(GridType::PATH));
-                        }
-
+                        // 绘制结果
+                        obj->paint_path(path, auxiliary_info);
+                        // 再次绘制终点
+                        obj->set_show_image_color(grid_y, grid_x, get_grid_color(GridType::END));
+                        // 显示/保存结果
                         obj->planner_->showAllInfo(true, obj->result_dir_path_);
-                        std::cout << "路径规划成功，raw路径长度：" << path.size() << "，smooth路径长度：" << smooth_path.size() << std::endl << std::endl;
                     }
                     else
                     {

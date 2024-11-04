@@ -124,8 +124,8 @@ bool Astar::setMap(const cv::Mat & map)
             Node node;
             node.point.x = j;
             node.point.y = i;
-            node.cost = (map.at<uchar>(i, j) >= params_.map_params.OBSTACLE_THRESHOLD &&
-                         map.at<uchar>(i, j) != 255 ? 100 : 0);
+            node.cost = (map.at<uchar>(i, j) != 255 ?
+                            (map.at<uchar>(i, j) >= params_.map_params.OBSTACLE_THRESHOLD ? 100 : 0) : 255);
             node.type = Node::NodeType::UNKNOWN;
             row[j] = std::move(node);
         }
@@ -230,14 +230,13 @@ bool Astar::getProcessedMap(cv::Mat & map) const
     return true;
 }
 
-bool Astar::getRawPath(std::vector<cv::Point2i> & path)
+bool Astar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv::Point2d>> & auxiliary_info)
 {
-    if ( !(init_map_ && init_start_node_ && init_end_node_) )
+    if (!(init_map_ && init_start_node_ && init_end_node_ && init_map_info_))
     {
         std::cout << "请先设置地图、起点和终点！\n";
         return false;
     }
-    
     
     // 初始节点
     helper_.resetResultInfo();
@@ -251,7 +250,7 @@ bool Astar::getRawPath(std::vector<cv::Point2i> & path)
 
 
     // 循环遍历
-    while (queue.empty() == false)  // 队列为空，一般意味着无法到达终点
+    while (queue.empty() == false)          // 队列为空，一般意味着无法到达终点
     {
         Node * const this_node = queue.top();
         const cv::Point2i & this_point = this_node->point;
@@ -290,7 +289,9 @@ bool Astar::getRawPath(std::vector<cv::Point2i> & path)
                         new_node->type = Node::NodeType::OPENED;
                         queue.push(std::move(new_node));
 
-                        helper_.search_result.node_nums++;      // 访问到的节点个数
+                        // 按顺序记录访问到的节点
+                        helper_.search_result.nodes.push_back(cv::Point2d((new_point.x + 0.5) * res_ + ori_x_,
+                                                                          (new_point.y + 0.5) * res_ + ori_y_));
                     }
                     else //new_node->type == NodeType::OPENED
                     {
@@ -311,17 +312,23 @@ bool Astar::getRawPath(std::vector<cv::Point2i> & path)
 
     // 保存结果路径
     path.clear();
+    auxiliary_info.clear();
     const Node * path_node = end_node_;
     while (path_node != nullptr)
     {
-        path.push_back(path_node->point);
+        path.push_back(cv::Point2d((path_node->point.x + 0.5) * res_ + ori_x_,
+                                   (path_node->point.y + 0.5) * res_ + ori_y_));
         path_node = path_node->parent_node;
     }
     std::reverse(path.begin(), path.end());
+
+    // 保存结果信息
     auto end_time = std::chrono::steady_clock::now();
+    helper_.search_result.node_nums = helper_.search_result.nodes.size();           // 访问到的节点数
     helper_.search_result.path_length = path.size();                                // 路径长度
     helper_.search_result.cost_time = (end_time - start_time).count() / 1000000.0;  // 算法耗时 ms
-    
+    auxiliary_info.push_back(helper_.search_result.nodes);
+
     // 复原地图
     for (int i = 0; i < rows_; i++)
     {
@@ -334,36 +341,9 @@ bool Astar::getRawPath(std::vector<cv::Point2i> & path)
             map_[i][j].parent_node = nullptr;
         }
     }
-
+    
     return path.size() > 1;
 }
-
-bool Astar::getSmoothPath(std::vector<cv::Point2d> & path)
-{
-    if (init_map_info_ == false)
-    {
-        std::cout << "平滑失败！缺少地图信息用以补齐栅格偏差！\n";
-        return false;
-    }
-    
-    path.clear();
-    std::vector<cv::Point2i> temp;
-    if (!getRawPath(temp))
-    {
-        return false;
-    }
-
-    // 消除0.5个栅格偏差
-    std::for_each(temp.begin(), temp.end(), [this, &path](cv::Point2i & p){
-            cv::Point2d pf;
-            pf.x = (p.x + 0.5) * res_ + ori_x_;
-            pf.y = (p.y + 0.5) * res_ + ori_y_;
-            path.push_back(pf);
-        });
-
-    return true;
-}
-
 
 double Astar::getH(const cv::Point2i & p) const
 {

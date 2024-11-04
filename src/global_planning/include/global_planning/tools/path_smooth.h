@@ -135,14 +135,15 @@ public:
         }
         
         const size_t n = control_points.size() - 1;
-        generate_knots(k, n);
+        const size_t k_ = k > (n + 1) ? (n + 1) : k;    // 阶数不能大于控制点数
+        generate_knots(k_, n);
         for (double u = 0.0; u <= 1.0; u += u_step)
         {
-            bik_u(u, k, n);
+            bik_u(u, k_, n);
             cv::Point2d pt(0.0, 0.0);
             for (size_t i = 0; i <= n; i++)
             {
-                const double & coff = b_matrix_[k - 1][i];
+                const double & coff = b_matrix_[k_ - 1][i];
                 pt.x += (coff * control_points[i].x);
                 pt.y += (coff * control_points[i].y);
             }

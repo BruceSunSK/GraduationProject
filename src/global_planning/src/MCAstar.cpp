@@ -403,40 +403,9 @@ bool MCAstar::getProcessedMap(cv::Mat & map) const
     return true;
 }
 
-bool MCAstar::getRawPath(std::vector<cv::Point2i> & path)
+bool MCAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv::Point2d>> & auxiliary_info)
 {
-    if ( !(init_map_ && init_start_node_ && init_end_node_) )
-    {
-        std::cout << "请先设置地图、起点和终点！\n";
-        return false;
-    }
-
-    // 1.规划原始路径
-    std::vector<Node *> raw_nodes;
-    if (!generateRawNodes(raw_nodes))
-    {
-        std::cout << "规划失败！目标点不可达！\n";
-        return false;
-    }
-
-    // 2.节点转成路径点
-    std::vector<cv::Point2i> raw_path;
-    nodesToPath(raw_nodes, raw_path);
-    // nodesToPath(raw_nodes, path);
-
-    ////////
-    removeRedundantPoints(raw_path, path);
-    ////////
-
-    // 3.复原地图
-    resetMap();
-
-    return true;
-}
-
-bool MCAstar::getSmoothPath(std::vector<cv::Point2d> & path)
-{
-    if ( !(init_map_ && init_start_node_ && init_end_node_) )
+    if (!(init_map_ && init_start_node_ && init_end_node_ && init_map_info_))
     {
         std::cout << "请先设置地图、起点和终点！\n";
         return false;
@@ -450,6 +419,7 @@ bool MCAstar::getSmoothPath(std::vector<cv::Point2d> & path)
     if (!generateRawNodes(raw_nodes))
     {
         std::cout << "规划失败！目标点不可达！\n";
+        resetMap();
         return false;
     }
 
@@ -470,6 +440,12 @@ bool MCAstar::getSmoothPath(std::vector<cv::Point2d> & path)
     // 6.复原地图
     resetMap();
 
+    // 7.auxiliary_info赋值
+    auxiliary_info.clear();
+    auxiliary_info.push_back(helper_.search_result.raw_path);
+    auxiliary_info.push_back(helper_.search_result.nodes);
+    auxiliary_info.push_back(helper_.path_simplification_result.reduced_path);
+    
     return true;
 }
 
@@ -673,7 +649,10 @@ bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
                 new_node->direction_to_parent = direction;
                 queue.push(std::move(new_node));
 
-                helper_.search_result.raw_node_nums++;      // 访问到的节点个数
+                // 按顺序记录访问到的节点
+                helper_.search_result.nodes.push_back(cv::Point2d((new_point.x + 0.5) * res_ + ori_x_,
+                                                                  (new_point.y + 0.5) * res_ + ori_y_));
+
             }
             else //new_node->type == NodeType::OPENED
             {
@@ -698,11 +677,18 @@ bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
     while (path_node != nullptr)
     {
         raw_nodes.push_back(path_node);
+        helper_.search_result.raw_path.push_back(cv::Point2d((path_node->point.x + 0.5) * res_ + ori_x_,
+                                                             (path_node->point.y + 0.5) * res_ + ori_y_));
+
         path_node = path_node->parent_node;
     }
-    std::reverse(raw_nodes.begin(), raw_nodes.end());   // 翻转使得路径点从起点到终点排列
+    std::reverse(raw_nodes.begin(), raw_nodes.end());                                               // 翻转使得路径点从起点到终点排列
+    std::reverse(helper_.search_result.raw_path.begin(), helper_.search_result.raw_path.end());     // 翻转使得路径点从起点到终点排列
+
+    // 保存结果信息
     auto end_time = std::chrono::steady_clock::now();
-    helper_.search_result.raw_path_length = raw_nodes.size();                       // 路径长度
+    helper_.search_result.raw_node_nums   = helper_.search_result.nodes.size();     // 访问到的节点数
+    helper_.search_result.raw_path_length = helper_.search_result.raw_path.size();  // 路径长度
     helper_.search_result.cost_time = (end_time - start_time).count() / 1000000.0;  // 算法耗时 ms
     return raw_nodes.size() > 1;
 }
@@ -769,23 +755,21 @@ void MCAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, s
 
     helper_.path_simplification_result.reduced_path_length = reduced_path.size();
     helper_.path_simplification_result.cost_time = (end_time - start_time).count() / 1000000.0;
+    std::for_each(reduced_path.begin(), reduced_path.end(), [this](cv::Point2i & p)
+    {
+        this->helper_.path_simplification_result.reduced_path.push_back(cv::Point2d((p.x + 0.5) * res_ + ori_x_,
+                                                                                    (p.y + 0.5) * res_ + ori_y_));
+    });
 }
 
 bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2d> & smooth_path)
 {
-    if (init_map_info_ == false)
+    smooth_path.clear();
+    if (raw_path.size() == 0)
     {
-        std::cout << "平滑失败！缺少地图信息用以补齐栅格偏差！\n";
         return false;
     }
 
-    smooth_path.clear();
-    const size_t points_num = raw_path.size();
-    if (points_num == 0)
-    {
-        return false;
-    }
-    
     auto start_time = std::chrono::steady_clock::now();
     switch (params_.path_smooth_params.PATH_SMOOTH_TYPE)
     {

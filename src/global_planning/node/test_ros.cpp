@@ -4,16 +4,16 @@
 #include <nav_msgs/OccupancyGrid.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
+#include <visualization_msgs/MarkerArray.h>
 
 #include "global_planning/MCAstar.h"
 #include "global_planning/astar.h"
 
 
-ros::Publisher path_pub;
-ros::Publisher smooth_path_pub;
 ros::Publisher processed_map_pub;
-MCAstar planner;
-// Astar planner;
+ros::Publisher path_pub;
+ros::Publisher auxiliary_pub;
+GlobalPlannerInterface * planner;
 double res = 0.0;
 double ori_x = 0.0;
 double ori_y = 0.0;
@@ -24,7 +24,7 @@ void pub_path();
 
 void start_point_callback(const geometry_msgs::PoseWithCovarianceStamped & msg)
 {
-    start_point_flag = planner.setStartPoint(msg.pose.pose.position.x, msg.pose.pose.position.y);
+    start_point_flag = planner->setStartPoint(msg.pose.pose.position.x, msg.pose.pose.position.y);
 
     if (start_point_flag && end_point_flag && map_flag)
     {
@@ -34,7 +34,7 @@ void start_point_callback(const geometry_msgs::PoseWithCovarianceStamped & msg)
 
 void end_point_callback(const geometry_msgs::PoseStamped & msg)
 {
-    end_point_flag = planner.setEndPoint(msg.pose.position.x, msg.pose.position.y);
+    end_point_flag = planner->setEndPoint(msg.pose.position.x, msg.pose.position.y);
 
     if (start_point_flag && end_point_flag && map_flag)
     {
@@ -49,7 +49,7 @@ void map_callback(const nav_msgs::OccupancyGrid & msg)
     res = msg.info.resolution;
     ori_x = msg.info.origin.position.x;
     ori_y = msg.info.origin.position.y;
-    planner.setMapInfo(res, ori_x, ori_y);
+    planner->setMapInfo(res, ori_x, ori_y);
 
     cv::Mat map = cv::Mat::zeros(rows, cols, CV_8UC1);
     for (size_t i = 0; i < rows; i++)
@@ -59,12 +59,12 @@ void map_callback(const nav_msgs::OccupancyGrid & msg)
             map.at<uchar>(i, j) = msg.data[i * cols + j];
         }
     }
-    map_flag = planner.setMap(map);
+    map_flag = planner->setMap(map);
 
     if (map_flag)
     {
         cv::Mat processed_map;
-        planner.getProcessedMap(processed_map);
+        planner->getProcessedMap(processed_map);
 
         nav_msgs::OccupancyGrid new_msg;
         new_msg.header.frame_id = msg.header.frame_id;
@@ -84,40 +84,146 @@ void map_callback(const nav_msgs::OccupancyGrid & msg)
 
 void pub_path()
 {
-    std::vector<cv::Point2i> path;
-    std::vector<cv::Point2d> smooth_path;
-    planner.getRawPath(path);
-    planner.getSmoothPath(smooth_path);
+    std::vector<cv::Point2d> path;
+    std::vector<std::vector<cv::Point2d>> auxiliary_info;
+    planner->getPath(path, auxiliary_info);
 
+    // 规划路径信息
     nav_msgs::Path msg;
     msg.header.frame_id = "map";
     msg.header.stamp = ros::Time::now();
-    // 原始节点是栅格点，需要手动修正0.5个单位
-    for (cv::Point2i & p : path)
+    for (cv::Point2d & p : path)
     {
         geometry_msgs::PoseStamped m;
         m.header = msg.header;
-        m.pose.position.x = (p.x + 0.5) * res + ori_x;
-        m.pose.position.y = (p.y + 0.5) * res + ori_y;
-        m.pose.position.z = 0;
-        msg.poses.push_back(m);
-    }
-    nav_msgs::Path msg2;
-    msg2.header = msg.header;
-    for (cv::Point2d & p : smooth_path)
-    {
-        geometry_msgs::PoseStamped m;
-        m.header = msg2.header;
         m.pose.position.x = p.x;
         m.pose.position.y = p.y;
-        m.pose.position.z = 0;
-        msg2.poses.push_back(m);
+        m.pose.position.z = 10;
+        msg.poses.push_back(m);
     }
+
+    
+    // 辅助信息
+    visualization_msgs::MarkerArray marker_array;
+    visualization_msgs::Marker clean_marker;
+    clean_marker.action = visualization_msgs::Marker::DELETEALL;
+    marker_array.markers.push_back(clean_marker);
+    if (dynamic_cast<MCAstar *>(planner))
+    {
+        // 用于显示
+        visualization_msgs::Marker marker;
+        marker.header = msg.header;
+        marker.type = visualization_msgs::Marker::CUBE_LIST;
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.pose.orientation.x = 0.0;
+        marker.pose.orientation.y = 0.0;
+        marker.pose.orientation.z = 0.0;
+        marker.pose.orientation.w = 1.0;
+
+        
+        // 0. 规划原始节点
+        marker.ns = "raw_nodes";
+        marker.id = 0;
+        marker.scale.x = 0.35;
+        marker.scale.y = 0.35;
+        marker.scale.z = 0.35;
+        marker.color.a = 0.9;
+        marker.color.r = 0.0 / 255.0;
+        marker.color.g = 0.0 / 255.0;
+        marker.color.b = 255.0 / 255.0;
+        marker.points.clear();
+        for (size_t i = 0; i < auxiliary_info[0].size(); i++)
+        {
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[0][i].x;
+            p.y = auxiliary_info[0][i].y;
+            p.z = 1;
+            marker.points.push_back(p);
+        }
+        marker_array.markers.push_back(marker);
+
+        
+        // 1. 规划扩展节点
+        marker.ns = "expanded_nodes";
+        marker.id = 1;
+        marker.scale.x = 0.2;
+        marker.scale.y = 0.2;
+        marker.scale.z = 0.2;
+        marker.color.a = 1.0;
+        marker.color.r = 65.0 / 255.0;
+        marker.color.g = 105.0 / 255.0;
+        marker.color.b = 255.0 / 255.0;
+        marker.points.clear();
+        for (size_t i = 0; i < auxiliary_info[1].size(); i++)
+        {
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[1][i].x;
+            p.y = auxiliary_info[1][i].y;
+            p.z = 0;
+            marker.points.push_back(p);
+        }
+        marker_array.markers.push_back(marker);
+
+        
+        // 2. 去除冗余点后的关键节点
+        marker.ns = "key_nodes";
+        marker.id = 2;
+        marker.scale.x = 0.7;
+        marker.scale.y = 0.7;
+        marker.scale.z = 0.7;
+        marker.color.a = 1.0;
+        marker.color.r = 255.0 / 255.0;
+        marker.color.g = 215.0 / 255.0;
+        marker.color.b = 0.0 / 255.0;
+        marker.points.clear();
+        for (size_t i = 0; i < auxiliary_info[2].size(); i++)
+        {
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[2][i].x;
+            p.y = auxiliary_info[2][i].y;
+            p.z = 2;
+            marker.points.push_back(p);
+        }
+        marker_array.markers.push_back(marker);
+    }
+    else if (dynamic_cast<Astar *>(planner))
+    {
+        // 用于显示
+        visualization_msgs::Marker marker;
+        marker.header = msg.header;
+        marker.type = visualization_msgs::Marker::CUBE_LIST;
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.pose.orientation.x = 0.0;
+        marker.pose.orientation.y = 0.0;
+        marker.pose.orientation.z = 0.0;
+        marker.pose.orientation.w = 1.0;
+
+        
+        // 0. 规划扩展节点
+        marker.ns = "expanded_nodes";
+        marker.id = 0;
+        marker.scale.x = 0.2;
+        marker.scale.y = 0.2;
+        marker.scale.z = 0.2;
+        marker.color.a = 0.7;
+        marker.color.r = 65.0 / 255.0;
+        marker.color.g = 105.0 / 255.0;
+        marker.color.b = 255.0 / 255.0;
+        for (size_t i = 0; i < auxiliary_info[0].size(); i++)
+        {
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[0][i].x;
+            p.y = auxiliary_info[0][i].y;
+            p.z = 0;
+            marker.points.push_back(p);
+        }
+        marker_array.markers.push_back(marker);
+    }
+
     
     path_pub.publish(msg);
-    smooth_path_pub.publish(msg2);
-
-    planner.showAllInfo(true, ros::package::getPath("global_planning") + "/result/test_result/");
+    auxiliary_pub.publish(marker_array);
+    planner->showAllInfo(true, ros::package::getPath("global_planning") + "/result/test_result/");
 }
 
 
@@ -129,10 +235,10 @@ int main(int argc, char *argv[])
     ros::Subscriber start_point_sub = nh.subscribe("/initialpose", 1, start_point_callback);
     ros::Subscriber end_point_sub   = nh.subscribe("/move_base_simple/goal", 1, end_point_callback);
     ros::Subscriber map_sub         = nh.subscribe("/grid_cost_map/global_occupancy_grid_map", 1, map_callback);
-    path_pub          = nh.advertise<nav_msgs::Path>("path", 1, true);
-    smooth_path_pub   = nh.advertise<nav_msgs::Path>("smooth_path", 1, true);
     processed_map_pub = nh.advertise<nav_msgs::OccupancyGrid>("processed_map", 1, true);
-
+    path_pub          = nh.advertise<nav_msgs::Path>("path", 1, true);
+    auxiliary_pub     = nh.advertise<visualization_msgs::MarkerArray>("auxiliary_info", 1, true);
+    
     MCAstar::MCAstarParams MCAstar_params;
     MCAstar_params.map_params.EXPANDED_K = 1.3;
     MCAstar_params.map_params.EXPANDED_MIN_THRESHOLD = 0;
@@ -155,13 +261,16 @@ int main(int argc, char *argv[])
     MCAstar_params.path_smooth_params.PATH_SMOOTH_TYPE = MCAstar::PathSmoothType::BSpline;
     MCAstar_params.path_smooth_params.T_STEP = 0.0005;
     MCAstar_params.downsampling_params.INTERVAL = 0.4;
-    planner.initParams(MCAstar_params);
+    planner = new MCAstar;
+    planner->initParams(MCAstar_params);
 
     // Astar::AstarParams astar_params;
     // astar_params.map_params.OBSTACLE_THRESHOLD = 50;
     // astar_params.cost_function_params.HEURISTICS_TYPE = Astar::HeuristicsType::Euclidean;
-    // planner.initParams(astar_params);
+    // planner = new Astar;
+    // planner->initParams(astar_params);
 
     ros::spin();
+    delete planner;
     return 0;
 }

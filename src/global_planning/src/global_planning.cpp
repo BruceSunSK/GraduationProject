@@ -8,9 +8,9 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
     // 话题参数初始化
     nh_.param<std::string>("input_map_topic",  input_map_topic_,  "/grid_cost_map/global_occupancy_grid_map");
     nh_.param<std::string>("input_goal_topic", input_goal_topic_, "/move_base_simple/goal");
-    nh_.param<std::string>("output_processed_map_topic", output_processed_map_topic_, "processed_map");
-    nh_.param<std::string>("output_path_topic",          output_path_topic_,          "path");
-    nh_.param<std::string>("output_smooth_path_topic",   output_smooth_path_topic_, "smooth_path");
+    nh_.param<std::string>("output_processed_map_topic",  output_processed_map_topic_, "processed_map");
+    nh_.param<std::string>("output_path_topic",           output_path_topic_,          "path");
+    nh_.param<std::string>("output_auxiliary_info_topic", output_auxiliary_info_topic_, "auxiliary_info");
     nh_.param<bool>("info_flag", info_flag_, true);
     nh_.param<bool>("save_flag", save_flag_, false);
     nh_.param<std::string>("save_dir_path", save_dir_path_, "");
@@ -19,11 +19,11 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
     sub_goal_ = nh_.subscribe(input_goal_topic_, 1, &GlobalPlanning::set_goal, this);
     pub_processed_map_ = nh.advertise<nav_msgs::OccupancyGrid>(output_processed_map_topic_, 1, true);
     pub_path_          = nh.advertise<nav_msgs::Path>(output_path_topic_, 10);
-    pub_smooth_path_   = nh.advertise<nav_msgs::Path>(output_smooth_path_topic_, 10);
+    pub_auxiliary_     = nh.advertise<visualization_msgs::MarkerArray>(output_auxiliary_info_topic_, 1, true);
 
     // 规划器初始化
-    const std::string planner_name = nh_.param<std::string>("planner_name", "MCAstar");
-    if (planner_name == "MCAstar")
+    planner_name_ = nh_.param<std::string>("planner_name", "MCAstar");
+    if (planner_name_ == "MCAstar")
     {
         planner_ = new MCAstar;
         MCAstar::MCAstarParams p;
@@ -54,7 +54,7 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
         p.downsampling_params.INTERVAL                  = nh_.param<double>("MCAstar/downsampling_params/INTERVAL", 0.4);
         planner_->initParams(p);
     }
-    else if (planner_name == "Astar")
+    else if (planner_name_ == "Astar")
     {
         planner_ = new Astar;
         Astar::AstarParams p;
@@ -144,44 +144,154 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
     // 终点
     goal_flag = planner_->setEndPoint(msg->pose.position.x, msg->pose.position.y);
 
+
     // 发布路径
-    if (goal_flag && map_flag)
+    if ((goal_flag && map_flag) == false)
     {
-        std::vector<cv::Point2i> path;
-        std::vector<cv::Point2d> smooth_path;
-        planner_->getRawPath(path);
-        planner_->getSmoothPath(smooth_path);
+        return;
+    }
+    std::vector<cv::Point2d> path;
+    std::vector<std::vector<cv::Point2d>> auxiliary_info;
+    planner_->getPath(path, auxiliary_info);
 
-        nav_msgs::Path msg;
-        msg.header.frame_id = "map";
-        msg.header.stamp = ros::Time::now();
-        for (cv::Point2i & p : path)
-        {
-            geometry_msgs::PoseStamped m;
-            m.header = msg.header;
-            m.pose.position.x = (p.x + 0.5) * res_ + ori_x_;
-            m.pose.position.y = (p.y + 0.5) * res_ + ori_y_;
-            m.pose.position.z = 0;
-            msg.poses.push_back(m);
-        }
-        nav_msgs::Path msg2;
-        msg2.header = msg.header;
-        for (cv::Point2d & p : smooth_path)
-        {
-            geometry_msgs::PoseStamped m;
-            m.header = msg2.header;
-            m.pose.position.x = p.x;
-            m.pose.position.y = p.y;
-            m.pose.position.z = 0;
-            msg2.poses.push_back(m);
-        }
-        
-        pub_path_.publish(msg);
-        pub_smooth_path_.publish(msg2);
+    // 规划路径信息
+    nav_msgs::Path path_msg;
+    path_msg.header.frame_id = "map";
+    path_msg.header.stamp = ros::Time::now();
+    for (cv::Point2d & p : path)
+    {
+        geometry_msgs::PoseStamped m;
+        m.header = path_msg.header;
+        m.pose.position.x = p.x;
+        m.pose.position.y = p.y;
+        m.pose.position.z = 10;
+        path_msg.poses.push_back(m);
+    }
 
-        if (info_flag_)
+    
+    // 辅助信息
+    visualization_msgs::MarkerArray marker_array;
+    visualization_msgs::Marker clean_marker;
+    clean_marker.action = visualization_msgs::Marker::DELETEALL;
+    marker_array.markers.push_back(clean_marker);
+    if (planner_name_ == "MCAstar")
+    {
+        // 用于显示
+        visualization_msgs::Marker marker;
+        marker.header = path_msg.header;
+        marker.type = visualization_msgs::Marker::CUBE_LIST;
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.pose.orientation.x = 0.0;
+        marker.pose.orientation.y = 0.0;
+        marker.pose.orientation.z = 0.0;
+        marker.pose.orientation.w = 1.0;
+
+
+        // 0. 规划原始节点
+        marker.ns = "raw_nodes";
+        marker.id = 0;
+        marker.scale.x = 0.35;
+        marker.scale.y = 0.35;
+        marker.scale.z = 0.35;
+        marker.color.a = 0.9;
+        marker.color.r = 0.0 / 255.0;
+        marker.color.g = 0.0 / 255.0;
+        marker.color.b = 255.0 / 255.0;
+        marker.points.clear();
+        for (size_t i = 0; i < auxiliary_info[0].size(); i++)
         {
-            planner_->showAllInfo(save_flag_, save_dir_path_);
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[0][i].x;
+            p.y = auxiliary_info[0][i].y;
+            p.z = 1;
+            marker.points.push_back(p);
         }
+        marker_array.markers.push_back(marker);
+
+
+        // 1. 规划扩展节点
+        marker.ns = "expanded_nodes";
+        marker.id = 1;
+        marker.scale.x = 0.2;
+        marker.scale.y = 0.2;
+        marker.scale.z = 0.2;
+        marker.color.a = 1.0;
+        marker.color.r = 65.0 / 255.0;
+        marker.color.g = 105.0 / 255.0;
+        marker.color.b = 255.0 / 255.0;
+        marker.points.clear();
+        for (size_t i = 0; i < auxiliary_info[1].size(); i++)
+        {
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[1][i].x;
+            p.y = auxiliary_info[1][i].y;
+            p.z = 0;
+            marker.points.push_back(p);
+        }
+        marker_array.markers.push_back(marker);
+
+
+        // 2. 去除冗余点后的关键节点
+        marker.ns = "key_nodes";
+        marker.id = 2;
+        marker.scale.x = 0.7;
+        marker.scale.y = 0.7;
+        marker.scale.z = 0.7;
+        marker.color.a = 1.0;
+        marker.color.r = 255.0 / 255.0;
+        marker.color.g = 215.0 / 255.0;
+        marker.color.b = 0.0 / 255.0;
+        marker.points.clear();
+        for (size_t i = 0; i < auxiliary_info[2].size(); i++)
+        {
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[2][i].x;
+            p.y = auxiliary_info[2][i].y;
+            p.z = 2;
+            marker.points.push_back(p);
+        }
+        marker_array.markers.push_back(marker);
+    }
+    else if (planner_name_ == "Astar")
+    {
+        // 用于显示
+        visualization_msgs::Marker marker;
+        marker.header = path_msg.header;
+        marker.type = visualization_msgs::Marker::CUBE_LIST;
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.pose.orientation.x = 0.0;
+        marker.pose.orientation.y = 0.0;
+        marker.pose.orientation.z = 0.0;
+        marker.pose.orientation.w = 1.0;
+
+
+        // 0. 规划扩展节点
+        marker.ns = "expanded_nodes";
+        marker.id = 0;
+        marker.scale.x = 0.2;
+        marker.scale.y = 0.2;
+        marker.scale.z = 0.2;
+        marker.color.a = 0.7;
+        marker.color.r = 65.0 / 255.0;
+        marker.color.g = 105.0 / 255.0;
+        marker.color.b = 255.0 / 255.0;
+        for (size_t i = 0; i < auxiliary_info[0].size(); i++)
+        {
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[0][i].x;
+            p.y = auxiliary_info[0][i].y;
+            p.z = 0;
+            marker.points.push_back(p);
+        }
+        marker_array.markers.push_back(marker);
+    }
+
+
+    pub_path_.publish(path_msg);
+    pub_auxiliary_.publish(marker_array);
+
+    if (info_flag_)
+    {
+        planner_->showAllInfo(save_flag_, save_dir_path_);
     }
 }
