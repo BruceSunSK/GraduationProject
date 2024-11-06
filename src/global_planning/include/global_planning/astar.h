@@ -25,10 +25,10 @@ public:
     {
         ~AstarParams() = default;
 
-        // 地图相关参数
+        // 地图相关参数，uint16_t类型原本为uint8_t类型，但cout输出uint8_t类型时按照ASCII码输出字符，而非整数。
         struct 
         {
-            uint8_t OBSTACLE_THRESHOLD = 50;       // 地图中栅格代价值大于等于(>=)该值的栅格，会被视为障碍物，搜索过程中将直接跳过该栅格
+            uint16_t OBSTACLE_THRESHOLD = 50;   // 地图中栅格代价值大于等于(>=)该值的栅格，会被视为障碍物，搜索过程中将直接跳过该栅格
             REGISTER_STRUCT(REGISTER_MEMBER(OBSTACLE_THRESHOLD));
         } map_params;
 
@@ -141,7 +141,7 @@ public:
     /// @brief 设置规划路径的起点。以真实地图坐标形式，而非行列形式。
     /// @param p 真实地图坐标系的点
     /// @return 该点是否能够成为起点。即该点在地图内部且不在障碍物上。
-    bool setStartPoint(const cv::Point2d p) override;
+    bool setStartPoint(const cv::Point2d & p) override;
     /// @brief 设置规划路径的终点。以真实地图坐标形式，而非行列形式。
     /// @param x 真实地图坐标系的x值
     /// @param y 真实地图坐标系的y值
@@ -150,7 +150,7 @@ public:
     /// @brief 设置规划路径的终点。以真实地图坐标形式，而非行列形式。
     /// @param p 真实地图坐标系的点
     /// @return 该点是否能够成为终点。即该点在地图内部且不在障碍物上。
-    bool setEndPoint(const cv::Point2d p) override;
+    bool setEndPoint(const cv::Point2d & p) override;
     /// @brief 获得处理后的地图，即算法内部真正使用的，经过二值化后的地图
     /// @param map 地图将存入该变量
     /// @return 存入是否成功

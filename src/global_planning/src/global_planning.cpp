@@ -63,6 +63,17 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
                                                           nh_.param<int>("Astar/cost_function_params/HEURISTICS_TYPE", 2));
         planner_->initParams(p);
     }
+    else if (planner_name_ == "RRT")
+    {
+        planner_ = new RRT;
+        RRT::RRTParams rrt_params;
+        rrt_params.map_params.OBSTACLE_THRESHOLD        = nh_.param<int>("RRT/map_params/OBSTACLE_THRESHOLD", 50);
+        rrt_params.sample_params.ITERATOR_TIMES         = nh_.param<int>("RRT/sample_params/ITERATOR_TIMES", 100000);
+        rrt_params.sample_params.GOAL_SAMPLE_RATE       = nh_.param<double>("RRT/sample_params/GOAL_SAMPLE_RATE", 0.1);
+        rrt_params.sample_params.GOAL_DIS_TOLERANCE     = nh_.param<double>("RRT/sample_params/GOAL_DIS_TOLERANCE", 2.0);
+        rrt_params.sample_params.STEP_SIZE              = nh_.param<double>("RRT/sample_params/STEP_SIZE", 3.0);
+        planner_->initParams(rrt_params);
+    }
     else
     {
         ROS_FATAL("[GlobalPlanning]: Wrong planner name! exit!");
@@ -172,8 +183,9 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
     // 辅助信息
     visualization_msgs::MarkerArray marker_array;
     visualization_msgs::Marker clean_marker;
+    clean_marker.header = path_msg.header;
     clean_marker.action = visualization_msgs::Marker::DELETEALL;
-    marker_array.markers.push_back(clean_marker);
+    marker_array.markers.push_back(std::move(clean_marker));
     if (planner_name_ == "MCAstar")
     {
         // 用于显示
@@ -204,7 +216,7 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
             p.x = auxiliary_info[0][i].x;
             p.y = auxiliary_info[0][i].y;
             p.z = 1;
-            marker.points.push_back(p);
+            marker.points.push_back(std::move(p));
         }
         marker_array.markers.push_back(marker);
 
@@ -226,7 +238,7 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
             p.x = auxiliary_info[1][i].x;
             p.y = auxiliary_info[1][i].y;
             p.z = 0;
-            marker.points.push_back(p);
+            marker.points.push_back(std::move(p));
         }
         marker_array.markers.push_back(marker);
 
@@ -248,7 +260,7 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
             p.x = auxiliary_info[2][i].x;
             p.y = auxiliary_info[2][i].y;
             p.z = 2;
-            marker.points.push_back(p);
+            marker.points.push_back(std::move(p));
         }
         marker_array.markers.push_back(marker);
     }
@@ -281,11 +293,69 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
             p.x = auxiliary_info[0][i].x;
             p.y = auxiliary_info[0][i].y;
             p.z = 0;
-            marker.points.push_back(p);
+            marker.points.push_back(std::move(p));
         }
         marker_array.markers.push_back(marker);
     }
+    else if (planner_name_ == "RRT")
+    {
+        // 用于显示
+        visualization_msgs::Marker line_marker;
+        line_marker.header = path_msg.header;
+        line_marker.type = visualization_msgs::Marker::LINE_LIST;
+        line_marker.action = visualization_msgs::Marker::ADD;
+        line_marker.pose.orientation.x = 0.0;
+        line_marker.pose.orientation.y = 0.0;
+        line_marker.pose.orientation.z = 0.0;
+        line_marker.pose.orientation.w = 1.0;
+        visualization_msgs::Marker point_marker;
+        point_marker.header = path_msg.header;
+        point_marker.type = visualization_msgs::Marker::CUBE_LIST;
+        point_marker.action = visualization_msgs::Marker::ADD;
+        point_marker.pose.orientation.x = 0.0;
+        point_marker.pose.orientation.y = 0.0;
+        point_marker.pose.orientation.z = 0.0;
+        point_marker.pose.orientation.w = 1.0;
 
+
+        // 0. rrt树上所有节点
+        line_marker.ns = "tree_lines";
+        line_marker.id = 0;
+        line_marker.scale.x = 0.2;
+        line_marker.scale.y = 0.2;
+        line_marker.scale.z = 0.2;
+        line_marker.color.a = 0.7;
+        line_marker.color.r = 255.0 / 255.0;
+        line_marker.color.g = 215.0 / 255.0;
+        line_marker.color.b = 0.0 / 255.0;
+
+        point_marker.ns = "tree_nodes";
+        point_marker.id = 1;
+        point_marker.scale.x = 0.4;
+        point_marker.scale.y = 0.4;
+        point_marker.scale.z = 0.4;
+        point_marker.color.a = 1.0;
+        point_marker.color.r = 139.0 / 255.0;
+        point_marker.color.g = 105.0 / 255.0;
+        point_marker.color.b = 20.0 / 255.0;
+        for (size_t i = 0; i < auxiliary_info[0].size(); i++)
+        {
+            geometry_msgs::Point p1;
+            p1.x = auxiliary_info[0][i].x;
+            p1.y = auxiliary_info[0][i].y;
+            p1.z = 0;
+            point_marker.points.push_back(p1);
+            p1.z = 5;
+            line_marker.points.push_back(std::move(p1));
+            geometry_msgs::Point p2;
+            p2.x = auxiliary_info[1][i].x;
+            p2.y = auxiliary_info[1][i].y;
+            p2.z = 0;
+            line_marker.points.push_back(std::move(p2));
+        }
+        marker_array.markers.push_back(line_marker);
+        marker_array.markers.push_back(point_marker);
+    }
 
     pub_path_.publish(path_msg);
     pub_auxiliary_.publish(marker_array);

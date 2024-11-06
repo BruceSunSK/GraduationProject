@@ -9,6 +9,7 @@
 
 #include "global_planning/astar.h"
 #include "global_planning/MCAstar.h"
+#include "global_planning/rrt.h"
 
 
 class GlobalPlanning

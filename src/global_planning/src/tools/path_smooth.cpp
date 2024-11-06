@@ -84,7 +84,7 @@ void BSplineCurve::bik_u(const double u, const size_t k, const size_t n)
                 de2 = 1.0;
             }
             row_vec[j] = (u - knots_[j]) / de1 * b_matrix_[i - 1][j] +
-                (knots_[i + j + 1] - u) / de2 * b_matrix_[i - 1][j + 1];
+                         (knots_[i + j + 1] - u) / de2 * b_matrix_[i - 1][j + 1];
         }
         b_matrix_.push_back(std::move(row_vec));
     }

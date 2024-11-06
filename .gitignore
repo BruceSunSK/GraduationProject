@@ -4,7 +4,4 @@
 /build/
 /devel/
 
-/src/global_planning/result/Astar/*
-/src/global_planning/result/MCAstar/*
-/src/global_planning/result/test_result/Astar/*
-/src/global_planning/result/test_result/MCAstar/*
+/src/global_planning/result/

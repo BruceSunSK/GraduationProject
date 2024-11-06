@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include <functional>
 
 #include <opencv2/core.hpp>
 
@@ -268,6 +269,13 @@ public:
 
         rdp(0, n - 1);
     }
+
+    /// @brief 计算两点之间的直线上的所有点的栅格坐标，使用8领域扩展。
+    /// @param p1 直线的第一个点
+    /// @param p2 直线的第二个点
+    /// @param width 该直线的宽度。值为1时，仅有单行像素点；其余值时，按照该值为半宽（按照奇数处理）。
+    /// @return 两点之间的直线上的所有点
+    static std::vector<cv::Point2i> Bresenham(const cv::Point2i & p1, const cv::Point2i & p2, const int width = 1);
     
 private:
     /// @brief 计算点p到直线p1p2的距离
@@ -308,11 +316,4 @@ private:
     {
         return std::abs(std::atan2(d, std::hypot<double>(p2.x - p1.x, p2.y - p1.y)));
     }
-
-    /// @brief 计算两点之间的直线上的所有点的栅格坐标，使用8领域扩展。
-    /// @param p1 直线的第一个点
-    /// @param p2 直线的第二个点
-    /// @param width 该直线的宽度。值为1时，仅有单行像素点；其余值时，按照该值为半宽（按照奇数处理）。
-    /// @return 两点之间的直线上的所有点
-    static std::vector<cv::Point2i> Bresenham(const cv::Point2i & p1, const cv::Point2i & p2, const int width = 1);
 };

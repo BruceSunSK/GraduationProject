@@ -8,6 +8,7 @@
 
 #include "global_planning/MCAstar.h"
 #include "global_planning/astar.h"
+#include "global_planning/rrt.h"
 
 
 ros::Publisher processed_map_pub;
@@ -86,33 +87,37 @@ void pub_path()
 {
     std::vector<cv::Point2d> path;
     std::vector<std::vector<cv::Point2d>> auxiliary_info;
-    planner->getPath(path, auxiliary_info);
+    if (planner->getPath(path, auxiliary_info) == false)
+    {
+        return;
+    }
 
     // 规划路径信息
-    nav_msgs::Path msg;
-    msg.header.frame_id = "map";
-    msg.header.stamp = ros::Time::now();
+    nav_msgs::Path path_msg;
+    path_msg.header.frame_id = "map";
+    path_msg.header.stamp = ros::Time::now();
     for (cv::Point2d & p : path)
     {
         geometry_msgs::PoseStamped m;
-        m.header = msg.header;
+        m.header = path_msg.header;
         m.pose.position.x = p.x;
         m.pose.position.y = p.y;
         m.pose.position.z = 10;
-        msg.poses.push_back(m);
+        path_msg.poses.push_back(m);
     }
 
     
     // 辅助信息
     visualization_msgs::MarkerArray marker_array;
     visualization_msgs::Marker clean_marker;
+    clean_marker.header = path_msg.header;
     clean_marker.action = visualization_msgs::Marker::DELETEALL;
-    marker_array.markers.push_back(clean_marker);
+    marker_array.markers.push_back(std::move(clean_marker));
     if (dynamic_cast<MCAstar *>(planner))
     {
         // 用于显示
         visualization_msgs::Marker marker;
-        marker.header = msg.header;
+        marker.header = path_msg.header;
         marker.type = visualization_msgs::Marker::CUBE_LIST;
         marker.action = visualization_msgs::Marker::ADD;
         marker.pose.orientation.x = 0.0;
@@ -138,7 +143,7 @@ void pub_path()
             p.x = auxiliary_info[0][i].x;
             p.y = auxiliary_info[0][i].y;
             p.z = 1;
-            marker.points.push_back(p);
+            marker.points.push_back(std::move(p));
         }
         marker_array.markers.push_back(marker);
 
@@ -160,7 +165,7 @@ void pub_path()
             p.x = auxiliary_info[1][i].x;
             p.y = auxiliary_info[1][i].y;
             p.z = 0;
-            marker.points.push_back(p);
+            marker.points.push_back(std::move(p));
         }
         marker_array.markers.push_back(marker);
 
@@ -182,7 +187,7 @@ void pub_path()
             p.x = auxiliary_info[2][i].x;
             p.y = auxiliary_info[2][i].y;
             p.z = 2;
-            marker.points.push_back(p);
+            marker.points.push_back(std::move(p));
         }
         marker_array.markers.push_back(marker);
     }
@@ -190,7 +195,7 @@ void pub_path()
     {
         // 用于显示
         visualization_msgs::Marker marker;
-        marker.header = msg.header;
+        marker.header = path_msg.header;
         marker.type = visualization_msgs::Marker::CUBE_LIST;
         marker.action = visualization_msgs::Marker::ADD;
         marker.pose.orientation.x = 0.0;
@@ -215,13 +220,71 @@ void pub_path()
             p.x = auxiliary_info[0][i].x;
             p.y = auxiliary_info[0][i].y;
             p.z = 0;
-            marker.points.push_back(p);
+            marker.points.push_back(std::move(p));
         }
         marker_array.markers.push_back(marker);
     }
+    else if (dynamic_cast<RRT *>(planner))
+    {
+        // 用于显示
+        visualization_msgs::Marker line_marker;
+        line_marker.header = path_msg.header;
+        line_marker.type = visualization_msgs::Marker::LINE_LIST;
+        line_marker.action = visualization_msgs::Marker::ADD;
+        line_marker.pose.orientation.x = 0.0;
+        line_marker.pose.orientation.y = 0.0;
+        line_marker.pose.orientation.z = 0.0;
+        line_marker.pose.orientation.w = 1.0;
+        visualization_msgs::Marker point_marker;
+        point_marker.header = path_msg.header;
+        point_marker.type = visualization_msgs::Marker::CUBE_LIST;
+        point_marker.action = visualization_msgs::Marker::ADD;
+        point_marker.pose.orientation.x = 0.0;
+        point_marker.pose.orientation.y = 0.0;
+        point_marker.pose.orientation.z = 0.0;
+        point_marker.pose.orientation.w = 1.0;
 
-    
-    path_pub.publish(msg);
+
+        // 0. rrt树上所有节点
+        line_marker.ns = "tree_lines";
+        line_marker.id = 0;
+        line_marker.scale.x = 0.2;
+        line_marker.scale.y = 0.2;
+        line_marker.scale.z = 0.2;
+        line_marker.color.a = 0.7;
+        line_marker.color.r = 255.0 / 255.0;
+        line_marker.color.g = 215.0 / 255.0;
+        line_marker.color.b = 0.0 / 255.0;
+
+        point_marker.ns = "tree_nodes";
+        point_marker.id = 1;
+        point_marker.scale.x = 0.4;
+        point_marker.scale.y = 0.4;
+        point_marker.scale.z = 0.4;
+        point_marker.color.a = 1.0;
+        point_marker.color.r = 139.0 / 255.0;
+        point_marker.color.g = 105.0 / 255.0;
+        point_marker.color.b = 20.0 / 255.0;
+        for (size_t i = 0; i < auxiliary_info[0].size(); i++)
+        {
+            geometry_msgs::Point p1;
+            p1.x = auxiliary_info[0][i].x;
+            p1.y = auxiliary_info[0][i].y;
+            p1.z = 0;
+            point_marker.points.push_back(p1);
+            p1.z = 5;
+            line_marker.points.push_back(std::move(p1));
+            geometry_msgs::Point p2;
+            p2.x = auxiliary_info[1][i].x;
+            p2.y = auxiliary_info[1][i].y;
+            p2.z = 0;
+            line_marker.points.push_back(std::move(p2));
+        }
+        marker_array.markers.push_back(line_marker);
+        marker_array.markers.push_back(point_marker);
+    }
+
+    path_pub.publish(path_msg);
     auxiliary_pub.publish(marker_array);
     planner->showAllInfo(true, ros::package::getPath("global_planning") + "/result/test_result/");
 }
@@ -239,36 +302,45 @@ int main(int argc, char *argv[])
     path_pub          = nh.advertise<nav_msgs::Path>("path", 1, true);
     auxiliary_pub     = nh.advertise<visualization_msgs::MarkerArray>("auxiliary_info", 1, true);
     
-    MCAstar::MCAstarParams MCAstar_params;
-    MCAstar_params.map_params.EXPANDED_K = 1.3;
-    MCAstar_params.map_params.EXPANDED_MIN_THRESHOLD = 0;
-    MCAstar_params.map_params.EXPANDED_MAX_THRESHOLD = 100;
-    MCAstar_params.map_params.COST_THRESHOLD = 10;
-    MCAstar_params.map_params.OBSTACLE_THRESHOLD = 100;
-    MCAstar_params.cost_function_params.NEIGHBOR_TYPE = MCAstar::NeighborType::FiveConnected;
-    MCAstar_params.cost_function_params.HEURISTICS_TYPE = MCAstar::HeuristicsType::Euclidean;
-    MCAstar_params.cost_function_params.TRAV_COST_K = 2.0;
-    MCAstar_params.cost_function_params.TURN_COST_STRAIGHT = 1.0;
-    MCAstar_params.cost_function_params.TURN_COST_SLANT = 1.1;
-    MCAstar_params.cost_function_params.TURN_COST_VERTICAL = 2.0;
-    MCAstar_params.cost_function_params.TURN_COST_REVERSE_SLANT = 3.0;
-    MCAstar_params.path_simplification_params.PATH_SIMPLIFICATION_TYPE = MCAstar::PathSimplificationType::DPPlus;
-    MCAstar_params.path_simplification_params.DISTANCE_THRESHOLD = 1.5;
-    MCAstar_params.path_simplification_params.ANGLE_THRESHOLD = 10 / 180 * M_PI;
-    MCAstar_params.path_simplification_params.OBSTACLE_THRESHOLD = 70;
-    MCAstar_params.path_simplification_params.LINE_WIDTH = 1.0;
-    MCAstar_params.path_simplification_params.MAX_INTAVAL = 8.0;
-    MCAstar_params.path_smooth_params.PATH_SMOOTH_TYPE = MCAstar::PathSmoothType::BSpline;
-    MCAstar_params.path_smooth_params.T_STEP = 0.0005;
-    MCAstar_params.downsampling_params.INTERVAL = 0.4;
-    planner = new MCAstar;
-    planner->initParams(MCAstar_params);
+    // MCAstar::MCAstarParams MCAstar_params;
+    // MCAstar_params.map_params.EXPANDED_K = 1.3;
+    // MCAstar_params.map_params.EXPANDED_MIN_THRESHOLD = 0;
+    // MCAstar_params.map_params.EXPANDED_MAX_THRESHOLD = 100;
+    // MCAstar_params.map_params.COST_THRESHOLD = 10;
+    // MCAstar_params.map_params.OBSTACLE_THRESHOLD = 100;
+    // MCAstar_params.cost_function_params.NEIGHBOR_TYPE = MCAstar::NeighborType::FiveConnected;
+    // MCAstar_params.cost_function_params.HEURISTICS_TYPE = MCAstar::HeuristicsType::Euclidean;
+    // MCAstar_params.cost_function_params.TRAV_COST_K = 2.0;
+    // MCAstar_params.cost_function_params.TURN_COST_STRAIGHT = 1.0;
+    // MCAstar_params.cost_function_params.TURN_COST_SLANT = 1.1;
+    // MCAstar_params.cost_function_params.TURN_COST_VERTICAL = 2.0;
+    // MCAstar_params.cost_function_params.TURN_COST_REVERSE_SLANT = 3.0;
+    // MCAstar_params.path_simplification_params.PATH_SIMPLIFICATION_TYPE = MCAstar::PathSimplificationType::DPPlus;
+    // MCAstar_params.path_simplification_params.DISTANCE_THRESHOLD = 1.5;
+    // MCAstar_params.path_simplification_params.ANGLE_THRESHOLD = 10 / 180 * M_PI;
+    // MCAstar_params.path_simplification_params.OBSTACLE_THRESHOLD = 70;
+    // MCAstar_params.path_simplification_params.LINE_WIDTH = 1.0;
+    // MCAstar_params.path_simplification_params.MAX_INTAVAL = 8.0;
+    // MCAstar_params.path_smooth_params.PATH_SMOOTH_TYPE = MCAstar::PathSmoothType::BSpline;
+    // MCAstar_params.path_smooth_params.T_STEP = 0.0005;
+    // MCAstar_params.downsampling_params.INTERVAL = 0.4;
+    // planner = new MCAstar;
+    // planner->initParams(MCAstar_params);
 
     // Astar::AstarParams astar_params;
     // astar_params.map_params.OBSTACLE_THRESHOLD = 50;
     // astar_params.cost_function_params.HEURISTICS_TYPE = Astar::HeuristicsType::Euclidean;
     // planner = new Astar;
     // planner->initParams(astar_params);
+
+    RRT::RRTParams rrt_params;
+    rrt_params.map_params.OBSTACLE_THRESHOLD = 50;
+    rrt_params.sample_params.ITERATOR_TIMES = 100000;
+    rrt_params.sample_params.GOAL_SAMPLE_RATE = 0.1;
+    rrt_params.sample_params.GOAL_DIS_TOLERANCE = 2.0;
+    rrt_params.sample_params.STEP_SIZE = 3.0;
+    planner = new RRT;
+    planner->initParams(rrt_params);
 
     ros::spin();
     delete planner;

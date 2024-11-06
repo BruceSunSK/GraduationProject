@@ -3,6 +3,7 @@
 
 #include "global_planning/astar.h"
 #include "global_planning/MCAstar.h"
+#include "global_planning/rrt.h"
 #include "global_planning/tools/map_generator.h"
 
 
@@ -43,6 +44,16 @@ int main(int argc, char * argv[])
     astar_params.map_params.OBSTACLE_THRESHOLD = 50;
     astar_params.cost_function_params.HEURISTICS_TYPE = Astar::HeuristicsType::Euclidean;
     astar_planner->initParams(astar_params);
+
+    // RRT规划器
+    RRT * rrt_planner = new RRT;
+    RRT::RRTParams rrt_params;
+    rrt_params.map_params.OBSTACLE_THRESHOLD = 50;
+    rrt_params.sample_params.ITERATOR_TIMES = 10000;
+    rrt_params.sample_params.GOAL_SAMPLE_RATE = 0.05;
+    rrt_params.sample_params.GOAL_DIS_TOLERANCE = 20;
+    rrt_params.sample_params.STEP_SIZE = 40;
+    rrt_planner->initParams(rrt_params);
 
     MapGenerator generator;
 
@@ -99,7 +110,8 @@ int main(int argc, char * argv[])
     generator.load_map(ros::package::getPath("global_planning") + "/map/map1.png");
     generator.set_result_path(ros::package::getPath("global_planning") + "/result/test_result/");
     // generator.set_planner(MCAstar_planner);
-    generator.set_planner(astar_planner);
+    // generator.set_planner(astar_planner);
+    generator.set_planner(rrt_planner);
     generator.show_map("test", 10);
 
     delete astar_planner;

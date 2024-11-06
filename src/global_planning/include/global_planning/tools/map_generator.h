@@ -292,6 +292,15 @@ private:
         cv::circle(show_image_, point, scale_ / 3, color, -1);
     }
 
+    /// @brief 绘制两点间的折线
+    /// @param point1 前一个点
+    /// @param point2 后一个点
+    /// @param color 折线颜色
+    void set_show_image_color(const cv::Point2d & point1, const cv::Point2d & point2, const cv::Vec3b & color)
+    {
+        cv::line(show_image_, point1, point2, color, scale_ / 4);
+    }
+    
     /// @brief 根据栅格种类映射到对应的颜色
     /// @param type 栅格种类
     /// @return 对应的颜色
@@ -381,6 +390,27 @@ private:
                 set_show_image_color(p, get_grid_color(GridType::PATH));
             }
         }
+        else if (dynamic_cast<RRT *>(planner_))
+        {
+            // 1. 绘制RRT的所有树节点路径
+            for (size_t i = 1; i < auxiliary_info[0].size(); i++)
+            {
+                const cv::Point2d & p1 = auxiliary_info[0][i];
+                const cv::Point2d & p2 = auxiliary_info[1][i];
+                set_show_image_color(p1, get_grid_color(GridType::KETPOINT));       // 绘制节点
+                set_show_image_color(p2, get_grid_color(GridType::KETPOINT));       // 绘制节点
+                set_show_image_color(p1, p2, get_grid_color(GridType::KETPOINT));   // 绘制连线
+            }
+
+            // 2. 绘制RRT的节点路径
+            for (size_t i = 1; i < path.size(); i++)
+            {
+                const cv::Point2d & p_1 = path[i - 1];
+                const cv::Point2d & p = path[i];
+                set_show_image_color(p, get_grid_color(GridType::PATH));            // 绘制节点
+                set_show_image_color(p_1, p, get_grid_color(GridType::PATH));       // 绘制连线
+            }
+        }
     }
     
     /// @brief 根据鼠标的点击进行回调操作。实现依次点击的点为起点和终点。设置起点和终点后规划路径并显示
@@ -390,6 +420,7 @@ private:
         static int left_click_count = 0;
         static cv::Mat grid_map_property_clone, show_image_clone;
         static MapGenerator * obj = reinterpret_cast<MapGenerator *>(params);
+        static cv::Point2i last_click_point;
         if (left_click_count == 0)
         {
             obj->grid_map_.copyTo(grid_map_property_clone);
@@ -400,6 +431,7 @@ private:
         {
             int grid_x = x / obj->scale_;
             int grid_y = y / obj->scale_;
+            const cv::Point2i this_click_point(grid_x, grid_y);
             if (left_click_count % 2 == 0)
             {
                 if (obj->planner_->setStartPoint(x, y))
@@ -411,9 +443,10 @@ private:
                     show_image_clone.copyTo(obj->show_image_);
 
                     // 标记起点
-                    obj->grid_map_property_.at<cv::Vec2b>(grid_y, grid_x)[1] = GridType::START;
-                    obj->set_show_image_color(grid_y, grid_x, get_grid_color(GridType::START));
+                    obj->grid_map_property_.at<cv::Vec2b>(this_click_point)[1] = GridType::START;
+                    obj->set_show_image_color(this_click_point, get_grid_color(GridType::START));
                     left_click_count++;
+                    last_click_point = this_click_point;
                 }
             }
             else
@@ -421,8 +454,8 @@ private:
                 if (obj->planner_->setEndPoint(x, y))
                 {
                     // 标记终点
-                    obj->grid_map_property_.at<cv::Vec2b>(grid_y, grid_x)[1] = GridType::END;
-                    obj->set_show_image_color(grid_y, grid_x, get_grid_color(GridType::END));
+                    obj->grid_map_property_.at<cv::Vec2b>(this_click_point)[1] = GridType::END;
+                    obj->set_show_image_color(this_click_point, get_grid_color(GridType::END));
                     left_click_count++;
 
                     // 调用规划结果
@@ -432,8 +465,9 @@ private:
                     {
                         // 绘制结果
                         obj->paint_path(path, auxiliary_info);
-                        // 再次绘制终点
-                        obj->set_show_image_color(grid_y, grid_x, get_grid_color(GridType::END));
+                        // 再次绘制起点终点
+                        obj->set_show_image_color(last_click_point, get_grid_color(GridType::START));
+                        obj->set_show_image_color(this_click_point, get_grid_color(GridType::END));
                         // 显示/保存结果
                         obj->planner_->showAllInfo(true, obj->result_dir_path_);
                     }

@@ -128,7 +128,9 @@ include_directories(
 add_library(path_simplification SHARED  src/tools/path_simplification.cpp)
 add_library(path_smooth         SHARED  src/tools/path_smooth.cpp)
 add_library(planners            SHARED  src/astar.cpp
-                                        src/MCAstar.cpp)
+                                        src/MCAstar.cpp
+                                        src/rrt.cpp)
+
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
 ## either from message generation or dynamic reconfigure

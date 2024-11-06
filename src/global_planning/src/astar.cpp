@@ -169,7 +169,7 @@ bool Astar::setStartPoint(const double x, const double y)
     return true;
 }
 
-bool Astar::setStartPoint(const cv::Point2d p)
+bool Astar::setStartPoint(const cv::Point2d & p)
 {
     return setStartPoint(p.x, p.y);
 }
@@ -206,7 +206,7 @@ bool Astar::setEndPoint(const double x, const double y)
     return true;
 }
 
-bool Astar::setEndPoint(const cv::Point2d p)
+bool Astar::setEndPoint(const cv::Point2d & p)
 {
     return setEndPoint(p.x, p.y);
 }

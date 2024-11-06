@@ -339,7 +339,7 @@ public:
     /// @brief 设置规划路径的起点。以真实地图坐标形式，而非行列形式。
     /// @param p 真实地图坐标系的点
     /// @return 该点是否能够成为起点。即该点在地图内部且不在障碍物上。
-    bool setStartPoint(const cv::Point2d p) override;
+    bool setStartPoint(const cv::Point2d & p) override;
     /// @brief 设置规划路径的起点的朝向。
     /// @param yaw x轴为0，右手坐标系；单位为弧度；范围为[-pi, pi]。
     /// @return 该设置有效。规划器无设置起点朝向的功能时，返回false，否则返回true。
@@ -352,7 +352,7 @@ public:
     /// @brief 设置规划路径的终点。以真实地图坐标形式，而非行列形式。
     /// @param p 真实地图坐标系的点
     /// @return 该点是否能够成为终点。即该点在地图内部且不在障碍物上。
-    bool setEndPoint(const cv::Point2d p) override;
+    bool setEndPoint(const cv::Point2d & p) override;
     /// @brief 设置规划路径的终点的朝向。
     /// @param yaw x轴为0，右手坐标系；单位为弧度；范围为[-pi, pi]。
     /// @return 该设置有效。规划器无设置终点朝向的功能时，返回false，否则返回true。

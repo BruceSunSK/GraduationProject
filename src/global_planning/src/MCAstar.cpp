@@ -72,7 +72,6 @@ std::string MCAstar::MCAstarHelper::resultInfo() const
     PRINT_STRUCT(result_info, downsampling_result);
     return result_info.str();
 }
-
 // ========================= MCAstar::MCAstarHelper =========================
 
 
@@ -289,7 +288,7 @@ bool MCAstar::setStartPoint(const double x, const double y)
     return true;
 }
 
-bool MCAstar::setStartPoint(const cv::Point2d p)
+bool MCAstar::setStartPoint(const cv::Point2d & p)
 {
     return setStartPoint(p.x, p.y);
 }
@@ -375,7 +374,7 @@ bool MCAstar::setEndPoint(const double x, const double y)
     return true;
 }
 
-bool MCAstar::setEndPoint(const cv::Point2d p)
+bool MCAstar::setEndPoint(const cv::Point2d & p)
 {
     return setEndPoint(p.x, p.y);
 }
@@ -799,7 +798,8 @@ bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<
     helper_.path_smooth_result.cost_time = (end_time - start_time).count() / 1000000.0;
     
     // 消除0.5个栅格偏差
-    std::for_each(smooth_path.begin(), smooth_path.end(), [this](cv::Point2d & p){
+    std::for_each(smooth_path.begin(), smooth_path.end(), [this](cv::Point2d & p)
+        {
             p.x = (p.x + 0.5) * res_ + ori_x_;
             p.y = (p.y + 0.5) * res_ + ori_y_;
         });
