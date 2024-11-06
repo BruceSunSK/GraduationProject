@@ -25,7 +25,6 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
     planner_name_ = nh_.param<std::string>("planner_name", "MCAstar");
     if (planner_name_ == "MCAstar")
     {
-        planner_ = new MCAstar;
         MCAstar::MCAstarParams p;
         p.map_params.EXPANDED_K                         = nh_.param<double>("MCAstar/map_params/EXPANDED_K", 1.3);
         p.map_params.EXPANDED_MIN_THRESHOLD             = nh_.param<int>("MCAstar/map_params/EXPANDED_MIN_THRESHOLD", 0);
@@ -52,26 +51,27 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
                                                           nh_.param<int>("MCAstar/path_smooth_params/PATH_SMOOTH_TYPE", 1));
         p.path_smooth_params.T_STEP                     = nh_.param<double>("MCAstar/path_smooth_params/T_STEP", 0.0005);
         p.downsampling_params.INTERVAL                  = nh_.param<double>("MCAstar/downsampling_params/INTERVAL", 0.4);
+        planner_ = new MCAstar;
         planner_->initParams(p);
     }
     else if (planner_name_ == "Astar")
     {
-        planner_ = new Astar;
         Astar::AstarParams p;
         p.map_params.OBSTACLE_THRESHOLD                 = nh_.param<int>("Astar/map_params/OBSTACLE_THRESHOLD", 50);
         p.cost_function_params.HEURISTICS_TYPE          = static_cast<Astar::HeuristicsType>(
                                                           nh_.param<int>("Astar/cost_function_params/HEURISTICS_TYPE", 2));
+        planner_ = new Astar;
         planner_->initParams(p);
     }
     else if (planner_name_ == "RRT")
     {
-        planner_ = new RRT;
         RRT::RRTParams rrt_params;
         rrt_params.map_params.OBSTACLE_THRESHOLD        = nh_.param<int>("RRT/map_params/OBSTACLE_THRESHOLD", 50);
         rrt_params.sample_params.ITERATOR_TIMES         = nh_.param<int>("RRT/sample_params/ITERATOR_TIMES", 100000);
         rrt_params.sample_params.GOAL_SAMPLE_RATE       = nh_.param<double>("RRT/sample_params/GOAL_SAMPLE_RATE", 0.1);
         rrt_params.sample_params.GOAL_DIS_TOLERANCE     = nh_.param<double>("RRT/sample_params/GOAL_DIS_TOLERANCE", 2.0);
         rrt_params.sample_params.STEP_SIZE              = nh_.param<double>("RRT/sample_params/STEP_SIZE", 3.0);
+        planner_ = new RRT;
         planner_->initParams(rrt_params);
     }
     else

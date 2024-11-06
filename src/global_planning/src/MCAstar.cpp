@@ -448,6 +448,7 @@ bool MCAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<c
     return true;
 }
 
+
 std::vector<size_t> MCAstar::getNeighborsIndex(const Node * const node) const
 {
     std::vector<size_t> index_range;

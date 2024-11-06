@@ -267,16 +267,21 @@ bool RRT::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv::P
         // 沿最近节点和随机节点方向创建新节点
         const cv::Point2d & nearest_point = tree_list_[nearest_index]->pos;
         const double angle = std::atan2(random_point.y - nearest_point.y, random_point.x - nearest_point.x);
-        cv::Point2d new_point;
-        new_point.x = nearest_point.x + params_.sample_params.STEP_SIZE / res_ * std::cos(angle);
-        new_point.y = nearest_point.y + params_.sample_params.STEP_SIZE / res_ * std::sin(angle);
-        bool end = false;
+        cv::Point2d new_point(nearest_point.x + params_.sample_params.STEP_SIZE / res_ * std::cos(angle),
+                              nearest_point.y + params_.sample_params.STEP_SIZE / res_ * std::sin(angle));
+        bool finish = false;
         if (std::hypot(new_point.x - end_point_.x, new_point.y - end_point_.y) < params_.sample_params.GOAL_DIS_TOLERANCE / res_)
         {
             new_point = end_point_;
-            end = true;
+            finish = true;
         }
-        
+
+        // 新节点的区域判断
+        if (!is_inside_map(new_point))  // 当前点不在地图内部，直接进行下轮迭代
+        {
+            continue;
+        }
+
         // 新节点的碰撞检测
         if (check_collision(new_point, nearest_point))  // 发生碰撞，直接进行下轮迭代
         {
@@ -295,7 +300,7 @@ bool RRT::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv::P
         helper_.search_result.cur_points.push_back(cv::Point2d(new_node->pos.x * res_ + ori_x_, new_node->pos.y * res_ + ori_y_));
         helper_.search_result.par_points.push_back(cv::Point2d(new_node->parent->pos.x * res_ + ori_x_, new_node->parent->pos.y * res_ + ori_y_));
         tree_list_.push_back(std::move(new_node));
-        if (end)
+        if (finish)
         {
             // 保存结果路径
             path.clear();
@@ -336,7 +341,8 @@ bool RRT::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv::P
     return false;
 }
 
-size_t RRT::nearest_node_index(const cv::Point2d & rd_pt)
+
+size_t RRT::nearest_node_index(const cv::Point2d & rd_pt) const
 {
     size_t index = 0;
     double dis = std::numeric_limits<double>::max();
@@ -354,16 +360,16 @@ size_t RRT::nearest_node_index(const cv::Point2d & rd_pt)
     return index;
 }
 
-bool RRT::check_collision(const cv::Point2d & pt1, const cv::Point2d & pt2)
+bool RRT::is_inside_map(const cv::Point2d & pt) const
+{
+    // 待判断点为离散点，而非栅格点，因此上限可以取到cols_和rows_
+    return pt.x >= 0 && pt.x <= cols_ && pt.y >= 0 && pt.y <= rows_;
+}
+
+bool RRT::check_collision(const cv::Point2d & pt1, const cv::Point2d & pt2) const
 {
     const cv::Point2i pt1_grid(static_cast<int>(pt1.x), static_cast<int>(pt1.y));
-    const cv::Point2i pt2_grid(static_cast<int>(pt2.x), static_cast<int>(pt2.y));
-    if (pt1_grid.x >= 0 && pt1_grid.x < cols_ && pt1_grid.y >= 0 && pt1_grid.y < rows_ &&
-        pt2_grid.x >= 0 && pt2_grid.x < cols_ && pt2_grid.y >= 0 && pt2_grid.y < rows_ == false)    // 不在地图内部
-    {
-        return true;
-    }
-    
+    const cv::Point2i pt2_grid(static_cast<int>(pt2.x), static_cast<int>(pt2.y));   
     std::vector<cv::Point2i> pts = PathSimplification::Bresenham(pt1_grid, pt2_grid, 2);
     for (cv::Point2i & p : pts)
     {

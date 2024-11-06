@@ -345,6 +345,7 @@ bool Astar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv:
     return path.size() > 1;
 }
 
+
 double Astar::getH(const cv::Point2i & p) const
 {
     double h = 0;

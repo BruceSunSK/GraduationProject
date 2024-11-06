@@ -12,49 +12,59 @@ int main(int argc, char * argv[])
     ros::init(argc, argv, "test_opencv");
     ros::NodeHandle nh;
 
-    // MCAstar规划器
-    MCAstar * MCAstar_planner = new MCAstar;
-    MCAstar::MCAstarParams MCAstar_params;
-    MCAstar_params.map_params.EXPANDED_K = 1.3;
-    MCAstar_params.map_params.EXPANDED_MIN_THRESHOLD = 0;
-    MCAstar_params.map_params.EXPANDED_MAX_THRESHOLD = 100;
-    MCAstar_params.map_params.COST_THRESHOLD = 10;
-    MCAstar_params.map_params.OBSTACLE_THRESHOLD = 100;
-    MCAstar_params.cost_function_params.NEIGHBOR_TYPE = MCAstar::NeighborType::FiveConnected;
-    MCAstar_params.cost_function_params.HEURISTICS_TYPE = MCAstar::HeuristicsType::Euclidean;
-    MCAstar_params.cost_function_params.TRAV_COST_K = 2.0;
-    MCAstar_params.cost_function_params.TURN_COST_STRAIGHT = 1.0;
-    MCAstar_params.cost_function_params.TURN_COST_SLANT = 1.4;
-    MCAstar_params.cost_function_params.TURN_COST_VERTICAL = 2.0;
-    MCAstar_params.cost_function_params.TURN_COST_REVERSE_SLANT = 3.0;
-    MCAstar_params.path_simplification_params.PATH_SIMPLIFICATION_TYPE = MCAstar::PathSimplificationType::DPPlus;
-    MCAstar_params.path_simplification_params.DISTANCE_THRESHOLD = 18;
-    MCAstar_params.path_simplification_params.ANGLE_THRESHOLD = 10 / 180 * M_PI;
-    MCAstar_params.path_simplification_params.OBSTACLE_THRESHOLD = 70;
-    MCAstar_params.path_simplification_params.LINE_WIDTH = 15;
-    MCAstar_params.path_simplification_params.MAX_INTAVAL = 120.0;
-    MCAstar_params.path_smooth_params.PATH_SMOOTH_TYPE = MCAstar::PathSmoothType::BSpline;
-    MCAstar_params.path_smooth_params.T_STEP = 0.0005;
-    MCAstar_params.downsampling_params.INTERVAL = 2;
-    MCAstar_planner->initParams(MCAstar_params);
+    GlobalPlannerInterface * planner;
+    std::string planner_name = "RRT";   // MCAstar / Astar / RRT
+    if (planner_name == "MCAstar")
+    {
+        // MCAstar规划器
+        MCAstar::MCAstarParams MCAstar_params;
+        MCAstar_params.map_params.EXPANDED_K = 1.3;
+        MCAstar_params.map_params.EXPANDED_MIN_THRESHOLD = 0;
+        MCAstar_params.map_params.EXPANDED_MAX_THRESHOLD = 100;
+        MCAstar_params.map_params.COST_THRESHOLD = 10;
+        MCAstar_params.map_params.OBSTACLE_THRESHOLD = 100;
+        MCAstar_params.cost_function_params.NEIGHBOR_TYPE = MCAstar::NeighborType::FiveConnected;
+        MCAstar_params.cost_function_params.HEURISTICS_TYPE = MCAstar::HeuristicsType::Euclidean;
+        MCAstar_params.cost_function_params.TRAV_COST_K = 2.0;
+        MCAstar_params.cost_function_params.TURN_COST_STRAIGHT = 1.0;
+        MCAstar_params.cost_function_params.TURN_COST_SLANT = 1.4;
+        MCAstar_params.cost_function_params.TURN_COST_VERTICAL = 2.0;
+        MCAstar_params.cost_function_params.TURN_COST_REVERSE_SLANT = 3.0;
+        MCAstar_params.path_simplification_params.PATH_SIMPLIFICATION_TYPE = MCAstar::PathSimplificationType::DPPlus;
+        MCAstar_params.path_simplification_params.DISTANCE_THRESHOLD = 18;
+        MCAstar_params.path_simplification_params.ANGLE_THRESHOLD = 10 / 180 * M_PI;
+        MCAstar_params.path_simplification_params.OBSTACLE_THRESHOLD = 70;
+        MCAstar_params.path_simplification_params.LINE_WIDTH = 15;
+        MCAstar_params.path_simplification_params.MAX_INTAVAL = 120.0;
+        MCAstar_params.path_smooth_params.PATH_SMOOTH_TYPE = MCAstar::PathSmoothType::BSpline;
+        MCAstar_params.path_smooth_params.T_STEP = 0.0005;
+        MCAstar_params.downsampling_params.INTERVAL = 2;
+        planner = new MCAstar;
+        planner->initParams(MCAstar_params);
+    }
+    else if (planner_name == "Astar")
+    {
+        // Astar规划器
+        Astar::AstarParams astar_params;
+        astar_params.map_params.OBSTACLE_THRESHOLD = 50;
+        astar_params.cost_function_params.HEURISTICS_TYPE = Astar::HeuristicsType::Euclidean;
+        planner = new Astar;
+        planner->initParams(astar_params);
+    }
+    else if (planner_name == "RRT")
+    {
+        // RRT规划器
+        RRT::RRTParams rrt_params;
+        rrt_params.map_params.OBSTACLE_THRESHOLD = 50;
+        rrt_params.sample_params.ITERATOR_TIMES = 10000;
+        rrt_params.sample_params.GOAL_SAMPLE_RATE = 0.05;
+        rrt_params.sample_params.GOAL_DIS_TOLERANCE = 20;
+        rrt_params.sample_params.STEP_SIZE = 40;
+        planner = new RRT;
+        planner->initParams(rrt_params);
+    }
 
-    // Astar规划器
-    Astar * astar_planner = new Astar;
-    Astar::AstarParams astar_params;
-    astar_params.map_params.OBSTACLE_THRESHOLD = 50;
-    astar_params.cost_function_params.HEURISTICS_TYPE = Astar::HeuristicsType::Euclidean;
-    astar_planner->initParams(astar_params);
-
-    // RRT规划器
-    RRT * rrt_planner = new RRT;
-    RRT::RRTParams rrt_params;
-    rrt_params.map_params.OBSTACLE_THRESHOLD = 50;
-    rrt_params.sample_params.ITERATOR_TIMES = 10000;
-    rrt_params.sample_params.GOAL_SAMPLE_RATE = 0.05;
-    rrt_params.sample_params.GOAL_DIS_TOLERANCE = 20;
-    rrt_params.sample_params.STEP_SIZE = 40;
-    rrt_planner->initParams(rrt_params);
-
+    
     MapGenerator generator;
 
     // 0.颜色测试
@@ -109,12 +119,9 @@ int main(int argc, char * argv[])
     // 4.测试最终功能
     generator.load_map(ros::package::getPath("global_planning") + "/map/map1.png");
     generator.set_result_path(ros::package::getPath("global_planning") + "/result/test_result/");
-    // generator.set_planner(MCAstar_planner);
-    // generator.set_planner(astar_planner);
-    generator.set_planner(rrt_planner);
+    generator.set_planner(planner);
     generator.show_map("test", 10);
 
-    delete astar_planner;
-    delete MCAstar_planner;
+    delete planner;
     return 0;
 }

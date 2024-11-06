@@ -156,10 +156,14 @@ private:
     /// @brief 寻找距离当前随机节点最近的现有节点的下标
     /// @param rd_node 当前随机节点
     /// @return 现有节点中距离随机节点最近节点nearest_node的下标
-    size_t nearest_node_index(const cv::Point2d & rd_pt);
-    /// @brief 保证pt1和pt2在地图内部，并在地图上检测pt1和pt2连线上是否存在障碍物节点。用于判断新点new_point和最近点nearest_point之间是否存在障碍物。
+    size_t nearest_node_index(const cv::Point2d & rd_pt) const;
+    /// @brief 判断当前点是否位于地图内部
+    /// @param pt 待判断的点
+    /// @return true —— 在内部； false —— 不在内部
+    bool is_inside_map(const cv::Point2d & pt) const;
+    /// @brief 地图上检测pt1和pt2连线上是否存在障碍物节点。用于判断新点new_point和最近点nearest_point之间是否存在障碍物。
     /// @param pt1 第一个点
     /// @param pt2 第二个点
     /// @return 是否发生碰撞。true —— 碰撞； false —— 不碰撞
-    bool check_collision(const cv::Point2d & pt1, const cv::Point2d & pt2);
+    bool check_collision(const cv::Point2d & pt1, const cv::Point2d & pt2) const;
 };
