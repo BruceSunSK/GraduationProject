@@ -65,14 +65,26 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
     }
     else if (planner_name_ == "RRT")
     {
-        RRT::RRTParams rrt_params;
-        rrt_params.map_params.OBSTACLE_THRESHOLD        = nh_.param<int>("RRT/map_params/OBSTACLE_THRESHOLD", 50);
-        rrt_params.sample_params.ITERATOR_TIMES         = nh_.param<int>("RRT/sample_params/ITERATOR_TIMES", 100000);
-        rrt_params.sample_params.GOAL_SAMPLE_RATE       = nh_.param<double>("RRT/sample_params/GOAL_SAMPLE_RATE", 0.1);
-        rrt_params.sample_params.GOAL_DIS_TOLERANCE     = nh_.param<double>("RRT/sample_params/GOAL_DIS_TOLERANCE", 2.0);
-        rrt_params.sample_params.STEP_SIZE              = nh_.param<double>("RRT/sample_params/STEP_SIZE", 3.0);
+        RRT::RRTParams p;
+        p.map_params.OBSTACLE_THRESHOLD                 = nh_.param<int>("RRT/map_params/OBSTACLE_THRESHOLD", 50);
+        p.sample_params.ITERATOR_TIMES                  = nh_.param<int>("RRT/sample_params/ITERATOR_TIMES", 100000);
+        p.sample_params.GOAL_SAMPLE_RATE                = nh_.param<double>("RRT/sample_params/GOAL_SAMPLE_RATE", 0.1);
+        p.sample_params.GOAL_DIS_TOLERANCE              = nh_.param<double>("RRT/sample_params/GOAL_DIS_TOLERANCE", 2.0);
+        p.sample_params.STEP_SIZE                       = nh_.param<double>("RRT/sample_params/STEP_SIZE", 3.0);
         planner_ = new RRT;
-        planner_->initParams(rrt_params);
+        planner_->initParams(p);
+    }
+    else if (planner_name_ == "RRTstar")
+    {
+        RRTstar::RRTstarParams p;
+        p.map_params.OBSTACLE_THRESHOLD                 = nh_.param<int>("RRTstar/map_params/OBSTACLE_THRESHOLD", 50);
+        p.sample_params.ITERATOR_TIMES                  = nh_.param<int>("RRTstar/sample_params/ITERATOR_TIMES", 100000);
+        p.sample_params.GOAL_SAMPLE_RATE                = nh_.param<double>("RRTstar/sample_params/GOAL_SAMPLE_RATE", 0.1);
+        p.sample_params.GOAL_DIS_TOLERANCE              = nh_.param<double>("RRTstar/sample_params/GOAL_DIS_TOLERANCE", 2.0);
+        p.sample_params.STEP_SIZE                       = nh_.param<double>("RRTstar/sample_params/STEP_SIZE", 3.0);
+        p.sample_params.NEAR_DIS                        = nh_.param<double>("RRTstar/sample_params/NEAR_DIS", 10.0);
+        planner_ = new RRTstar;
+        planner_->initParams(p);
     }
     else
     {
@@ -297,7 +309,7 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
         }
         marker_array.markers.push_back(marker);
     }
-    else if (planner_name_ == "RRT")
+    else if (planner_name_ == "RRT" || planner_name_ == "RRTstar")
     {
         // 用于显示
         visualization_msgs::Marker line_marker;

@@ -315,7 +315,7 @@ bool RRT::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv::P
 
             // 保存结果信息
             auto end_time = std::chrono::steady_clock::now();
-            helper_.search_result.node_nums = helper_.search_result.cur_points.size() + 1;  // +1以包括起点
+            helper_.search_result.node_nums = tree_list_.size();
             helper_.search_result.node_counter = it + 1;                                    // +1表示实际执行的第i次迭代
             helper_.search_result.path_length = path.size();                                // 路径长度
             helper_.search_result.cost_time = (end_time - start_time).count() / 1000000.0;  // 算法耗时 ms
@@ -350,7 +350,7 @@ size_t RRT::nearest_node_index(const cv::Point2d & rd_pt) const
     for (size_t i = 0; i < tree_list_.size(); i++)
     {
         const cv::Point2d & node = tree_list_[i]->pos;
-        double dis_temp = std::hypot(node.x - rd_pt.x, node.y - rd_pt.y);
+        const double dis_temp = std::hypot(node.x - rd_pt.x, node.y - rd_pt.y);
         if (dis_temp < dis)
         {
             dis = dis_temp;
@@ -370,8 +370,8 @@ bool RRT::check_collision(const cv::Point2d & pt1, const cv::Point2d & pt2) cons
 {
     const cv::Point2i pt1_grid(static_cast<int>(pt1.x), static_cast<int>(pt1.y));
     const cv::Point2i pt2_grid(static_cast<int>(pt2.x), static_cast<int>(pt2.y));   
-    std::vector<cv::Point2i> pts = PathSimplification::Bresenham(pt1_grid, pt2_grid, 2);
-    for (cv::Point2i & p : pts)
+    const std::vector<cv::Point2i> pts = PathSimplification::Bresenham(pt1_grid, pt2_grid, 2);
+    for (const cv::Point2i & p : pts)
     {
         if (map_.at<uchar>(p) >= params_.map_params.OBSTACLE_THRESHOLD)
         {

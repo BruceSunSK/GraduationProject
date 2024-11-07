@@ -4,8 +4,8 @@
 #include "global_planning/astar.h"
 #include "global_planning/MCAstar.h"
 #include "global_planning/rrt.h"
+#include "global_planning/rrtstar.h"
 #include "global_planning/tools/map_generator.h"
-
 
 int main(int argc, char * argv[])
 {
@@ -13,7 +13,7 @@ int main(int argc, char * argv[])
     ros::NodeHandle nh;
 
     GlobalPlannerInterface * planner;
-    std::string planner_name = "RRT";   // MCAstar / Astar / RRT
+    std::string planner_name = "RRTstar";   // MCAstar / Astar / RRT / RRTstar
     if (planner_name == "MCAstar")
     {
         // MCAstar规划器
@@ -62,6 +62,19 @@ int main(int argc, char * argv[])
         rrt_params.sample_params.STEP_SIZE = 40;
         planner = new RRT;
         planner->initParams(rrt_params);
+    }
+    else if (planner_name == "RRTstar")
+    {
+        // RRTstar规划器
+        RRTstar::RRTstarParams rrtstar_params;
+        rrtstar_params.map_params.OBSTACLE_THRESHOLD = 50;
+        rrtstar_params.sample_params.ITERATOR_TIMES = 10000;
+        rrtstar_params.sample_params.GOAL_SAMPLE_RATE = 0.05;
+        rrtstar_params.sample_params.GOAL_DIS_TOLERANCE = 20;
+        rrtstar_params.sample_params.STEP_SIZE = 40;
+        rrtstar_params.sample_params.NEAR_DIS = 80;
+        planner = new RRTstar;
+        planner->initParams(rrtstar_params);
     }
 
     

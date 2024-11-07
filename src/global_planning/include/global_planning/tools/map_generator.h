@@ -390,7 +390,7 @@ private:
                 set_show_image_color(p, get_grid_color(GridType::PATH));
             }
         }
-        else if (dynamic_cast<RRT *>(planner_))
+        else if (dynamic_cast<RRT *>(planner_) || dynamic_cast<RRTstar *>(planner_))
         {
             // 1. 绘制RRT的所有树节点路径
             for (size_t i = 1; i < auxiliary_info[0].size(); i++)

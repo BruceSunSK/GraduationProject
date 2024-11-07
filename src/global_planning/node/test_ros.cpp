@@ -9,12 +9,14 @@
 #include "global_planning/MCAstar.h"
 #include "global_planning/astar.h"
 #include "global_planning/rrt.h"
+#include "global_planning/rrtstar.h"
 
 
 ros::Publisher processed_map_pub;
 ros::Publisher path_pub;
 ros::Publisher auxiliary_pub;
 GlobalPlannerInterface * planner;
+std::string planner_name;
 double res = 0.0;
 double ori_x = 0.0;
 double ori_y = 0.0;
@@ -113,7 +115,7 @@ void pub_path()
     clean_marker.header = path_msg.header;
     clean_marker.action = visualization_msgs::Marker::DELETEALL;
     marker_array.markers.push_back(std::move(clean_marker));
-    if (dynamic_cast<MCAstar *>(planner))
+    if (planner_name == "MCAstar")
     {
         // 用于显示
         visualization_msgs::Marker marker;
@@ -191,7 +193,7 @@ void pub_path()
         }
         marker_array.markers.push_back(marker);
     }
-    else if (dynamic_cast<Astar *>(planner))
+    else if (planner_name == "Astar")
     {
         // 用于显示
         visualization_msgs::Marker marker;
@@ -224,7 +226,7 @@ void pub_path()
         }
         marker_array.markers.push_back(marker);
     }
-    else if (dynamic_cast<RRT *>(planner))
+    else if (planner_name == "RRT" || planner_name == "RRTstar")
     {
         // 用于显示
         visualization_msgs::Marker line_marker;
@@ -302,7 +304,7 @@ int main(int argc, char *argv[])
     path_pub          = nh.advertise<nav_msgs::Path>("path", 1, true);
     auxiliary_pub     = nh.advertise<visualization_msgs::MarkerArray>("auxiliary_info", 1, true);
 
-    std::string planner_name = "RRT";   // MCAstar / Astar / RRT
+    planner_name = "RRTstar";       // MCAstar / Astar / RRT / RRTstar
     if (planner_name == "MCAstar")
     {
         MCAstar::MCAstarParams MCAstar_params;
@@ -348,6 +350,18 @@ int main(int argc, char *argv[])
         rrt_params.sample_params.STEP_SIZE = 3.0;
         planner = new RRT;
         planner->initParams(rrt_params);
+    }
+    else if (planner_name == "RRTstar")
+    {
+        RRTstar::RRTstarParams rrtstar_params;
+        rrtstar_params.map_params.OBSTACLE_THRESHOLD = 50;
+        rrtstar_params.sample_params.ITERATOR_TIMES = 10000000;
+        rrtstar_params.sample_params.GOAL_SAMPLE_RATE = 0.1;
+        rrtstar_params.sample_params.GOAL_DIS_TOLERANCE = 2.0;
+        rrtstar_params.sample_params.STEP_SIZE = 3.0;
+        rrtstar_params.sample_params.NEAR_DIS = 10.0;
+        planner = new RRTstar;
+        planner->initParams(rrtstar_params);
     }
 
     ros::spin();
