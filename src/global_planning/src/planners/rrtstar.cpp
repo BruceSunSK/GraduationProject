@@ -3,41 +3,6 @@
 
 // ========================= RRTstar::RRTstarHelper =========================
 
-void RRTstar::RRTstarHelper::showAllInfo(const bool save, const std::string & save_dir_path) const
-{
-    const std::string dt = daytime();
-
-    std::stringstream info;
-    info << "--------------- [RRTstar Info] ---------------\n"
-        << "Daytime: " << dt << "\tAuthor: BruceSun\n\n"
-        << paramsInfo() << std::endl
-        << mapInfo() << std::endl
-        << resultInfo()
-        << "--------------- [RRTstar Info] ---------------\n\n";
-    std::cout << info.str();
-
-    if (save)
-    {
-        std::string file_path = save_dir_path;
-        if (file_path.back() != '/')
-        {
-            file_path.push_back('/');
-        }
-        file_path += "RRTstar/";
-        file_path += (dt + " RRTstar_All_Info.txt");
-
-        if (saveInfo(info.str(), file_path))
-        {
-            std::cout << "[RRTstar Info]: All Info Has Saved to " << file_path << std::endl;
-        }
-        else
-        {
-            std::cerr << "[RRTstar Info]: All Info Failed to Save to " << file_path << std::endl;
-        }
-    }
-}
-
-
 std::string RRTstar::RRTstarHelper::paramsInfo() const
 {
     const RRTstar * rrt_planner = dynamic_cast<const RRTstar *>(planner_);
@@ -55,11 +20,11 @@ std::string RRTstar::RRTstarHelper::mapInfo() const
 
     std::stringstream map_info;
     map_info << "[Map Info]:\n"
-        << "  rows: " << rrt_planner->rows_ << std::endl
-        << "  cols: " << rrt_planner->cols_ << std::endl
-        << "  resolution: " << rrt_planner->res_ << std::endl
-        << "  start point: " << rrt_planner->start_point_ << std::endl
-        << "  end point:   " << rrt_planner->end_point_ << std::endl;
+             << "  rows: " << rrt_planner->rows_ << std::endl
+             << "  cols: " << rrt_planner->cols_ << std::endl
+             << "  resolution: " << rrt_planner->res_ << std::endl
+             << "  start point: " << rrt_planner->start_point_ << std::endl
+             << "  end point:   " << rrt_planner->end_point_ << std::endl;
     return map_info.str();
 }
 

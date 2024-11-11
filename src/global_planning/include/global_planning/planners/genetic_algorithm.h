@@ -1,5 +1,4 @@
 #pragma once
-
 #include <random>
 
 #include "global_planning/planners/global_planner_interface.h"

@@ -3,41 +3,6 @@
 
 // ========================= Astar::AstarHelper =========================
 
-void Astar::AstarHelper::showAllInfo(const bool save, const std::string & save_dir_path) const
-{
-    const std::string dt = daytime();
-
-    std::stringstream info;
-    info << "--------------- [Astar Info] ---------------\n"
-         << "Daytime: " << dt << "\tAuthor: BruceSun\n\n"
-         << paramsInfo() << std::endl
-         << mapInfo() << std::endl
-         << resultInfo()
-         << "--------------- [Astar Info] ---------------\n\n";
-    std::cout << info.str();
-    
-    if (save)
-    {
-        std::string file_path = save_dir_path;
-        if (file_path.back() != '/')
-        {
-            file_path.push_back('/');
-        }
-        file_path += "Astar/";
-        file_path += (dt + " Astar_All_Info.txt");
-
-        if (saveInfo(info.str(), file_path))
-        {
-            std::cout << "[Astar Info]: All Info Has Saved to " << file_path << std::endl;
-        }
-        else
-        {
-            std::cerr << "[Astar Info]: All Info Failed to Save to " << file_path << std::endl;
-        }
-    }
-}
-
-
 std::string Astar::AstarHelper::paramsInfo() const
 {
     const Astar * astar_planner = dynamic_cast<const Astar *>(planner_);

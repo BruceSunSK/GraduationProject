@@ -2,41 +2,6 @@
 
 // ========================= MCAstar::MCAstarHelper =========================
 
-void MCAstar::MCAstarHelper::showAllInfo(const bool save, const std::string & save_dir_path) const
-{
-    const std::string dt = daytime();
-
-    std::stringstream info;
-    info << "--------------- [MCAstar Info] ---------------\n"
-         << "Daytime: " << dt << "\tAuthor: BruceSun\n\n"
-         << paramsInfo() << std::endl
-         << mapInfo() << std::endl
-         << resultInfo()
-         << "--------------- [MCAstar Info] ---------------\n\n";
-    std::cout << info.str();
-    
-    if (save)
-    {
-        std::string file_path = save_dir_path;
-        if (file_path.back() != '/')
-        {
-            file_path.push_back('/');
-        }
-        file_path += "MCAstar/";
-        file_path += (dt + " MCAstar_All_Info.txt");
-
-        if (saveInfo(info.str(), file_path))
-        {
-            std::cout << "[MCAstar Info]: All Info Has Saved to " << file_path << std::endl;
-        }
-        else
-        {
-            std::cerr << "[MCAstar Info]: All Info Failed to Save to " << file_path << std::endl;
-        }
-    }
-}
-
-
 std::string MCAstar::MCAstarHelper::paramsInfo() const
 {
     const MCAstar * MCAstar_planner = dynamic_cast<const MCAstar *>(planner_);

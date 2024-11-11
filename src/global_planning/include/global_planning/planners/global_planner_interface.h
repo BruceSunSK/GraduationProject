@@ -5,6 +5,8 @@
 #include <fstream>
 #include <iostream>
 
+#include <sys/stat.h>
+
 #include <opencv2/core.hpp>
 
 
@@ -31,12 +33,45 @@ public:
         /// @brief 打印所有的信息，包括规划器参数信息、规划地图信息、规划结果信息，并可以将结果保存到指定路径中。由外部planner调用后执行
         /// @param save 是否保存到本地
         /// @param save_dir_path 保存的路径
-        virtual void showAllInfo(const bool save = false, const std::string & save_dir_path = "") const = 0;
+        void showAllInfo(const bool save = false, const std::string & save_dir_path = "") const
+        {
+            const std::string dt = daytime();
+
+            std::stringstream info;
+            info << "--------------- [" << planner_->planner_name_ << " Info] ---------------\n"
+                 << "Daytime: " << dt << "\tAuthor: BruceSun\n\n"
+                 << paramsInfo() << std::endl
+                 << mapInfo() << std::endl
+                 << resultInfo()
+                 << "--------------- [" << planner_->planner_name_ << " Info] ---------------\n\n";
+            std::cout << info.str();
+
+            if (save)
+            {
+                std::string file_path = save_dir_path;
+                if (file_path.back() != '/')
+                {
+                    file_path.push_back('/');
+                }
+                file_path += (planner_->planner_name_ + "/");
+                createDir(file_path);
+                file_path += (dt + ' ' + planner_->planner_name_ + "_All_Info.txt");
+
+                if (saveInfo(info.str(), file_path))
+                {
+                    std::cout << "[" << planner_->planner_name_ << " Info]: All Info Has Saved to " << file_path << std::endl;
+                }
+                else
+                {
+                    std::cerr << "[" << planner_->planner_name_ << " Info]: All Info Failed to Save to " << file_path << std::endl;
+                }
+            }
+        }
         /// @brief 清空当前记录的所有结果信息，便于下次记录
         virtual void resetResultInfo() = 0;
 
     protected:
-        GlobalPlannerInterface * planner_ = nullptr;    // helper对应的规划器，在构造时指定
+        const GlobalPlannerInterface * planner_ = nullptr;      // helper对应的规划器，在构造时指定
 
         /// @brief 将规划器中设置的参数以字符串的形式输出
         /// @return 规划器的参数
@@ -74,6 +109,31 @@ public:
             std::stringstream ss;
             ss << std::put_time(now_tm, "%Y-%m-%d %H:%M:%S");
             return ss.str();
+        }
+        /// @brief 创建指定目录，若目录存在则不创建，若目录不存在则创建目录及其父目录。如果有同名的文件，则创建失败。
+        /// @param dir_path 待创建的目录路径
+        /// @return true 创建成功，false 创建失败
+        bool createDir(const std::string & dir_path) const
+        {
+            struct stat st;
+            if (stat(dir_path.c_str(), &st) == 0)   // 判断路径是否存在，若存在则进一步判断
+            {
+                if (S_ISDIR(st.st_mode))    // 判断是否是目录
+                {
+                    return true;            // 无需创建
+                }
+                else                        // 路径存在，但不是目录
+                {
+                    std::cout << "[" << planner_->planner_name_ << "]: \"" << dir_path << "\" is not a directory!" << std::endl;
+                    return false;
+                }
+            }
+            else    // 路径不存在，则直接调用系统命令递归创建路径。
+            {
+                // ubuntu 18.04默认gcc版本为7.5.0，而c++17支持的filesystem至少需要gcc8以上，因此没有标准库可用。
+                // 手动创建的话需要mkdir函数，但该函数只能创建一层文件夹，太麻烦啦，直接调用shell了，虽然很难看。
+                return std::system(("mkdir -p " + dir_path).c_str()) == 0;
+            }
         }
     };
 
@@ -113,7 +173,7 @@ public:
     /// @return 该设置有效。规划器无设置起点朝向的功能时，返回false，否则返回true。
     virtual bool setStartPointYaw(const double yaw)
     {
-        std::cout << "[GlobalPlannerInterface]: \"setStartPointYaw\" is not implemented in this planner!" << std::endl;
+        std::cout << "[" << planner_name_ << "]: \"setStartPointYaw\" is not implemented in this planner!" << std::endl;
         return false;
     }
     /// @brief 设置规划路径的终点。以真实地图坐标形式，而非行列形式。
@@ -130,7 +190,7 @@ public:
     /// @return 该设置有效。规划器无设置终点朝向的功能时，返回false，否则返回true。
     virtual bool setEndPointYaw(const double yaw)
     {
-        std::cout << "[GlobalPlannerInterface]: \"setEndPointYaw\" is not implemented in this planner!" << std::endl;
+        std::cout << "[" << planner_name_ << "]: \"setEndPointYaw\" is not implemented in this planner!" << std::endl;
         return false;
     }
     /// @brief 获得处理后的地图，即算法内部真正使用的地图，常用于实际观察调参结果
@@ -148,6 +208,9 @@ public:
     virtual void showAllInfo(const bool save = false, const std::string & save_dir_path = "") const = 0;
     
 protected:
+    // 规划器名称
+    std::string planner_name_ = "GlobalPlannerInterface";
+    
     // 地图属性
     int rows_ = 0;          // 地图行数
     int cols_ = 0;          // 地图列数

@@ -66,10 +66,6 @@ public:
         } search_result;
 
     public:
-        /// @brief 打印所有的信息，包括规划器参数信息、规划地图信息、规划结果信息，并可以将结果保存到指定路径中。
-        /// @param save 是否保存到本地
-        /// @param save_dir_path 保存的路径
-        void showAllInfo(const bool save = false, const std::string & save_dir_path = "") const override;
         /// @brief 清空当前记录的所有结果信息，便于下次记录
         void resetResultInfo() override
         {
@@ -123,7 +119,7 @@ private:
     };
 
 public:
-    Astar() : helper_(this) {}
+    Astar() : helper_(this) { planner_name_ = "Astar"; }
     ~Astar() = default;
 
     /// @brief 对规划器相关变量进行初始化设置，进行参数拷贝设置
