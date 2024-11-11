@@ -2,17 +2,20 @@
 
 #include <random>
 
-#include "global_planning/global_planner_interface.h"
+#include "global_planning/planners/global_planner_interface.h"
 #include "global_planning/tools/print_struct_and_enum.h"
 #include "global_planning/tools/path_simplification.h"
 
-class RRT : public GlobalPlannerInterface
+
+/// @brief 基于RRT*(Rapidly-exploring Random Tree Star，启发快速探索随机树)算法的全局路径规划器。
+/// 随机点生成和后续使用都是离散点而非栅格点，然后放在栅格地图中进行障碍物判断。
+class RRTstar : public GlobalPlannerInterface
 {
 public:
     /// @brief 用于RRT规划器使用的参数类型
-    struct RRTParams : public GlobalPlannerParams
+    struct RRTstarParams : public GlobalPlannerParams
     {
-        ~RRTParams() = default;
+        ~RRTstarParams() = default;
 
         // 地图相关参数，uint16_t类型原本为uint8_t类型，但cout输出uint8_t类型时按照ASCII码输出字符，而非整数。
         struct
@@ -28,23 +31,25 @@ public:
             double GOAL_SAMPLE_RATE = 0.1;      // 终点采样率，即每走一步，有多少的概率随机选取终点作为新的终点
             double GOAL_DIS_TOLERANCE = 2.0;    // 新增长节点若与终点的距离在该范围内，则直接将终点作为新增长节点
             double STEP_SIZE = 3.0;             // 每次扩展节点的步长
+            double NEAR_DIS = 10.0;             // 在扩展完新节点后，再该范围内重新璇姐父节点、重新排线
 
             REGISTER_STRUCT(REGISTER_MEMBER(ITERATOR_TIMES),
                             REGISTER_MEMBER(GOAL_SAMPLE_RATE),
                             REGISTER_MEMBER(GOAL_DIS_TOLERANCE),
-                            REGISTER_MEMBER(STEP_SIZE));
+                            REGISTER_MEMBER(STEP_SIZE),
+                            REGISTER_MEMBER(NEAR_DIS));
         } sample_params;
 
         REGISTER_STRUCT(REGISTER_MEMBER(map_params),
-                        REGISTER_MEMBER(sample_params));
+            REGISTER_MEMBER(sample_params));
     };
 
     /// @brief 用于Astar规划器的辅助类，实现数据记录和结果打印
-    class RRTHelper : public GlobalPlannerHelper
+    class RRTstarHelper : public GlobalPlannerHelper
     {
     public:
         using GlobalPlannerHelper::GlobalPlannerHelper;
-        ~RRTHelper() = default;
+        ~RRTstarHelper() = default;
 
         struct
         {
@@ -56,7 +61,7 @@ public:
             std::vector<cv::Point2d> cur_points;    // 当前节点
             std::vector<cv::Point2d> par_points;    // 当前节点父节点
 
-            REGISTER_STRUCT(REGISTER_MEMBER(node_nums), 
+            REGISTER_STRUCT(REGISTER_MEMBER(node_nums),
                             REGISTER_MEMBER(node_counter),
                             REGISTER_MEMBER(path_length),
                             REGISTER_MEMBER(cost_time));
@@ -93,16 +98,17 @@ public:
 private:
     struct TreeNode
     {
-        TreeNode() : pos(0.0, 0.0), parent(nullptr) {}
-        TreeNode(const cv::Point2d & pos_, TreeNode * const parent_) : pos(pos_), parent(parent_) {}
+        TreeNode() : pos(0.0, 0.0), cost(0.0), parent(nullptr) {}
+        TreeNode(const cv::Point2d & pos_, double cost_, TreeNode * const parent_) : pos(pos_), cost(cost_), parent(parent_) {}
 
         cv::Point2d pos;    // 当前节点位置，是在栅格坐标系下的离散值
+        double cost = 0.0;  // 当前节点到根节点的代价值。目前为距离代价值
         TreeNode * parent;  // 当前节点的父节点
     };
-    
+
 public:
-    RRT() : helper_(this) {}
-    ~RRT() = default;
+    RRTstar() : helper_(this) {}
+    ~RRTstar() = default;
 
     /// @brief 对规划器相关变量进行初始化设置，进行参数拷贝设置
     /// @param params 传入的参数
@@ -144,8 +150,8 @@ public:
     void showAllInfo(const bool save = false, const std::string & save_dir_path = "") const override { helper_.showAllInfo(save, save_dir_path); }
 
 private:
-    RRTParams params_;                      // 规划器参数
-    RRTHelper helper_;                      // 规划器辅助
+    RRTstarParams params_;                  // 规划器参数
+    RRTstarHelper helper_;                  // 规划器辅助
 
     cv::Mat map_;                           // 代价地图
     cv::Point2d start_point_;               // 起点，真实地图上的起点落在栅格地图中的离散坐标
@@ -166,4 +172,16 @@ private:
     /// @param pt2 第二个点
     /// @return 是否发生碰撞。true —— 碰撞； false —— 不碰撞
     bool check_collision(const cv::Point2d & pt1, const cv::Point2d & pt2) const;
+    /// @brief 查找当前新节点new_pt周围选定范围内的、与新节点连线不碰撞的所有节点下标，并计算到其的距离代价值
+    /// @param new_pt 待查找周围成员的新节点
+    /// @return 所有附近成员的数组，其中每个成员是pair<size_t, double>，分别保存索引和距离值
+    std::vector<std::pair<size_t, double>> near_nodes_info(cv::Point2d & new_pt) const;
+    /// @brief 计算当前搜索范围节点中代价值最低的节点，确定新节点对应的父节点
+    /// @param info 周围节点的信息
+    /// @return 确定的父节点下标
+    size_t choose_parent(const std::vector<std::pair<size_t, double>> & info) const;
+    /// @brief 对当前选定范围内的节点进行重新排线。若周围节点near_node到起点的代价值大于途径new_node到起点的代价值，则near_node父节点更改为new_node
+    /// @param new_node 当前选定的new_node
+    /// @param info new_node周围节点的信息
+    void rewire(TreeNode * const new_node, const std::vector<std::pair<size_t, double>> & info) const;
 };

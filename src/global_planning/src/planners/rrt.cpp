@@ -1,4 +1,4 @@
-#include "global_planning/rrt.h"
+#include "global_planning/planners/rrt.h"
 
 
 // ========================= RRT::RRTHelper =========================

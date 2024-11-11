@@ -1,4 +1,4 @@
-#include "global_planning/astar.h"
+#include "global_planning/planners/astar.h"
 
 
 // ========================= Astar::AstarHelper =========================

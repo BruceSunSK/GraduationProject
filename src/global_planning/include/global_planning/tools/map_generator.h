@@ -7,7 +7,7 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
-#include "global_planning/global_planner_interface.h"
+#include "global_planning/planners/global_planner_interface.h"
 
 
 /// @brief 用于生成、加载、保存自定义地图，然后调用规划器进行规划并显示规划的结果

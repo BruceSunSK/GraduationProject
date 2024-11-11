@@ -6,10 +6,10 @@
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <visualization_msgs/MarkerArray.h>
 
-#include "global_planning/MCAstar.h"
-#include "global_planning/astar.h"
-#include "global_planning/rrt.h"
-#include "global_planning/rrtstar.h"
+#include "global_planning/planners/MCAstar.h"
+#include "global_planning/planners/astar.h"
+#include "global_planning/planners/rrt.h"
+#include "global_planning/planners/rrtstar.h"
 
 
 ros::Publisher processed_map_pub;

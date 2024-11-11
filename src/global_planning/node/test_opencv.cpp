@@ -1,10 +1,10 @@
 #include <ros/ros.h>
 #include <ros/package.h>
 
-#include "global_planning/astar.h"
-#include "global_planning/MCAstar.h"
-#include "global_planning/rrt.h"
-#include "global_planning/rrtstar.h"
+#include "global_planning/planners/astar.h"
+#include "global_planning/planners/MCAstar.h"
+#include "global_planning/planners/rrt.h"
+#include "global_planning/planners/rrtstar.h"
 #include "global_planning/tools/map_generator.h"
 
 int main(int argc, char * argv[])

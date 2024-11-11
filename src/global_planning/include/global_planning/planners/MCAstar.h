@@ -3,7 +3,7 @@
 #include <unordered_map>
 #include <algorithm>
 
-#include "global_planning/global_planner_interface.h"
+#include "global_planning/planners/global_planner_interface.h"
 #include "global_planning/tools/print_struct_and_enum.h"
 #include "global_planning/tools/path_simplification.h"
 #include "global_planning/tools/path_smooth.h"

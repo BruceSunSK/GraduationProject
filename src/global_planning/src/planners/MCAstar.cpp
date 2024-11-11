@@ -1,4 +1,4 @@
-#include "global_planning/MCAstar.h"
+#include "global_planning/planners/MCAstar.h"
 
 // ========================= MCAstar::MCAstarHelper =========================
 
