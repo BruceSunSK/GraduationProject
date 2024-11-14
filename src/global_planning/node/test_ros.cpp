@@ -10,6 +10,7 @@
 #include "global_planning/planners/astar.h"
 #include "global_planning/planners/rrt.h"
 #include "global_planning/planners/rrtstar.h"
+#include "global_planning/planners/genetic_algorithm.h"
 
 
 ros::Publisher processed_map_pub;
@@ -285,7 +286,10 @@ void pub_path()
         marker_array.markers.push_back(line_marker);
         marker_array.markers.push_back(point_marker);
     }
-
+    else if (planner_name == "GA")
+    {
+    }
+    
     path_pub.publish(path_msg);
     auxiliary_pub.publish(marker_array);
     planner->showAllInfo(true, ros::package::getPath("global_planning") + "/result/test_result/");
@@ -304,7 +308,7 @@ int main(int argc, char *argv[])
     path_pub          = nh.advertise<nav_msgs::Path>("path", 1, true);
     auxiliary_pub     = nh.advertise<visualization_msgs::MarkerArray>("auxiliary_info", 1, true);
 
-    planner_name = "RRTstar";       // MCAstar / Astar / RRT / RRTstar
+    planner_name = nh.param<std::string>("planner_name", "MCAstar");
     if (planner_name == "MCAstar")
     {
         MCAstar::MCAstarParams MCAstar_params;
@@ -362,6 +366,19 @@ int main(int argc, char *argv[])
         rrtstar_params.sample_params.NEAR_DIS = 10.0;
         planner = new RRTstar;
         planner->initParams(rrtstar_params);
+    }
+    else if (planner_name == "GA")
+    {
+        // GA规划器
+        GA::GAParams ga_params;
+        ga_params.map_params.OBSTACLE_THRESHOLD = 50;
+        ga_params.optimization_params.GENERATION_SIZE = 1000;
+        ga_params.optimization_params.POPULATION_SIZE = 200;
+        ga_params.optimization_params.CHROMOSOME_SIZE = 2;
+        ga_params.optimization_params.CROSSOVER_RATE = 0.7;
+        ga_params.optimization_params.MUTATION_RATE = 0.01;
+        planner = new GA;
+        planner->initParams(ga_params);
     }
 
     ros::spin();

@@ -130,7 +130,8 @@ add_library(path_smooth         SHARED  src/tools/path_smooth.cpp)
 add_library(planners            SHARED  src/planners/astar.cpp
                                         src/planners/MCAstar.cpp
                                         src/planners/rrt.cpp
-                                        src/planners/rrtstar.cpp)
+                                        src/planners/rrtstar.cpp
+                                        src/planners/genetic_algorithm.cpp)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries

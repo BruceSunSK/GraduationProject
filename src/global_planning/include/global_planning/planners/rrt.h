@@ -41,7 +41,7 @@ public:
                         REGISTER_MEMBER(sample_params));
     };
 
-    /// @brief 用于Astar规划器的辅助类，实现数据记录和结果打印
+    /// @brief 用于RRT规划器的辅助类，实现数据记录和结果打印
     class RRTHelper : public GlobalPlannerHelper
     {
     public:
@@ -62,18 +62,18 @@ public:
                             REGISTER_MEMBER(node_counter),
                             REGISTER_MEMBER(path_length),
                             REGISTER_MEMBER(cost_time));
-        } search_result;
+        } sample_result;
 
     public:
         /// @brief 清空当前记录的所有结果信息，便于下次记录
         void resetResultInfo() override
         {
-            search_result.node_nums = 0;
-            search_result.node_counter = 0;
-            search_result.path_length = 0;
-            search_result.cost_time = 0;
-            search_result.cur_points.clear();
-            search_result.par_points.clear();
+            sample_result.node_nums = 0;
+            sample_result.node_counter = 0;
+            sample_result.path_length = 0;
+            sample_result.cost_time = 0;
+            sample_result.cur_points.clear();
+            sample_result.par_points.clear();
         }
 
     private:

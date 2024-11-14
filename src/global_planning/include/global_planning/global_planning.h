@@ -11,6 +11,7 @@
 #include "global_planning/planners/MCAstar.h"
 #include "global_planning/planners/rrt.h"
 #include "global_planning/planners/rrtstar.h"
+#include "global_planning/planners/genetic_algorithm.h"
 
 
 class GlobalPlanning

@@ -1,7 +1,10 @@
 <launch>
 
     <!-- [1] 启动规划 -->
-    <node pkg="global_planning" name="test_ros" type="test_ros" output="screen" /> 
+    <node pkg="global_planning" name="test_ros" type="test_ros" output="screen" >
+        <param name="planner_name"      type="str"    value="GA"/> <!-- 选用的规划器种类，大小写敏感。 MCAstar / Astar / RRT / RRTstar / GA-->
+    </node>
+
     <!-- [2] 启动 rviz -->
     <node pkg="rviz" name="rviz" type="rviz" args="-d $(find global_planning)/rviz/test_ros.rviz" />
 

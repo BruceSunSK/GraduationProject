@@ -32,7 +32,7 @@ std::string RRTstar::RRTstarHelper::resultInfo() const
 {
     std::stringstream result_info;
     result_info << "[Result Info]:\n";
-    PRINT_STRUCT(result_info, search_result);
+    PRINT_STRUCT(result_info, sample_result);
     return result_info.str();
 }
 // ========================= RRTstar::RRTstarHelper =========================
@@ -78,7 +78,7 @@ bool RRTstar::setMap(const cv::Mat & map)
         for (size_t j = 0; j < cols_; j++)
         {
             const uchar & cost = map.at<uchar>(i, j);
-            if (cost <= params_.map_params.OBSTACLE_THRESHOLD)
+            if (cost < params_.map_params.OBSTACLE_THRESHOLD)
             {
                 map_.at<uchar>(i, j) = 0;
             }
@@ -277,18 +277,18 @@ bool RRTstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<c
             std::reverse(path.begin(), path.end());
             for (size_t i = 1; i < tree_list_.size(); i++)  // 排除起点
             {
-                helper_.search_result.cur_points.push_back(cv::Point2d(tree_list_[i]->pos.x * res_ + ori_x_, tree_list_[i]->pos.y * res_ + ori_y_));
-                helper_.search_result.par_points.push_back(cv::Point2d(tree_list_[i]->parent->pos.x * res_ + ori_x_, tree_list_[i]->parent->pos.y * res_ + ori_y_));
+                helper_.sample_result.cur_points.push_back(cv::Point2d(tree_list_[i]->pos.x * res_ + ori_x_, tree_list_[i]->pos.y * res_ + ori_y_));
+                helper_.sample_result.par_points.push_back(cv::Point2d(tree_list_[i]->parent->pos.x * res_ + ori_x_, tree_list_[i]->parent->pos.y * res_ + ori_y_));
             }
 
             // 保存结果信息
             auto end_time = std::chrono::steady_clock::now();
-            helper_.search_result.node_nums = tree_list_.size();
-            helper_.search_result.node_counter = it + 1;                                    // +1表示实际执行的第i次迭代
-            helper_.search_result.path_length = path.size();                                // 路径长度
-            helper_.search_result.cost_time = (end_time - start_time).count() / 1000000.0;  // 算法耗时 ms
-            auxiliary_info.push_back(helper_.search_result.cur_points);
-            auxiliary_info.push_back(helper_.search_result.par_points);
+            helper_.sample_result.node_nums = tree_list_.size();
+            helper_.sample_result.node_counter = it + 1;                                    // +1表示实际执行的第i次迭代
+            helper_.sample_result.path_length = path.size();                                // 路径长度
+            helper_.sample_result.cost_time = (end_time - start_time).count() / 1000000.0;  // 算法耗时 ms
+            auxiliary_info.push_back(helper_.sample_result.cur_points);
+            auxiliary_info.push_back(helper_.sample_result.par_points);
 
             // 释放内存
             for (size_t i = 0; i < tree_list_.size(); i++)

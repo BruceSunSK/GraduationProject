@@ -86,6 +86,18 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
         planner_ = new RRTstar;
         planner_->initParams(p);
     }
+    else if (planner_name_ == "GA")
+    {
+        GA::GAParams p;
+        p.map_params.OBSTACLE_THRESHOLD                 = nh_.param<int>("GA/map_params/OBSTACLE_THRESHOLD", 50);
+        p.optimization_params.GENERATION_SIZE           = nh_.param<int>("GA/optimization_params/GENERATION_SIZE", 200);
+        p.optimization_params.POPULATION_SIZE           = nh_.param<int>("GA/optimization_params/POPULATION_SIZE", 50);
+        p.optimization_params.CHROMOSOME_SIZE           = nh_.param<int>("GA/optimization_params/CHROMOSOME_SIZE", 10);
+        p.optimization_params.CROSSOVER_RATE            = nh_.param<double>("GA/optimization_params/CROSSOVER_RATE", 0.7);
+        p.optimization_params.MUTATION_RATE             = nh_.param<double>("GA/optimization_params/MUTATION_RATE", 0.01);
+        planner_ = new GA;
+        planner_->initParams(p);
+    }
     else
     {
         ROS_FATAL("[GlobalPlanning]: Wrong planner name! exit!");
@@ -367,6 +379,9 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
         }
         marker_array.markers.push_back(line_marker);
         marker_array.markers.push_back(point_marker);
+    }
+    else if (planner_name_ == "GA")
+    {
     }
 
     pub_path_.publish(path_msg);

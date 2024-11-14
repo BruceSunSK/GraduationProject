@@ -411,6 +411,17 @@ private:
                 set_show_image_color(p_1, p, get_grid_color(GridType::PATH));       // 绘制连线
             }
         }
+        else if (dynamic_cast<GA *>(planner_))
+        {
+            // 1. 绘制GA的路径
+            for (size_t i = 1; i < path.size(); i++)
+            {
+                const cv::Point2d & p_1 = path[i - 1];
+                const cv::Point2d & p = path[i];
+                set_show_image_color(p, get_grid_color(GridType::PATH));
+                set_show_image_color(p_1, p, get_grid_color(GridType::PATH));
+            }
+        }
     }
     
     /// @brief 根据鼠标的点击进行回调操作。实现依次点击的点为起点和终点。设置起点和终点后规划路径并显示
