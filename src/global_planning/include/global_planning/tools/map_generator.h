@@ -334,7 +334,7 @@ private:
     /// @param auxiliary_info 辅助信息，包括open集合、close集合、关键点等
     void paint_path(const std::vector<cv::Point2d> & path, const std::vector<std::vector<cv::Point2d>> & auxiliary_info)
     {
-        if (dynamic_cast<MCAstar *>(planner_))
+        if (dynamic_cast<DVAstar *>(planner_))
         {
             // 1. 绘制open集合
             for (size_t i = 0; i < auxiliary_info[1].size(); i++)

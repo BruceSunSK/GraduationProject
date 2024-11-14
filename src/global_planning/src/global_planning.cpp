@@ -22,36 +22,36 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
     pub_auxiliary_     = nh.advertise<visualization_msgs::MarkerArray>(output_auxiliary_info_topic_, 1, true);
 
     // 规划器初始化
-    planner_name_ = nh_.param<std::string>("planner_name", "MCAstar");
-    if (planner_name_ == "MCAstar")
+    planner_name_ = nh_.param<std::string>("planner_name", "DVAstar");
+    if (planner_name_ == "DVAstar")
     {
-        MCAstar::MCAstarParams p;
-        p.map_params.EXPANDED_K                         = nh_.param<double>("MCAstar/map_params/EXPANDED_K", 1.3);
-        p.map_params.EXPANDED_MIN_THRESHOLD             = nh_.param<int>("MCAstar/map_params/EXPANDED_MIN_THRESHOLD", 0);
-        p.map_params.EXPANDED_MAX_THRESHOLD             = nh_.param<int>("MCAstar/map_params/EXPANDED_MAX_THRESHOLD", 100);
-        p.map_params.COST_THRESHOLD                     = nh_.param<int>("MCAstar/map_params/COST_THRESHOLD", 10);
-        p.map_params.OBSTACLE_THRESHOLD                 = nh_.param<int>("MCAstar/map_params/OBSTACLE_THRESHOLD", 100);
-        p.cost_function_params.NEIGHBOR_TYPE            = static_cast<MCAstar::NeighborType>(
-                                                          nh_.param<int>("MCAstar/cost_function_params/NEIGHBOR_TYPE", 1));
-        p.cost_function_params.HEURISTICS_TYPE          = static_cast<MCAstar::HeuristicsType>(
-                                                          nh_.param<int>("MCAstar/cost_function_params/HEURISTICS_TYPE", 2));
-        p.cost_function_params.TRAV_COST_K              = nh_.param<double>("MCAstar/cost_function_params/TRAV_COST_K", 2.0);
-        p.cost_function_params.TURN_COST_STRAIGHT       = nh_.param<double>("MCAstar/cost_function_params/TURN_COST_STRAIGHT", 1.0);
-        p.cost_function_params.TURN_COST_SLANT          = nh_.param<double>("MCAstar/cost_function_params/TURN_COST_SLANT", 1.4);
-        p.cost_function_params.TURN_COST_VERTICAL       = nh_.param<double>("MCAstar/cost_function_params/TURN_COST_VERTICAL", 2.0);
-        p.cost_function_params.TURN_COST_REVERSE_SLANT  = nh_.param<double>("MCAstar/cost_function_params/TURN_COST_REVERSE_SLANT", 3.0);
-        p.path_simplification_params.PATH_SIMPLIFICATION_TYPE = static_cast<MCAstar::PathSimplificationType>(
-                                                          nh_.param<int>("MCAstar/path_simplification_params/PATH_SIMPLIFICATION_TYPE", 3));
-        p.path_simplification_params.DISTANCE_THRESHOLD = nh_.param<double>("MCAstar/path_simplification_params/DISTANCE_THRESHOLD", 1.5);
-        p.path_simplification_params.ANGLE_THRESHOLD    = nh_.param<double>("MCAstar/path_simplification_params/ANGLE_THRESHOLD", 0.17);
-        p.path_simplification_params.OBSTACLE_THRESHOLD = nh_.param<int>("MCAstar/path_simplification_params/OBSTACLE_THRESHOLD", 70);
-        p.path_simplification_params.LINE_WIDTH         = nh_.param<double>("MCAstar/path_simplification_params/LINE_WIDTH", 1.0);
-        p.path_simplification_params.MAX_INTAVAL        = nh_.param<double>("MCAstar/path_simplification_params/MAX_INTAVAL", 8.0);
-        p.path_smooth_params.PATH_SMOOTH_TYPE           = static_cast<MCAstar::PathSmoothType>(
-                                                          nh_.param<int>("MCAstar/path_smooth_params/PATH_SMOOTH_TYPE", 1));
-        p.path_smooth_params.T_STEP                     = nh_.param<double>("MCAstar/path_smooth_params/T_STEP", 0.0005);
-        p.downsampling_params.INTERVAL                  = nh_.param<double>("MCAstar/downsampling_params/INTERVAL", 0.4);
-        planner_ = new MCAstar;
+        DVAstar::DVAstarParams p;
+        p.map_params.EXPANDED_K                         = nh_.param<double>("DVAstar/map_params/EXPANDED_K", 1.3);
+        p.map_params.EXPANDED_MIN_THRESHOLD             = nh_.param<int>("DVAstar/map_params/EXPANDED_MIN_THRESHOLD", 0);
+        p.map_params.EXPANDED_MAX_THRESHOLD             = nh_.param<int>("DVAstar/map_params/EXPANDED_MAX_THRESHOLD", 100);
+        p.map_params.COST_THRESHOLD                     = nh_.param<int>("DVAstar/map_params/COST_THRESHOLD", 10);
+        p.map_params.OBSTACLE_THRESHOLD                 = nh_.param<int>("DVAstar/map_params/OBSTACLE_THRESHOLD", 100);
+        p.cost_function_params.NEIGHBOR_TYPE            = static_cast<DVAstar::NeighborType>(
+                                                          nh_.param<int>("DVAstar/cost_function_params/NEIGHBOR_TYPE", 1));
+        p.cost_function_params.HEURISTICS_TYPE          = static_cast<DVAstar::HeuristicsType>(
+                                                          nh_.param<int>("DVAstar/cost_function_params/HEURISTICS_TYPE", 2));
+        p.cost_function_params.TRAV_COST_K              = nh_.param<double>("DVAstar/cost_function_params/TRAV_COST_K", 2.0);
+        p.cost_function_params.TURN_COST_STRAIGHT       = nh_.param<double>("DVAstar/cost_function_params/TURN_COST_STRAIGHT", 1.0);
+        p.cost_function_params.TURN_COST_SLANT          = nh_.param<double>("DVAstar/cost_function_params/TURN_COST_SLANT", 1.4);
+        p.cost_function_params.TURN_COST_VERTICAL       = nh_.param<double>("DVAstar/cost_function_params/TURN_COST_VERTICAL", 2.0);
+        p.cost_function_params.TURN_COST_REVERSE_SLANT  = nh_.param<double>("DVAstar/cost_function_params/TURN_COST_REVERSE_SLANT", 3.0);
+        p.path_simplification_params.PATH_SIMPLIFICATION_TYPE = static_cast<DVAstar::PathSimplificationType>(
+                                                          nh_.param<int>("DVAstar/path_simplification_params/PATH_SIMPLIFICATION_TYPE", 3));
+        p.path_simplification_params.DISTANCE_THRESHOLD = nh_.param<double>("DVAstar/path_simplification_params/DISTANCE_THRESHOLD", 1.5);
+        p.path_simplification_params.ANGLE_THRESHOLD    = nh_.param<double>("DVAstar/path_simplification_params/ANGLE_THRESHOLD", 0.17);
+        p.path_simplification_params.OBSTACLE_THRESHOLD = nh_.param<int>("DVAstar/path_simplification_params/OBSTACLE_THRESHOLD", 70);
+        p.path_simplification_params.LINE_WIDTH         = nh_.param<double>("DVAstar/path_simplification_params/LINE_WIDTH", 1.0);
+        p.path_simplification_params.MAX_INTAVAL        = nh_.param<double>("DVAstar/path_simplification_params/MAX_INTAVAL", 8.0);
+        p.path_smooth_params.PATH_SMOOTH_TYPE           = static_cast<DVAstar::PathSmoothType>(
+                                                          nh_.param<int>("DVAstar/path_smooth_params/PATH_SMOOTH_TYPE", 1));
+        p.path_smooth_params.T_STEP                     = nh_.param<double>("DVAstar/path_smooth_params/T_STEP", 0.0005);
+        p.downsampling_params.INTERVAL                  = nh_.param<double>("DVAstar/downsampling_params/INTERVAL", 0.4);
+        planner_ = new DVAstar;
         planner_->initParams(p);
     }
     else if (planner_name_ == "Astar")
@@ -210,7 +210,7 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
     clean_marker.header = path_msg.header;
     clean_marker.action = visualization_msgs::Marker::DELETEALL;
     marker_array.markers.push_back(std::move(clean_marker));
-    if (planner_name_ == "MCAstar")
+    if (planner_name_ == "DVAstar")
     {
         // 用于显示
         visualization_msgs::Marker marker;

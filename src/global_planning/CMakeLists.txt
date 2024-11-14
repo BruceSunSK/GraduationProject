@@ -127,8 +127,8 @@ include_directories(
 ## Declare a C++ library
 add_library(path_simplification SHARED  src/tools/path_simplification.cpp)
 add_library(path_smooth         SHARED  src/tools/path_smooth.cpp)
-add_library(planners            SHARED  src/planners/astar.cpp
-                                        src/planners/MCAstar.cpp
+add_library(planners            SHARED  src/planners/DVAstar.cpp
+                                        src/planners/astar.cpp
                                         src/planners/rrt.cpp
                                         src/planners/rrtstar.cpp
                                         src/planners/genetic_algorithm.cpp)

@@ -1,33 +1,33 @@
-#include "global_planning/planners/MCAstar.h"
+#include "global_planning/planners/DVAstar.h"
 
-// ========================= MCAstar::MCAstarHelper =========================
+// ========================= DVAstar::DVAstarHelper =========================
 
-std::string MCAstar::MCAstarHelper::paramsInfo() const
+std::string DVAstar::DVAstarHelper::paramsInfo() const
 {
-    const MCAstar * MCAstar_planner = dynamic_cast<const MCAstar *>(planner_);
-    const MCAstarParams & MCAstar_params = MCAstar_planner->params_;
+    const DVAstar * DVAstar_planner = dynamic_cast<const DVAstar *>(planner_);
+    const DVAstarParams & DVAstar_params = DVAstar_planner->params_;
 
     std::stringstream params_info;
     params_info << "[Params Info]:\n";
-    PRINT_STRUCT(params_info, MCAstar_params);
+    PRINT_STRUCT(params_info, DVAstar_params);
     return params_info.str();
 }
 
-std::string MCAstar::MCAstarHelper::mapInfo() const
+std::string DVAstar::DVAstarHelper::mapInfo() const
 {
-    const MCAstar * MCAstar_planner = dynamic_cast<const MCAstar *>(planner_);
+    const DVAstar * DVAstar_planner = dynamic_cast<const DVAstar *>(planner_);
 
     std::stringstream map_info;
     map_info << "[Map Info]:\n"
-             << "  rows: "        << MCAstar_planner->rows_ << std::endl
-             << "  cols: "        << MCAstar_planner->cols_ << std::endl
-             << "  resolution: "  << MCAstar_planner->res_ << std::endl
-             << "  start point: " << MCAstar_planner->start_node_->point << std::endl
-             << "  end point:   " << MCAstar_planner->end_node_->point << std::endl;
+             << "  rows: "        << DVAstar_planner->rows_ << std::endl
+             << "  cols: "        << DVAstar_planner->cols_ << std::endl
+             << "  resolution: "  << DVAstar_planner->res_ << std::endl
+             << "  start point: " << DVAstar_planner->start_node_->point << std::endl
+             << "  end point:   " << DVAstar_planner->end_node_->point << std::endl;
     return map_info.str();
 }
 
-std::string MCAstar::MCAstarHelper::resultInfo() const
+std::string DVAstar::DVAstarHelper::resultInfo() const
 {
     std::stringstream result_info;
     result_info << "[Result Info]:\n";
@@ -37,12 +37,12 @@ std::string MCAstar::MCAstarHelper::resultInfo() const
     PRINT_STRUCT(result_info, downsampling_result);
     return result_info.str();
 }
-// ========================= MCAstar::MCAstarHelper =========================
+// ========================= DVAstar::DVAstarHelper =========================
 
 
-// ========================= MCAstar::Node =========================
+// ========================= DVAstar::Node =========================
 
-const int MCAstar::Node::neighbor_offset_table[8][2] =
+const int DVAstar::Node::neighbor_offset_table[8][2] =
     {
         {-1,  0},
         { 1,  0},
@@ -54,7 +54,7 @@ const int MCAstar::Node::neighbor_offset_table[8][2] =
         { 1,  1}
     };
 
-const MCAstar::Node::Direction MCAstar::Node::direction_table[8] =
+const DVAstar::Node::Direction DVAstar::Node::direction_table[8] =
     {
         Direction::N,
         Direction::S,
@@ -65,40 +65,40 @@ const MCAstar::Node::Direction MCAstar::Node::direction_table[8] =
         Direction::SW,
         Direction::SE
     };
-// ========================= MCAstar::Node =========================
+// ========================= DVAstar::Node =========================
 
 
-// ========================= MCAstar =========================
+// ========================= DVAstar =========================
 
-REGISTER_ENUM_BODY(MCAstarNeighborType,
-                   REGISTER_MEMBER(MCAstarNeighborType::FourConnected),
-                   REGISTER_MEMBER(MCAstarNeighborType::FiveConnected),
-                   REGISTER_MEMBER(MCAstarNeighborType::EightConnected));
+REGISTER_ENUM_BODY(DVAstarNeighborType,
+                   REGISTER_MEMBER(DVAstarNeighborType::FourConnected),
+                   REGISTER_MEMBER(DVAstarNeighborType::FiveConnected),
+                   REGISTER_MEMBER(DVAstarNeighborType::EightConnected));
 
-REGISTER_ENUM_BODY(MCAstarHeuristicsType,
-                   REGISTER_MEMBER(MCAstarHeuristicsType::None),
-                   REGISTER_MEMBER(MCAstarHeuristicsType::Manhattan),
-                   REGISTER_MEMBER(MCAstarHeuristicsType::Euclidean),
-                   REGISTER_MEMBER(MCAstarHeuristicsType::Chebyshev),
-                   REGISTER_MEMBER(MCAstarHeuristicsType::Octile));
+REGISTER_ENUM_BODY(DVAstarHeuristicsType,
+                   REGISTER_MEMBER(DVAstarHeuristicsType::None),
+                   REGISTER_MEMBER(DVAstarHeuristicsType::Manhattan),
+                   REGISTER_MEMBER(DVAstarHeuristicsType::Euclidean),
+                   REGISTER_MEMBER(DVAstarHeuristicsType::Chebyshev),
+                   REGISTER_MEMBER(DVAstarHeuristicsType::Octile));
 
-REGISTER_ENUM_BODY(MCAstarPathSimplificationType,
-                   REGISTER_MEMBER(MCAstarPathSimplificationType::DouglasPeucker),
-                   REGISTER_MEMBER(MCAstarPathSimplificationType::DistanceThreshold),
-                   REGISTER_MEMBER(MCAstarPathSimplificationType::AngleThreshold),
-                   REGISTER_MEMBER(MCAstarPathSimplificationType::DPPlus));
+REGISTER_ENUM_BODY(DVAstarPathSimplificationType,
+                   REGISTER_MEMBER(DVAstarPathSimplificationType::DouglasPeucker),
+                   REGISTER_MEMBER(DVAstarPathSimplificationType::DistanceThreshold),
+                   REGISTER_MEMBER(DVAstarPathSimplificationType::AngleThreshold),
+                   REGISTER_MEMBER(DVAstarPathSimplificationType::DPPlus));
 
-REGISTER_ENUM_BODY(MCAstarPathSmoothType,
-                   REGISTER_MEMBER(MCAstarPathSmoothType::Bezier),
-                   REGISTER_MEMBER(MCAstarPathSmoothType::BSpline));
+REGISTER_ENUM_BODY(DVAstarPathSmoothType,
+                   REGISTER_MEMBER(DVAstarPathSmoothType::Bezier),
+                   REGISTER_MEMBER(DVAstarPathSmoothType::BSpline));
 
-void MCAstar::initParams(const GlobalPlannerParams & params)
+void DVAstar::initParams(const GlobalPlannerParams & params)
 {
-    const MCAstarParams & p = dynamic_cast<const MCAstarParams &>(params);
+    const DVAstarParams & p = dynamic_cast<const DVAstarParams &>(params);
     params_ = p;
 }
 
-bool MCAstar::setMap(const cv::Mat & map)
+bool DVAstar::setMap(const cv::Mat & map)
 {
     // 保证地图合理
     rows_ = map.rows;
@@ -221,7 +221,7 @@ bool MCAstar::setMap(const cv::Mat & map)
     return true;
 }
 
-bool MCAstar::setStartPoint(const double x, const double y)
+bool DVAstar::setStartPoint(const double x, const double y)
 {
     if (init_map_info_ == false)
     {
@@ -253,12 +253,12 @@ bool MCAstar::setStartPoint(const double x, const double y)
     return true;
 }
 
-bool MCAstar::setStartPoint(const cv::Point2d & p)
+bool DVAstar::setStartPoint(const cv::Point2d & p)
 {
     return setStartPoint(p.x, p.y);
 }
 
-bool MCAstar::setStartPointYaw(const double yaw)
+bool DVAstar::setStartPointYaw(const double yaw)
 {
     if (!init_start_node_)
     {
@@ -307,7 +307,7 @@ bool MCAstar::setStartPointYaw(const double yaw)
     return true;
 }
 
-bool MCAstar::setEndPoint(const double x, const double y)
+bool DVAstar::setEndPoint(const double x, const double y)
 {
     if (init_map_info_ == false)
     {
@@ -339,16 +339,16 @@ bool MCAstar::setEndPoint(const double x, const double y)
     return true;
 }
 
-bool MCAstar::setEndPoint(const cv::Point2d & p)
+bool DVAstar::setEndPoint(const cv::Point2d & p)
 {
     return setEndPoint(p.x, p.y);
 }
 
-bool MCAstar::setEndPointYaw(const double yaw)
+bool DVAstar::setEndPointYaw(const double yaw)
 {
 }
 
-bool MCAstar::getProcessedMap(cv::Mat & map) const
+bool DVAstar::getProcessedMap(cv::Mat & map) const
 {
     if (!init_map_)
     {
@@ -367,7 +367,7 @@ bool MCAstar::getProcessedMap(cv::Mat & map) const
     return true;
 }
 
-bool MCAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv::Point2d>> & auxiliary_info)
+bool DVAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv::Point2d>> & auxiliary_info)
 {
     if (!(init_map_ && init_start_node_ && init_end_node_ && init_map_info_))
     {
@@ -414,7 +414,7 @@ bool MCAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<c
 }
 
 
-std::vector<size_t> MCAstar::getNeighborsIndex(const Node * const node) const
+std::vector<size_t> DVAstar::getNeighborsIndex(const Node * const node) const
 {
     std::vector<size_t> index_range;
     switch (params_.cost_function_params.NEIGHBOR_TYPE)
@@ -463,7 +463,7 @@ std::vector<size_t> MCAstar::getNeighborsIndex(const Node * const node) const
     return index_range;
 }
 
-double MCAstar::getG(const Node * const n, const Node::Direction direction, const Node::Direction par_direction) const
+double DVAstar::getG(const Node * const n, const Node::Direction direction, const Node::Direction par_direction) const
 {
     uint8_t dir = static_cast<uint8_t>(direction);
     uint8_t par_dir = static_cast<uint8_t>(par_direction);
@@ -492,7 +492,7 @@ double MCAstar::getG(const Node * const n, const Node::Direction direction, cons
     return trav_cost * turn_cost * dis_cost;
 }
 
-void MCAstar::getH(Node * const n) const
+void DVAstar::getH(Node * const n) const
 {
     cv::Point2i & p = n->point;
     double h = 0;
@@ -523,7 +523,7 @@ void MCAstar::getH(Node * const n) const
     n->h = h;
 }
 
-void MCAstar::getW(Node * const n) const
+void DVAstar::getW(Node * const n) const
 {
     // n->w = 1;
     // return;
@@ -555,7 +555,7 @@ void MCAstar::getW(Node * const n) const
     n->w = 1 - 1 * std::log(P);
 }
 
-bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
+bool DVAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
 {
     // 初始节点
     auto start_time = std::chrono::steady_clock::now();
@@ -658,7 +658,7 @@ bool MCAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
     return raw_nodes.size() > 1;
 }
 
-void MCAstar::nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Point2i> & path) const
+void DVAstar::nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Point2i> & path) const
 {
     path.clear();
     for (const Node * const n : nodes)
@@ -667,7 +667,7 @@ void MCAstar::nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Poi
     }
 }
 
-void MCAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2i> & reduced_path)
+void DVAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2i> & reduced_path)
 {
     reduced_path.clear();
     if (raw_path.size() <= 2)  // 只有两个点，说明只是起点和终点
@@ -727,7 +727,7 @@ void MCAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, s
     });
 }
 
-bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2d> & smooth_path)
+bool DVAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2d> & smooth_path)
 {
     smooth_path.clear();
     if (raw_path.size() == 0)
@@ -773,7 +773,7 @@ bool MCAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<
     return true;
 }
 
-void MCAstar::downsampling(std::vector<cv::Point2d> & path) 
+void DVAstar::downsampling(std::vector<cv::Point2d> & path) 
 {
     const size_t size = path.size();
     if (size == 0)
@@ -802,7 +802,7 @@ void MCAstar::downsampling(std::vector<cv::Point2d> & path)
     helper_.downsampling_result.cost_time = (end_time - start_time).count() / 1000000.0;
 }
 
-void MCAstar::resetMap()
+void DVAstar::resetMap()
 {
     for (int i = 0; i < rows_; i++)
     {
@@ -818,4 +818,4 @@ void MCAstar::resetMap()
         }
     }
 }
-// ========================= MCAstar =========================
+// ========================= DVAstar =========================
