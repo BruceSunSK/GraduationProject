@@ -1,7 +1,9 @@
-#include "global_planning/tools/path_simplification.h"
+#include "global_planning/tools/math.h"
 
 
-std::vector<cv::Point2i> PathSimplification::Bresenham(const cv::Point2i & p1, const cv::Point2i & p2, const int width)
+namespace Math
+{
+std::vector<cv::Point2i> Bresenham(const cv::Point2i & p1, const cv::Point2i & p2, const int width)
 {
     if (width <= 0)
         return std::vector<cv::Point2i>();
@@ -61,3 +63,5 @@ std::vector<cv::Point2i> PathSimplification::Bresenham(const cv::Point2i & p1, c
 
     return line_points;
 }
+
+} // namespace Math

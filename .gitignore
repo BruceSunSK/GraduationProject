@@ -5,3 +5,6 @@
 /devel/
 
 /src/global_planning/result/
+/src/path_optimizer
+/src/ros_viz_tools
+/src/tinyspline_ros

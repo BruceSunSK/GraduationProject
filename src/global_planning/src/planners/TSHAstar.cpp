@@ -1,33 +1,34 @@
-#include "global_planning/planners/DVAstar.h"
+#include "global_planning/planners/TSHAstar.h"
 
-// ========================= DVAstar::DVAstarHelper =========================
 
-std::string DVAstar::DVAstarHelper::paramsInfo() const
+// ========================= TSHAstar::TSHAstarHelper =========================
+
+std::string TSHAstar::TSHAstarHelper::paramsInfo() const
 {
-    const DVAstar * DVAstar_planner = dynamic_cast<const DVAstar *>(planner_);
-    const DVAstarParams & DVAstar_params = DVAstar_planner->params_;
+    const TSHAstar * TSHAstar_planner = dynamic_cast<const TSHAstar *>(planner_);
+    const TSHAstarParams & TSHAstar_params = TSHAstar_planner->params_;
 
     std::stringstream params_info;
     params_info << "[Params Info]:\n";
-    PRINT_STRUCT(params_info, DVAstar_params);
+    PRINT_STRUCT(params_info, TSHAstar_params);
     return params_info.str();
 }
 
-std::string DVAstar::DVAstarHelper::mapInfo() const
+std::string TSHAstar::TSHAstarHelper::mapInfo() const
 {
-    const DVAstar * DVAstar_planner = dynamic_cast<const DVAstar *>(planner_);
+    const TSHAstar * TSHAstar_planner = dynamic_cast<const TSHAstar *>(planner_);
 
     std::stringstream map_info;
     map_info << "[Map Info]:\n"
-             << "  rows: "        << DVAstar_planner->rows_ << std::endl
-             << "  cols: "        << DVAstar_planner->cols_ << std::endl
-             << "  resolution: "  << DVAstar_planner->res_ << std::endl
-             << "  start point: " << DVAstar_planner->start_node_->point << std::endl
-             << "  end point:   " << DVAstar_planner->end_node_->point << std::endl;
+             << "  rows: "        << TSHAstar_planner->rows_ << std::endl
+             << "  cols: "        << TSHAstar_planner->cols_ << std::endl
+             << "  resolution: "  << TSHAstar_planner->res_ << std::endl
+             << "  start point: " << TSHAstar_planner->start_node_->point << std::endl
+             << "  end point:   " << TSHAstar_planner->end_node_->point << std::endl;
     return map_info.str();
 }
 
-std::string DVAstar::DVAstarHelper::resultInfo() const
+std::string TSHAstar::TSHAstarHelper::resultInfo() const
 {
     std::stringstream result_info;
     result_info << "[Result Info]:\n";
@@ -37,12 +38,12 @@ std::string DVAstar::DVAstarHelper::resultInfo() const
     PRINT_STRUCT(result_info, downsampling_result);
     return result_info.str();
 }
-// ========================= DVAstar::DVAstarHelper =========================
+// ========================= TSHAstar::TSHAstarHelper =========================
 
 
-// ========================= DVAstar::Node =========================
+// ========================= TSHAstar::Node =========================
 
-const int DVAstar::Node::neighbor_offset_table[8][2] =
+const int TSHAstar::Node::neighbor_offset_table[8][2] =
     {
         {-1,  0},
         { 1,  0},
@@ -54,7 +55,7 @@ const int DVAstar::Node::neighbor_offset_table[8][2] =
         { 1,  1}
     };
 
-const DVAstar::Node::Direction DVAstar::Node::direction_table[8] =
+const TSHAstar::Node::Direction TSHAstar::Node::direction_table[8] =
     {
         Direction::N,
         Direction::S,
@@ -65,40 +66,40 @@ const DVAstar::Node::Direction DVAstar::Node::direction_table[8] =
         Direction::SW,
         Direction::SE
     };
-// ========================= DVAstar::Node =========================
+// ========================= TSHAstar::Node =========================
 
 
-// ========================= DVAstar =========================
+// ========================= TSHAstar =========================
 
-REGISTER_ENUM_BODY(DVAstarNeighborType,
-                   REGISTER_MEMBER(DVAstarNeighborType::FourConnected),
-                   REGISTER_MEMBER(DVAstarNeighborType::FiveConnected),
-                   REGISTER_MEMBER(DVAstarNeighborType::EightConnected));
+REGISTER_ENUM_BODY(TSHAstarNeighborType,
+                   REGISTER_MEMBER(TSHAstarNeighborType::FourConnected),
+                   REGISTER_MEMBER(TSHAstarNeighborType::FiveConnected),
+                   REGISTER_MEMBER(TSHAstarNeighborType::EightConnected));
 
-REGISTER_ENUM_BODY(DVAstarHeuristicsType,
-                   REGISTER_MEMBER(DVAstarHeuristicsType::None),
-                   REGISTER_MEMBER(DVAstarHeuristicsType::Manhattan),
-                   REGISTER_MEMBER(DVAstarHeuristicsType::Euclidean),
-                   REGISTER_MEMBER(DVAstarHeuristicsType::Chebyshev),
-                   REGISTER_MEMBER(DVAstarHeuristicsType::Octile));
+REGISTER_ENUM_BODY(TSHAstarHeuristicsType,
+                   REGISTER_MEMBER(TSHAstarHeuristicsType::None),
+                   REGISTER_MEMBER(TSHAstarHeuristicsType::Manhattan),
+                   REGISTER_MEMBER(TSHAstarHeuristicsType::Euclidean),
+                   REGISTER_MEMBER(TSHAstarHeuristicsType::Chebyshev),
+                   REGISTER_MEMBER(TSHAstarHeuristicsType::Octile));
 
-REGISTER_ENUM_BODY(DVAstarPathSimplificationType,
-                   REGISTER_MEMBER(DVAstarPathSimplificationType::DouglasPeucker),
-                   REGISTER_MEMBER(DVAstarPathSimplificationType::DistanceThreshold),
-                   REGISTER_MEMBER(DVAstarPathSimplificationType::AngleThreshold),
-                   REGISTER_MEMBER(DVAstarPathSimplificationType::DPPlus));
+REGISTER_ENUM_BODY(TSHAstarPathSimplificationType,
+                   REGISTER_MEMBER(TSHAstarPathSimplificationType::DouglasPeucker),
+                   REGISTER_MEMBER(TSHAstarPathSimplificationType::DistanceThreshold),
+                   REGISTER_MEMBER(TSHAstarPathSimplificationType::AngleThreshold),
+                   REGISTER_MEMBER(TSHAstarPathSimplificationType::DPPlus));
 
-REGISTER_ENUM_BODY(DVAstarPathSmoothType,
-                   REGISTER_MEMBER(DVAstarPathSmoothType::Bezier),
-                   REGISTER_MEMBER(DVAstarPathSmoothType::BSpline));
+REGISTER_ENUM_BODY(TSHAstarPathSmoothType,
+                   REGISTER_MEMBER(TSHAstarPathSmoothType::Bezier),
+                   REGISTER_MEMBER(TSHAstarPathSmoothType::BSpline));
 
-void DVAstar::initParams(const GlobalPlannerParams & params)
+void TSHAstar::initParams(const GlobalPlannerParams & params)
 {
-    const DVAstarParams & p = dynamic_cast<const DVAstarParams &>(params);
+    const TSHAstarParams & p = dynamic_cast<const TSHAstarParams &>(params);
     params_ = p;
 }
 
-bool DVAstar::setMap(const cv::Mat & map)
+bool TSHAstar::setMap(const cv::Mat & map)
 {
     // 保证地图合理
     rows_ = map.rows;
@@ -221,7 +222,7 @@ bool DVAstar::setMap(const cv::Mat & map)
     return true;
 }
 
-bool DVAstar::setStartPoint(const double x, const double y)
+bool TSHAstar::setStartPoint(const double x, const double y)
 {
     if (init_map_info_ == false)
     {
@@ -253,12 +254,12 @@ bool DVAstar::setStartPoint(const double x, const double y)
     return true;
 }
 
-bool DVAstar::setStartPoint(const cv::Point2d & p)
+bool TSHAstar::setStartPoint(const cv::Point2d & p)
 {
     return setStartPoint(p.x, p.y);
 }
 
-bool DVAstar::setStartPointYaw(const double yaw)
+bool TSHAstar::setStartPointYaw(const double yaw)
 {
     if (!init_start_node_)
     {
@@ -307,7 +308,7 @@ bool DVAstar::setStartPointYaw(const double yaw)
     return true;
 }
 
-bool DVAstar::setEndPoint(const double x, const double y)
+bool TSHAstar::setEndPoint(const double x, const double y)
 {
     if (init_map_info_ == false)
     {
@@ -339,16 +340,16 @@ bool DVAstar::setEndPoint(const double x, const double y)
     return true;
 }
 
-bool DVAstar::setEndPoint(const cv::Point2d & p)
+bool TSHAstar::setEndPoint(const cv::Point2d & p)
 {
     return setEndPoint(p.x, p.y);
 }
 
-bool DVAstar::setEndPointYaw(const double yaw)
+bool TSHAstar::setEndPointYaw(const double yaw)
 {
 }
 
-bool DVAstar::getProcessedMap(cv::Mat & map) const
+bool TSHAstar::getProcessedMap(cv::Mat & map) const
 {
     if (!init_map_)
     {
@@ -367,7 +368,7 @@ bool DVAstar::getProcessedMap(cv::Mat & map) const
     return true;
 }
 
-bool DVAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv::Point2d>> & auxiliary_info)
+bool TSHAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv::Point2d>> & auxiliary_info)
 {
     if (!(init_map_ && init_start_node_ && init_end_node_ && init_map_info_))
     {
@@ -414,7 +415,7 @@ bool DVAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<c
 }
 
 
-std::vector<size_t> DVAstar::getNeighborsIndex(const Node * const node) const
+std::vector<size_t> TSHAstar::getNeighborsIndex(const Node * const node) const
 {
     std::vector<size_t> index_range;
     switch (params_.cost_function_params.NEIGHBOR_TYPE)
@@ -463,7 +464,7 @@ std::vector<size_t> DVAstar::getNeighborsIndex(const Node * const node) const
     return index_range;
 }
 
-double DVAstar::getG(const Node * const n, const Node::Direction direction, const Node::Direction par_direction) const
+double TSHAstar::getG(const Node * const n, const Node::Direction direction, const Node::Direction par_direction) const
 {
     uint8_t dir = static_cast<uint8_t>(direction);
     uint8_t par_dir = static_cast<uint8_t>(par_direction);
@@ -492,7 +493,7 @@ double DVAstar::getG(const Node * const n, const Node::Direction direction, cons
     return trav_cost * turn_cost * dis_cost;
 }
 
-void DVAstar::getH(Node * const n) const
+void TSHAstar::getH(Node * const n) const
 {
     cv::Point2i & p = n->point;
     double h = 0;
@@ -523,7 +524,7 @@ void DVAstar::getH(Node * const n) const
     n->h = h;
 }
 
-void DVAstar::getW(Node * const n) const
+void TSHAstar::getW(Node * const n) const
 {
     // n->w = 1;
     // return;
@@ -555,7 +556,7 @@ void DVAstar::getW(Node * const n) const
     n->w = 1 - 1 * std::log(P);
 }
 
-bool DVAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
+bool TSHAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
 {
     // 初始节点
     auto start_time = std::chrono::steady_clock::now();
@@ -658,7 +659,7 @@ bool DVAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
     return raw_nodes.size() > 1;
 }
 
-void DVAstar::nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Point2i> & path) const
+void TSHAstar::nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Point2i> & path) const
 {
     path.clear();
     for (const Node * const n : nodes)
@@ -667,7 +668,7 @@ void DVAstar::nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Poi
     }
 }
 
-void DVAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2i> & reduced_path)
+void TSHAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2i> & reduced_path)
 {
     reduced_path.clear();
     if (raw_path.size() <= 2)  // 只有两个点，说明只是起点和终点
@@ -686,30 +687,30 @@ void DVAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, s
     //         √ 2. 但保留的点都很具有特征点代表性
     //         √ 3. 感觉在徐工地图上超级棒，甚至感觉不用平滑，用原始的折线也不错。
     case PathSimplificationType::DouglasPeucker:
-        PathSimplification::Douglas_Peucker(raw_path, reduced_path, params_.path_simplification_params.DISTANCE_THRESHOLD / res_);
+        Path::Simplification::Douglas_Peucker(raw_path, reduced_path, params_.path_simplification_params.DISTANCE_THRESHOLD / res_);
         break;
 
     // 2.使用垂距限值法去除冗余点
     // 测试结果：√ 1. 能够较为有效的保留对称的形状；
     //         × 2. 但是只去除一轮的话，（由于节点特别密集）会存在连续的2 / 3个点都存在，还需要二次去除
     case PathSimplificationType::DistanceThreshold:
-        PathSimplification::distance_threshold(raw_path, reduced_path, params_.path_simplification_params.DISTANCE_THRESHOLD / res_);
+        Path::Simplification::distance_threshold(raw_path, reduced_path, params_.path_simplification_params.DISTANCE_THRESHOLD / res_);
         break;
 
     // 3.使用角度限值法去除冗余点
     // 测试结果：× 1. 感觉容易破坏对称结构。本来对称的节点去除冗余点后有较为明显的差异，导致效果变差。
     //         √ 2. 在长直线路径下，能够有效去除多余歪点，只剩起点终点。
     case PathSimplificationType::AngleThreshold:
-        PathSimplification::angle_threshold(raw_path, reduced_path, params_.path_simplification_params.ANGLE_THRESHOLD);
+        Path::Simplification::angle_threshold(raw_path, reduced_path, params_.path_simplification_params.ANGLE_THRESHOLD);
         break;
 
     // 4.使用改进的Douglas-Peucker法去除冗余点
     // 测试结果：在DP的基础上，增加了对障碍物的处理。
     case PathSimplificationType::DPPlus:
-        PathSimplification::DPPlus(obs_map_, raw_path, reduced_path, params_.path_simplification_params.OBSTACLE_THRESHOLD,
-                                                                     params_.path_simplification_params.DISTANCE_THRESHOLD / res_, 
-                                                    static_cast<int>(params_.path_simplification_params.LINE_WIDTH / res_ + 0.5),
-                                                                     params_.path_simplification_params.MAX_INTAVAL / res_);
+        Path::Simplification::DPPlus(obs_map_, raw_path, reduced_path, params_.path_simplification_params.OBSTACLE_THRESHOLD,
+                                                                       params_.path_simplification_params.DISTANCE_THRESHOLD / res_, 
+                                                      static_cast<int>(params_.path_simplification_params.LINE_WIDTH / res_ + 0.5),
+                                                                       params_.path_simplification_params.MAX_INTAVAL / res_);
         break;
         
     default:
@@ -727,7 +728,7 @@ void DVAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, s
     });
 }
 
-bool DVAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2d> & smooth_path)
+bool TSHAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2d> & smooth_path)
 {
     smooth_path.clear();
     if (raw_path.size() == 0)
@@ -744,7 +745,7 @@ bool DVAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<
     //         2. 曲线会更倾向于中间，而非控制点。在两个控制点间隔较远时会更加明显，效果更差。
     //         3. 速度比B样条慢。毕竟B样条我狠狠优化过，贝塞尔貌似只能搞dp计算组合数打表。
     case PathSmoothType::Bezier:
-        BezierCurve::piecewise_smooth_curve(raw_path, smooth_path, params_.path_smooth_params.T_STEP);
+        Curve::BezierCurve::piecewise_smooth_curve(raw_path, smooth_path, params_.path_smooth_params.T_STEP);
         break;
 
     // 使用B样条曲线进行平滑
@@ -752,7 +753,7 @@ bool DVAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<
     //         1. 效果很好，曲线平滑，作用在全局，控制点均匀分布。
     //         2. 速度快。
     case PathSmoothType::BSpline:
-        BSplineCurve::smooth_curve(raw_path, smooth_path, 4, params_.path_smooth_params.T_STEP);
+        Curve::BSplineCurve::smooth_curve(raw_path, smooth_path, 4, params_.path_smooth_params.T_STEP);
         break;
 
     default:
@@ -773,7 +774,7 @@ bool DVAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector<
     return true;
 }
 
-void DVAstar::downsampling(std::vector<cv::Point2d> & path) 
+void TSHAstar::downsampling(std::vector<cv::Point2d> & path) 
 {
     const size_t size = path.size();
     if (size == 0)
@@ -802,7 +803,7 @@ void DVAstar::downsampling(std::vector<cv::Point2d> & path)
     helper_.downsampling_result.cost_time = (end_time - start_time).count() / 1000000.0;
 }
 
-void DVAstar::resetMap()
+void TSHAstar::resetMap()
 {
     for (int i = 0; i < rows_; i++)
     {
@@ -818,4 +819,4 @@ void DVAstar::resetMap()
         }
     }
 }
-// ========================= DVAstar =========================
+// ========================= TSHAstar =========================

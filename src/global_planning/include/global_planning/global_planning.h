@@ -7,7 +7,7 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 
-#include "global_planning/planners/DVAstar.h"
+#include "global_planning/planners/TSHAstar.h"
 #include "global_planning/planners/astar.h"
 #include "global_planning/planners/rrt.h"
 #include "global_planning/planners/rrtstar.h"

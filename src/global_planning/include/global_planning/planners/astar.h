@@ -120,6 +120,10 @@ private:
 
 public:
     Astar() : helper_(this) { planner_name_ = "Astar"; }
+    Astar(const Astar & other) = delete;
+    Astar(Astar && other) = delete;
+    Astar & operator=(const Astar & other) = delete;
+    Astar & operator=(Astar && other) = delete;
     ~Astar() = default;
 
     /// @brief 对规划器相关变量进行初始化设置，进行参数拷贝设置

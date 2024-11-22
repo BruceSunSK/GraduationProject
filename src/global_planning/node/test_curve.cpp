@@ -7,7 +7,8 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
-#include "global_planning/tools/path_smooth.h"
+#include "global_planning/curve/bezier_curve.h"
+#include "global_planning/curve/bspline_curve.h"
 
 
 int main(int argc, char * argv[])
@@ -25,7 +26,7 @@ int main(int argc, char * argv[])
 
     // 1. 使用Bezier曲线平滑路径
     auto t1 = std::chrono::steady_clock::now();
-    BezierCurve::smooth_curve(input, output);
+    Curve::BezierCurve::smooth_curve(input, output);
     std::cout << "Bezier time: " << (std::chrono::steady_clock::now() - t1).count() / 1e6 << " ms" << std::endl;
     for (auto && p : output)
     {
@@ -34,7 +35,7 @@ int main(int argc, char * argv[])
 
     // 2. 使用B样条曲线平滑路径
     auto t2 = std::chrono::steady_clock::now();
-    BSplineCurve::smooth_curve(input, output);
+    Curve::BSplineCurve::smooth_curve(input, output);
     std::cout << "B-spline time: " << (std::chrono::steady_clock::now() - t2).count() / 1e6 << " ms" << std::endl;
     for (auto && p : output)
     {

@@ -4,7 +4,7 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
-#include "global_planning/tools/path_simplification.h"
+#include "global_planning/path/simplification.h"
 
 
 int main(int argc, char * argv[])
@@ -62,7 +62,7 @@ int main(int argc, char * argv[])
     std::vector<cv::Point2i> input = { {10, 50}, {20, 60}, {30, 55}, {40, 45},
                                        {50, 50}, {60, 60}, {70, 40}, {80, 30}, {90, 35} };
     std::vector<cv::Point2i> output;
-    PathSimplification::DPPlus(obs, input, output, 50, 10, 3);
+    Path::Simplification::DPPlus(obs, input, output, 50, 10, 3);
     for (size_t i = 1; i < input.size(); i++)
     {
         cv::line(img, input[i], input[i - 1], { 0, 0, 255 }, 1);

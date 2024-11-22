@@ -3,7 +3,7 @@
 
 #include "global_planning/planners/global_planner_interface.h"
 #include "global_planning/tools/print_struct_and_enum.h"
-#include "global_planning/tools/path_simplification.h"
+#include "global_planning/tools/math.h"
 
 
 /// @brief 基于RRT*(Rapidly-exploring Random Tree Star，启发快速探索随机树)算法的全局路径规划器。
@@ -95,6 +95,11 @@ private:
     {
         TreeNode() : pos(0.0, 0.0), cost(0.0), parent(nullptr) {}
         TreeNode(const cv::Point2d & pos_, double cost_, TreeNode * const parent_) : pos(pos_), cost(cost_), parent(parent_) {}
+        TreeNode(const TreeNode & other) = delete;
+        TreeNode(TreeNode && other) = delete;
+        TreeNode & operator=(const TreeNode & other) = delete;
+        TreeNode & operator=(TreeNode && other) = delete;
+        ~TreeNode() = default;
 
         cv::Point2d pos;    // 当前节点位置，是在栅格坐标系下的离散值
         double cost = 0.0;  // 当前节点到根节点的代价值。目前为距离代价值
@@ -103,6 +108,10 @@ private:
 
 public:
     RRTstar() : helper_(this) { planner_name_ = "RRTstar"; }
+    RRTstar(const RRTstar & other) = delete;
+    RRTstar(RRTstar && other) = delete;
+    RRTstar & operator=(const RRTstar & other) = delete;
+    RRTstar & operator=(RRTstar && other) = delete;
     ~RRTstar() = default;
 
     /// @brief 对规划器相关变量进行初始化设置，进行参数拷贝设置

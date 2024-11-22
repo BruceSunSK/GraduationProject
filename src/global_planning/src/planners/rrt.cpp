@@ -335,7 +335,7 @@ bool RRT::check_collision(const cv::Point2d & pt1, const cv::Point2d & pt2) cons
 {
     const cv::Point2i pt1_grid(static_cast<int>(pt1.x), static_cast<int>(pt1.y));
     const cv::Point2i pt2_grid(static_cast<int>(pt2.x), static_cast<int>(pt2.y));   
-    const std::vector<cv::Point2i> pts = PathSimplification::Bresenham(pt1_grid, pt2_grid, 2);
+    const std::vector<cv::Point2i> pts = Math::Bresenham(pt1_grid, pt2_grid, 2);
     for (const cv::Point2i & p : pts)
     {
         if (map_.at<uchar>(p) >= params_.map_params.OBSTACLE_THRESHOLD)

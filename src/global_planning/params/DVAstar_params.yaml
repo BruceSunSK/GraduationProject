@@ -1,4 +1,4 @@
-DVAstar:
+TSHAstar:
   map_params:
     EXPANDED_K: 1.3               # 地图膨胀时，膨胀系数
     EXPANDED_MIN_THRESHOLD: 0     # 原始地图栅格代价值大于等于(>=)该值的栅格，才进行膨胀

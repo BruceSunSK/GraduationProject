@@ -227,25 +227,13 @@ bool GA::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv::Po
     }
 
     // 4. 选择最后子代中最优个体为路径
-    size_t best_idx = 0;
-    for (size_t i = 1; i < population_.size(); i++)
-    {
-        if (fitness_[i] > fitness_[best_idx])
-        {
-            best_idx = i;
-        }
-    }
-    path.clear();
-    for (const cv::Point2d & p : population_[best_idx])
-    {
-        path.push_back(cv::Point2d(p.x * res_ + ori_x_, p.y * res_ + ori_y_));
-    }
+    const bool sucess = final_path(path);
 
     // 5. 计算辅助信息
     auto end_time = std::chrono::steady_clock::now();
     helper_.optimization_result.cost_time = (end_time - start_time).count() / 1000000.0;  // 算法耗时 ms
 
-    return is_collision_[best_idx] == false;
+    return sucess;
 }
 
 
@@ -268,7 +256,7 @@ bool GA::check_collision(const cv::Point2d & pt1, const cv::Point2d & pt2) const
 {
     const cv::Point2i pt1_grid(static_cast<int>(pt1.x), static_cast<int>(pt1.y));
     const cv::Point2i pt2_grid(static_cast<int>(pt2.x), static_cast<int>(pt2.y));
-    const std::vector<cv::Point2i> pts = PathSimplification::Bresenham(pt1_grid, pt2_grid, 2);
+    const std::vector<cv::Point2i> pts = Math::Bresenham(pt1_grid, pt2_grid, 2);
     for (const cv::Point2i & p : pts)
     {
         if (map_.at<uchar>(p) >= params_.map_params.OBSTACLE_THRESHOLD)
@@ -480,5 +468,23 @@ void GA::calc_collision()
             }
         }
     }
+}
+
+bool GA::final_path(std::vector<cv::Point2d> & path) const
+{
+    size_t best_idx = 0;
+    for (size_t i = 1; i < population_.size(); i++)
+    {
+        if (fitness_[i] > fitness_[best_idx])
+        {
+            best_idx = i;
+        }
+    }
+    path.clear();
+    for (const cv::Point2d & p : population_[best_idx])
+    {
+        path.push_back(cv::Point2d(p.x * res_ + ori_x_, p.y * res_ + ori_y_));
+    }
+    return is_collision_[best_idx] == false;
 }
 // ========================= GA =========================

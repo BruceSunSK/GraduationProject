@@ -1,5 +1,5 @@
 <launch>
-    <arg name="planner_name"                default="DVAstar"/>                          <!-- 选用的规划器种类，大小写敏感。 DVAstar / Astar / RRT / RRTstar / GA-->
+    <arg name="planner_name"                default="TSHAstar"/>                          <!-- 选用的规划器种类，大小写敏感。 TSHAstar / Astar / RRT / RRTstar / GA-->
     <arg name="input_map_topic"             default="/grid_cost_map/global_occupancy_grid_map"/>  <!-- 输入的代价地图话题 -->
     <arg name="input_goal_topic"            default="/move_base_simple/goal"/>           <!-- 输入的终点话题 -->
     <arg name="output_processed_map_topic"  default="processed_map"/>                    <!-- 输出的处理后的地图 -->
@@ -10,8 +10,8 @@
     <arg name="save_dir_path"               default="$(find global_planning)/result"/>   <!-- 保存文件的路径 -->
 
     <node pkg="global_planning" name="global_planning" type="global_planning" output="screen" >
-        <!-- DVAstar规划器对应的参数 -->
-        <rosparam command="load" file="$(find global_planning)/params/DVAstar_params.yaml" />
+        <!-- TSHAstar规划器对应的参数 -->
+        <rosparam command="load" file="$(find global_planning)/params/TSHAstar_params.yaml" />
         <!-- Astar规划器对应的参数 -->
         <!-- <rosparam command="load" file="$(find global_planning)/params/astar_params.yaml" /> -->
         <!-- RRT规划器对应的参数 -->

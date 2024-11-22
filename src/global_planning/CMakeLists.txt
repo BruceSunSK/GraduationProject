@@ -125,9 +125,11 @@ include_directories(
 )
 
 ## Declare a C++ library
-add_library(path_simplification SHARED  src/tools/path_simplification.cpp)
-add_library(path_smooth         SHARED  src/tools/path_smooth.cpp)
-add_library(planners            SHARED  src/planners/DVAstar.cpp
+add_library(tools               SHARED  src/tools/math.cpp)
+add_library(curve               SHARED  src/curve/bezier_curve.cpp
+                                        src/curve/bspline_curve.cpp)
+add_library(path                SHARED  src/path/simplification.cpp)
+add_library(planners            SHARED  src/planners/TSHAstar.cpp
                                         src/planners/astar.cpp
                                         src/planners/rrt.cpp
                                         src/planners/rrtstar.cpp
@@ -136,39 +138,34 @@ add_library(planners            SHARED  src/planners/DVAstar.cpp
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
 ## either from message generation or dynamic reconfigure
+add_dependencies(path     ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(planners ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
-target_link_libraries(planners ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} path_simplification path_smooth)
+target_link_libraries(path     ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} tools)
+target_link_libraries(planners ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} curve path)
 
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(test_opencv              node/test_opencv.cpp)
 add_executable(test_ros                 node/test_ros.cpp)
+add_executable(test_curve               node/test_curve.cpp)
 add_executable(test_path_simplification node/test_path_simplification.cpp)
-add_executable(test_path_smooth         node/test_path_smooth.cpp)
 add_executable(global_planning          node/global_planning_node.cpp
                                         src/global_planning.cpp)
-
-## Rename C++ executable without prefix
-## The above recommended prefix causes long target names, the following renames the
-## target back to the shorter version for ease of user use
-## e.g. "rosrun someones_pkg node" instead of "rosrun someones_pkg someones_pkg_node"
-# set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
-
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 add_dependencies(test_opencv              ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(test_ros                 ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(test_curve               ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(test_path_simplification ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(test_path_smooth         ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(global_planning          ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(test_opencv               ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} planners)
 target_link_libraries(test_ros                  ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} planners)
-target_link_libraries(test_path_simplification  ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} path_simplification)
-target_link_libraries(test_path_smooth          ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} path_smooth)
+target_link_libraries(test_curve                ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} curve)
+target_link_libraries(test_path_simplification  ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} path)
 target_link_libraries(global_planning           ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} planners)
 
 #############

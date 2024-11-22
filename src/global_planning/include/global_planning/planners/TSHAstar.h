@@ -5,14 +5,19 @@
 
 #include "global_planning/planners/global_planner_interface.h"
 #include "global_planning/tools/print_struct_and_enum.h"
-#include "global_planning/tools/path_simplification.h"
-#include "global_planning/tools/path_smooth.h"
+#include "global_planning/curve/bezier_curve.h"
+#include "global_planning/curve/bspline_curve.h"
+#include "global_planning/path/simplification.h"
 
 
-/// @brief Discrete-Value Astar (DVAstar)
+/// @brief Two-Stage Hybird Astar (TSHAstar)
+/// 【预处理】：主要是实现代价地图离散化的效果。此处本身使用的代价地图就是离散的，但是还是进行一步预处理，实现膨胀、距离地图的生成。
 /// [1] 实现栅格代价值离散化，0~100和255。代价值低处更易通过；OBSTACLE值(默认为100)以上为障碍物，彻底不可通过；255为未探索区域（与建图相关），直接当做障碍物处理。
 ///     具体操作为：使用预处理对原始离散地图进行膨胀。只对代价值处于[min, max]区间的栅格进行按照距离反比进行膨胀，且乘以系数K，目前为1.3
 ///     膨胀后的地图若代价值小于COST_THRESHOLD，则置为0，降低较小值带来的无效计算。
+///
+/// 【第一大步】：使用改进的Astar在栅格地图上进行搜索，建立一条起点到终点的初步路径，然后对这条路径进行平滑，作为参考路径。
+///             这一步主要的作用是，利用搜索方法的快速性，压缩解空间，加快后续采样步骤的速度。
 /// [2] 搜索领域从8领域扩展改为5领域扩展。原因是8领域扩展会导致搜索步长过大，出现局部最优，且不易处理障碍物密集的区域。
 ///     1. 4领域扩展：左、右、上、下
 ///        效果非常差。原始路线存着硬弯，再经过冗余点去除和平滑后效果更差。
@@ -59,7 +64,10 @@
 ///     5.2 引入B样条曲线进行全局平滑。对去除冗余点后的路径直接使用4阶3次B样条曲线进行全局平滑。
 ///     总体使用而言，B样条更快，更平滑。
 /// [6] 由于生成的贝塞尔曲线是稠密的，因此手动进行降采样。按照两点间距离进行判断，使得路径离散。
-class DVAstar : public GlobalPlannerInterface
+///
+/// 【第二大步】：将第一大步的参考路径转换到Frenet坐标系下，在参考路径两侧进行撒点采样，然后使用DP快速确定满足车辆运动学的解空间，得到上下边界约束。
+///             然后利用确定好的上下边界约束，再次对参考路径进行平滑，此时要考虑运动学约束，得到最终的全局路径。
+class TSHAstar : public GlobalPlannerInterface
 {
 public:
     /// @brief 领域扩展类型
@@ -96,10 +104,10 @@ public:
         BSpline
     };
 
-    /// @brief 用于DVAstar规划器使用的参数类型
-    struct DVAstarParams : public GlobalPlannerParams
+    /// @brief 用于TSHAstar规划器使用的参数类型
+    struct TSHAstarParams : public GlobalPlannerParams
     {
-        ~DVAstarParams() = default;
+        ~TSHAstarParams() = default;
 
         // 地图相关参数，uint16_t类型原本为uint8_t类型，但cout输出uint8_t类型时按照ASCII码输出字符，而非整数。
         struct 
@@ -120,8 +128,8 @@ public:
         // 代价函数相关参数
         struct
         {
-            DVAstar::NeighborType NEIGHBOR_TYPE = DVAstar::NeighborType::FiveConnected;     // 领域扩展类型，共有三种
-            DVAstar::HeuristicsType HEURISTICS_TYPE = DVAstar::HeuristicsType::Euclidean;   // 启发值类型，共有五种
+            TSHAstar::NeighborType NEIGHBOR_TYPE = TSHAstar::NeighborType::FiveConnected;     // 领域扩展类型，共有三种
+            TSHAstar::HeuristicsType HEURISTICS_TYPE = TSHAstar::HeuristicsType::Euclidean;   // 启发值类型，共有五种
             double TRAV_COST_K = 2.0;                   // 计算可通行度代价值时的系数
             double TURN_COST_STRAIGHT = 1.0;            // 同向直行转向代价系数，C1
             double TURN_COST_SLANT = 1.4;               // 同向斜行转向代价系数，C2
@@ -140,7 +148,7 @@ public:
         // 冗余点去除相关参数
         struct 
         {
-            DVAstar::PathSimplificationType PATH_SIMPLIFICATION_TYPE = DVAstar::PathSimplificationType::DPPlus; // 去除冗余点方法，共有四种
+            TSHAstar::PathSimplificationType PATH_SIMPLIFICATION_TYPE = TSHAstar::PathSimplificationType::DPPlus; // 去除冗余点方法，共有四种
             double DISTANCE_THRESHOLD = 1.5;    // 去除冗余点时的距离阈值，仅在DouglasPeucker、DistanceThreshold和DPPlus方法中使用。单位为m。
             double ANGLE_THRESHOLD = 0.17;      // 去除冗余点时的角度阈值，仅在AngleThreshold方法中使用。单位为rad。
             uint16_t OBSTACLE_THRESHOLD = 70;   // 去除冗余点时的障碍物阈值，仅在DPPlus方法中使用。范围为[0, 100]。在去除冗余点连线上，如果有大于等于≥该值的栅格，将被视为存在障碍物，取消本次连线。建议略小于map_params.OBSTACLE_THRESHOLD。
@@ -158,7 +166,7 @@ public:
         // 曲线平滑相关参数
         struct
         {
-            DVAstar::PathSmoothType PATH_SMOOTH_TYPE = DVAstar::PathSmoothType::BSpline;    // 曲线平滑方法，共有两种
+            TSHAstar::PathSmoothType PATH_SMOOTH_TYPE = TSHAstar::PathSmoothType::BSpline;    // 曲线平滑方法，共有两种
             double T_STEP = 0.0005;     // 平滑曲线的步长，t∈(0, 1)， t越大，生成的曲线离散点的密度就越大。贝塞尔曲线是分段的，T_STEP作用于每一段；B样条曲线是全局的，T_STEP作用于全局。
 
             REGISTER_STRUCT(REGISTER_MEMBER(PATH_SMOOTH_TYPE),
@@ -180,12 +188,12 @@ public:
                         REGISTER_MEMBER(downsampling_params));
     };
 
-    /// @brief 用于DVAstar规划器使用的辅助类，实现数据记录和结果打印
-    class DVAstarHelper : public GlobalPlannerHelper
+    /// @brief 用于TSHAstar规划器使用的辅助类，实现数据记录和结果打印
+    class TSHAstarHelper : public GlobalPlannerHelper
     {
     public:
         using GlobalPlannerHelper::GlobalPlannerHelper;
-        ~DVAstarHelper() = default;
+        ~TSHAstarHelper() = default;
 
         struct
         {
@@ -317,8 +325,12 @@ private:
     };
     
 public:
-    DVAstar() : helper_(this) { planner_name_ = "DVAstar"; }
-    ~DVAstar() = default;
+    TSHAstar() : helper_(this) { planner_name_ = "TSHAstar"; }
+    TSHAstar(const TSHAstar & other) = delete;
+    TSHAstar(TSHAstar && other) = delete;
+    TSHAstar & operator=(const TSHAstar & other) = delete;
+    TSHAstar & operator=(TSHAstar && other) = delete;
+    ~TSHAstar() = default;
 
     /// @brief 对规划器相关变量进行初始化设置，进行参数拷贝设置
     /// @param params 传入的参数
@@ -359,7 +371,7 @@ public:
     bool getProcessedMap(cv::Mat & map) const override;
     /// @brief 通过给定的地图、起点、终点规划出一条从起点到终点的最终路径。
     /// @param path 规划出的路径。该路径是原始地图坐标系下原始路径点。
-    /// @param auxiliary_info 辅助信息。该信息是原始地图坐标系下路径规划过程中的各种关键路径点信息。此处包括DVAstar按顺序扩展到的节点、原始路径点、剔除冗余点后的路径点。
+    /// @param auxiliary_info 辅助信息。该信息是原始地图坐标系下路径规划过程中的各种关键路径点信息。此处包括TSHAstar按顺序扩展到的节点、原始路径点、剔除冗余点后的路径点。
     /// @return 是否规划成功
     bool getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv::Point2d>> & auxiliary_info) override;
     /// @brief 打印所有的信息，包括规划器参数信息、规划地图信息、规划结果信息，并可以将结果保存到指定路径中。调用内部辅助helper实现
@@ -368,8 +380,8 @@ public:
     void showAllInfo(const bool save = false, const std::string & save_dir_path = "") const override { helper_.showAllInfo(save, save_dir_path); }
 
 private:
-    DVAstarParams params_;                  // 规划器参数
-    DVAstarHelper helper_;                  // 规划器辅助
+    TSHAstarParams params_;                 // 规划器参数
+    TSHAstarHelper helper_;                 // 规划器辅助
 
     cv::Mat obs_map_;                       // 仅有代价值的障碍物地图
     std::vector<std::vector<Node>> map_;    // 在规划中实际使用地图
@@ -404,7 +416,7 @@ private:
     /// @param raw_path 输入的待去除冗余点的路径
     /// @param reduced_path 输出的去除冗余点后的路径
     void removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, std::vector<cv::Point2i> & reduced_path);
-    /// @brief 使用分段三阶贝塞尔曲线进行平滑。该函数将栅格整数坐标xy的值进行平滑，得到平滑路径后再消除栅格偏差的0.5个单位长度
+    /// @brief 使用分段三阶贝塞尔曲线/B样条进行平滑。该函数将栅格整数坐标xy的值进行平滑，得到平滑路径后再消除栅格偏差的0.5个单位长度
     /// @param raw_path 待平滑路径
     /// @param soomth_path 输出平滑后的路径
     /// @param control_nums_per_subpath 每个子路径的点的数目
@@ -418,11 +430,11 @@ private:
     void resetMap();
 };
 
-using DVAstarNeighborType = DVAstar::NeighborType;
-REGISTER_ENUM(DVAstarNeighborType);
-using DVAstarHeuristicsType = DVAstar::HeuristicsType;
-REGISTER_ENUM(DVAstarHeuristicsType);
-using DVAstarPathSimplificationType = DVAstar::PathSimplificationType;
-REGISTER_ENUM(DVAstarPathSimplificationType);
-using DVAstarPathSmoothType = DVAstar::PathSmoothType;
-REGISTER_ENUM(DVAstarPathSmoothType);
+using TSHAstarNeighborType = TSHAstar::NeighborType;
+REGISTER_ENUM(TSHAstarNeighborType);
+using TSHAstarHeuristicsType = TSHAstar::HeuristicsType;
+REGISTER_ENUM(TSHAstarHeuristicsType);
+using TSHAstarPathSimplificationType = TSHAstar::PathSimplificationType;
+REGISTER_ENUM(TSHAstarPathSimplificationType);
+using TSHAstarPathSmoothType = TSHAstar::PathSmoothType;
+REGISTER_ENUM(TSHAstarPathSmoothType);

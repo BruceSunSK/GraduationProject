@@ -1,0 +1,5 @@
+<launch>
+
+    <node pkg="global_planning" name="test_curve" type="test_curve" output="screen" /> 
+
+</launch>

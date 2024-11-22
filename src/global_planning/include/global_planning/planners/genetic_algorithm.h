@@ -2,8 +2,8 @@
 #include <random>
 
 #include "global_planning/planners/global_planner_interface.h"
+#include "global_planning/tools/math.h"
 #include "global_planning/tools/print_struct_and_enum.h"
-#include "global_planning/tools/path_simplification.h"
 
 
 /// @brief 基于遗传算法(GA, Genetic Algorithm)的全局路径规划器。
@@ -81,6 +81,10 @@ private:
 
 public:
     GA() : helper_(this), rand_generator_(static_cast<uint_fast32_t>(std::time(nullptr))), dis_prob_(0.0, 1.0) { planner_name_ = "GA"; }
+    GA(const GA & other) = delete;
+    GA(GA && other) = delete;
+    GA & operator=(const GA & other) = delete;
+    GA & operator=(GA && other) = delete;
     ~GA() = default;
 
     /// @brief 对规划器相关变量进行初始化设置，进行参数拷贝设置
@@ -164,5 +168,5 @@ private:
     /// @brief 得到最终路径。在种群迭代完毕后，选择适应度最好的路径作为最终路径。
     /// @param path 最终路径。
     /// @return 如果最终路径会碰撞，则返回false；否则返回true。
-    bool final_path(const std::vector<cv::Point2d> & path) const;
+    bool final_path(std::vector<cv::Point2d> & path) const;
 };
