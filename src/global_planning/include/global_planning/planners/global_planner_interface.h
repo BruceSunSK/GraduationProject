@@ -222,6 +222,6 @@ protected:
     // 设置参数
     bool init_map_ = false;         // 地图初始化
     bool init_map_info_ = false;    // 真实地图信息初始化，即res_, ori_x_, ori_y_
-    bool init_start_node_ = false;  // 确定规划起点
-    bool init_end_node_ = false;    // 确定规划终点
+    bool init_start_point_ = false; // 确定规划起点
+    bool init_end_point_ = false;   // 确定规划终点
 };

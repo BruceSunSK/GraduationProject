@@ -32,7 +32,7 @@ std::string Astar::AstarHelper::resultInfo() const
 {
     std::stringstream result_info;
     result_info << "[Result Info]:\n";
-    PRINT_STRUCT(result_info, search_result);
+    PRINT_STRUCT(result_info, search);
     return result_info.str();
 }
 // ========================= Astar::AstarHelper =========================
@@ -40,12 +40,12 @@ std::string Astar::AstarHelper::resultInfo() const
 
 // ========================= Astar =========================
 
-REGISTER_ENUM_BODY(AstarHeuristicsType,
-                   REGISTER_MEMBER(AstarHeuristicsType::None),
-                   REGISTER_MEMBER(AstarHeuristicsType::Manhattan),
-                   REGISTER_MEMBER(AstarHeuristicsType::Euclidean),
-                   REGISTER_MEMBER(AstarHeuristicsType::Chebyshev),
-                   REGISTER_MEMBER(AstarHeuristicsType::Octile));
+REGISTER_ENUM_BODY(AHeuristicsType,
+                   REGISTER_MEMBER(AHeuristicsType::None),
+                   REGISTER_MEMBER(AHeuristicsType::Manhattan),
+                   REGISTER_MEMBER(AHeuristicsType::Euclidean),
+                   REGISTER_MEMBER(AHeuristicsType::Chebyshev),
+                   REGISTER_MEMBER(AHeuristicsType::Octile));
 
 void Astar::initParams(const GlobalPlannerParams & params)
 {
@@ -90,7 +90,7 @@ bool Astar::setMap(const cv::Mat & map)
             node.point.x = j;
             node.point.y = i;
             node.cost = (map.at<uchar>(i, j) != 255 ?
-                            (map.at<uchar>(i, j) >= params_.map_params.OBSTACLE_THRESHOLD ? 100 : 0) : 255);
+                            (map.at<uchar>(i, j) >= params_.map.OBSTACLE_THRESHOLD ? 100 : 0) : 255);
             node.type = Node::NodeType::UNKNOWN;
             row[j] = std::move(node);
         }
@@ -107,7 +107,7 @@ bool Astar::setStartPoint(const double x, const double y)
     if (init_map_info_ == false)
     {
         std::cout << "设置起点前需设置地图信息！" << '\n';
-        init_start_node_ = false;
+        init_start_point_ = false;
         return false;
     }
 
@@ -117,20 +117,20 @@ bool Astar::setStartPoint(const double x, const double y)
     if ((x_grid >= 0 && x_grid < cols_ && y_grid >= 0 && y_grid < rows_) == false)
     {
         std::cout << "起点必须设置在地图内部！" << '\n';
-        init_start_node_ = false;
+        init_start_point_ = false;
         return false;
     }
 
-    if (map_[y_grid][x_grid].cost >= params_.map_params.OBSTACLE_THRESHOLD)
+    if (map_[y_grid][x_grid].cost >= params_.map.OBSTACLE_THRESHOLD)
     {
         std::cout << "起点必须设置在非障碍物处！" << '\n';
-        init_start_node_ = false;
+        init_start_point_ = false;
         return false;
     }
 
     // printf("起点设置成功，位置：(%d, %d)\n", x_grid, y_grid);
     start_node_ = &map_[y_grid][x_grid];
-    init_start_node_ = true;
+    init_start_point_ = true;
     return true;
 }
 
@@ -144,7 +144,7 @@ bool Astar::setEndPoint(const double x, const double y)
     if (init_map_info_ == false)
     {
         std::cout << "设置终点前需设置地图信息！" << '\n';
-        init_end_node_ = false;
+        init_end_point_ = false;
         return false;
     }
 
@@ -154,20 +154,20 @@ bool Astar::setEndPoint(const double x, const double y)
     if ((x_grid >= 0 && x_grid < cols_ && y_grid >= 0 && y_grid < rows_) == false)
     {
         std::cout << "终点必须设置在地图内部！\n";
-        init_end_node_ = false;
+        init_end_point_ = false;
         return false;
     }
 
-    if (map_[y_grid][x_grid].cost >= params_.map_params.OBSTACLE_THRESHOLD)
+    if (map_[y_grid][x_grid].cost >= params_.map.OBSTACLE_THRESHOLD)
     {
         std::cout << "终点必须设置在非障碍物处！\n";
-        init_end_node_ = false;
+        init_end_point_ = false;
         return false;
     }
 
     // printf("终点设置成功，位置：(%d, %d)\n", x_grid, y_grid);
     end_node_ = &map_[y_grid][x_grid];
-    init_end_node_ = true;
+    init_end_point_ = true;
     return true;
 }
 
@@ -197,7 +197,7 @@ bool Astar::getProcessedMap(cv::Mat & map) const
 
 bool Astar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv::Point2d>> & auxiliary_info)
 {
-    if (!(init_map_ && init_start_node_ && init_end_node_ && init_map_info_))
+    if (!(init_map_ && init_start_point_ && init_end_point_ && init_map_info_))
     {
         std::cout << "请先设置地图、起点和终点！\n";
         return false;
@@ -240,7 +240,7 @@ bool Astar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv:
                 Node * const new_node = &map_[this_point.y + k][this_point.x + l];
                 const cv::Point2i & new_point = new_node->point;
 
-                if (new_node->cost < params_.map_params.OBSTACLE_THRESHOLD &&   // 保证该节点是非障碍物节点，才能联通。代价地图[0, 100] 0可通过 100不可通过 
+                if (new_node->cost < params_.map.OBSTACLE_THRESHOLD &&   // 保证该节点是非障碍物节点，才能联通。代价地图[0, 100] 0可通过 100不可通过 
                     new_node->type != Node::NodeType::CLOSED)                   // 不对已加入CLOSED的数据再次判断
                 {
                     const double dis = std::hypot(new_point.x - this_point.x, new_point.y - this_point.y);
@@ -255,7 +255,7 @@ bool Astar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv:
                         queue.push(std::move(new_node));
 
                         // 按顺序记录访问到的节点
-                        helper_.search_result.nodes.push_back(cv::Point2d((new_point.x + 0.5) * res_ + ori_x_,
+                        helper_.search.nodes.push_back(cv::Point2d((new_point.x + 0.5) * res_ + ori_x_,
                                                                           (new_point.y + 0.5) * res_ + ori_y_));
                     }
                     else //new_node->type == NodeType::OPENED
@@ -268,7 +268,7 @@ bool Astar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv:
                         }
                     }
 
-                    helper_.search_result.node_counter++;       // 访问节点的总次数
+                    helper_.search.node_counter++;       // 访问节点的总次数
                 }
             }
         }    
@@ -289,10 +289,10 @@ bool Astar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv:
 
     // 保存结果信息
     auto end_time = std::chrono::steady_clock::now();
-    helper_.search_result.node_nums = helper_.search_result.nodes.size();           // 访问到的节点数
-    helper_.search_result.path_length = path.size();                                // 路径长度
-    helper_.search_result.cost_time = (end_time - start_time).count() / 1000000.0;  // 算法耗时 ms
-    auxiliary_info.push_back(helper_.search_result.nodes);
+    helper_.search.node_nums = helper_.search.nodes.size();           // 访问到的节点数
+    helper_.search.path_length = path.size();                                // 路径长度
+    helper_.search.cost_time = (end_time - start_time).count() / 1000000.0;  // 算法耗时 ms
+    auxiliary_info.push_back(helper_.search.nodes);
 
     // 复原地图
     for (int i = 0; i < rows_; i++)
@@ -316,7 +316,7 @@ double Astar::getH(const cv::Point2i & p) const
     double h = 0;
     double dx = 0.0;
     double dy = 0.0;
-    switch (params_.cost_function_params.HEURISTICS_TYPE)
+    switch (params_.cost_function.HEURISTICS_TYPE)
     {
     case HeuristicsType::None:
         break;

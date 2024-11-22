@@ -3,6 +3,9 @@
 #include <unordered_map>
 #include <algorithm>
 
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+
 #include "global_planning/planners/global_planner_interface.h"
 #include "global_planning/tools/print_struct_and_enum.h"
 #include "global_planning/curve/bezier_curve.h"
@@ -109,7 +112,7 @@ public:
     {
         ~TSHAstarParams() = default;
 
-        // 地图相关参数，uint16_t类型原本为uint8_t类型，但cout输出uint8_t类型时按照ASCII码输出字符，而非整数。
+        // 地图相关参数，对应第一大步，uint16_t类型原本为uint8_t类型，但cout输出uint8_t类型时按照ASCII码输出字符，而非整数。
         struct 
         {
             double EXPANDED_K = 1.3;                // 地图膨胀时，膨胀系数
@@ -123,69 +126,80 @@ public:
                             REGISTER_MEMBER(EXPANDED_MAX_THRESHOLD),
                             REGISTER_MEMBER(COST_THRESHOLD),
                             REGISTER_MEMBER(OBSTACLE_THRESHOLD));
-        } map_params;
+        } map;
 
-        // 代价函数相关参数
+        // 搜索过程相关参数，对应第二大步。
         struct
         {
-            TSHAstar::NeighborType NEIGHBOR_TYPE = TSHAstar::NeighborType::FiveConnected;     // 领域扩展类型，共有三种
-            TSHAstar::HeuristicsType HEURISTICS_TYPE = TSHAstar::HeuristicsType::Euclidean;   // 启发值类型，共有五种
-            double TRAV_COST_K = 2.0;                   // 计算可通行度代价值时的系数
-            double TURN_COST_STRAIGHT = 1.0;            // 同向直行转向代价系数，C1
-            double TURN_COST_SLANT = 1.4;               // 同向斜行转向代价系数，C2
-            double TURN_COST_VERTICAL = 2.0;            // 垂向直行转向代价系数，C3
-            double TURN_COST_REVERSE_SLANT = 3.0;       // 反向斜行转向代价系数，C4
+            // 代价函数相关参数
+            struct
+            {
+                TSHAstar::NeighborType NEIGHBOR_TYPE = TSHAstar::NeighborType::FiveConnected;     // 领域扩展类型，共有三种
+                TSHAstar::HeuristicsType HEURISTICS_TYPE = TSHAstar::HeuristicsType::Euclidean;   // 启发值类型，共有五种
+                double TRAV_COST_K = 2.0;                   // 计算可通行度代价值时的系数
+                double TURN_COST_STRAIGHT = 1.0;            // 同向直行转向代价系数，C1
+                double TURN_COST_SLANT = 1.4;               // 同向斜行转向代价系数，C2
+                double TURN_COST_VERTICAL = 2.0;            // 垂向直行转向代价系数，C3
+                double TURN_COST_REVERSE_SLANT = 3.0;       // 反向斜行转向代价系数，C4
 
-            REGISTER_STRUCT(REGISTER_MEMBER(NEIGHBOR_TYPE),
-                            REGISTER_MEMBER(HEURISTICS_TYPE),
-                            REGISTER_MEMBER(TRAV_COST_K),
-                            REGISTER_MEMBER(TURN_COST_STRAIGHT),
-                            REGISTER_MEMBER(TURN_COST_SLANT),
-                            REGISTER_MEMBER(TURN_COST_VERTICAL),
-                            REGISTER_MEMBER(TURN_COST_REVERSE_SLANT));
-        } cost_function_params;
+                REGISTER_STRUCT(REGISTER_MEMBER(NEIGHBOR_TYPE),
+                                REGISTER_MEMBER(HEURISTICS_TYPE),
+                                REGISTER_MEMBER(TRAV_COST_K),
+                                REGISTER_MEMBER(TURN_COST_STRAIGHT),
+                                REGISTER_MEMBER(TURN_COST_SLANT),
+                                REGISTER_MEMBER(TURN_COST_VERTICAL),
+                                REGISTER_MEMBER(TURN_COST_REVERSE_SLANT));
+            } cost_function;
 
-        // 冗余点去除相关参数
+            // 冗余点去除相关参数
+            struct
+            {
+                TSHAstar::PathSimplificationType PATH_SIMPLIFICATION_TYPE = TSHAstar::PathSimplificationType::DPPlus; // 去除冗余点方法，共有四种
+                double DISTANCE_THRESHOLD = 1.5;    // 去除冗余点时的距离阈值，仅在DouglasPeucker、DistanceThreshold和DPPlus方法中使用。单位为m。
+                double ANGLE_THRESHOLD = 0.17;      // 去除冗余点时的角度阈值，仅在AngleThreshold方法中使用。单位为rad。
+                uint16_t OBSTACLE_THRESHOLD = 70;   // 去除冗余点时的障碍物阈值，仅在DPPlus方法中使用。范围为[0, 100]。在去除冗余点连线上，如果有大于等于≥该值的栅格，将被视为存在障碍物，取消本次连线。建议略小于map_params.OBSTACLE_THRESHOLD。
+                double LINE_WIDTH = 1.0;            // 去除冗余点时的线宽，仅在DPPlus方法中使用。单位为m。在去除冗余点连线上，按照该宽度进行障碍物检测。
+                double MAX_INTAVAL = 8.0;           // 去除冗余点时上采样的最大间隔，仅在DPPlus方法中使用。单位为m。
+
+                REGISTER_STRUCT(REGISTER_MEMBER(PATH_SIMPLIFICATION_TYPE),
+                                REGISTER_MEMBER(DISTANCE_THRESHOLD),
+                                REGISTER_MEMBER(ANGLE_THRESHOLD),
+                                REGISTER_MEMBER(OBSTACLE_THRESHOLD),
+                                REGISTER_MEMBER(LINE_WIDTH),
+                                REGISTER_MEMBER(MAX_INTAVAL));
+            } path_simplification;
+
+            // 曲线平滑相关参数
+            struct
+            {
+                TSHAstar::PathSmoothType PATH_SMOOTH_TYPE = TSHAstar::PathSmoothType::BSpline;    // 曲线平滑方法，共有两种
+                double T_STEP = 0.0005;     // 平滑曲线的步长，t∈(0, 1)， t越大，生成的曲线离散点的密度就越大。贝塞尔曲线是分段的，T_STEP作用于每一段；B样条曲线是全局的，T_STEP作用于全局。
+
+                REGISTER_STRUCT(REGISTER_MEMBER(PATH_SMOOTH_TYPE),
+                                REGISTER_MEMBER(T_STEP));
+            } path_smooth;
+
+            // 降采样相关参数
+            struct
+            {
+                double INTERVAL = 0.4;      // 根据res_转化到实际地图上后的尺寸进行判断，降采样后的路径上两点间距至少大于INTERVAL
+
+                REGISTER_STRUCT(REGISTER_MEMBER(INTERVAL));
+            } downsampling;
+
+            REGISTER_STRUCT(REGISTER_MEMBER(cost_function),
+                            REGISTER_MEMBER(path_simplification),
+                            REGISTER_MEMBER(path_smooth),
+                            REGISTER_MEMBER(downsampling));
+        } search;
+
+        // 采样过程相关参数，对应第三大步。
         struct 
         {
-            TSHAstar::PathSimplificationType PATH_SIMPLIFICATION_TYPE = TSHAstar::PathSimplificationType::DPPlus; // 去除冗余点方法，共有四种
-            double DISTANCE_THRESHOLD = 1.5;    // 去除冗余点时的距离阈值，仅在DouglasPeucker、DistanceThreshold和DPPlus方法中使用。单位为m。
-            double ANGLE_THRESHOLD = 0.17;      // 去除冗余点时的角度阈值，仅在AngleThreshold方法中使用。单位为rad。
-            uint16_t OBSTACLE_THRESHOLD = 70;   // 去除冗余点时的障碍物阈值，仅在DPPlus方法中使用。范围为[0, 100]。在去除冗余点连线上，如果有大于等于≥该值的栅格，将被视为存在障碍物，取消本次连线。建议略小于map_params.OBSTACLE_THRESHOLD。
-            double LINE_WIDTH = 1.0;            // 去除冗余点时的线宽，仅在DPPlus方法中使用。单位为m。在去除冗余点连线上，按照该宽度进行障碍物检测。
-            double MAX_INTAVAL = 8.0;           // 去除冗余点时上采样的最大间隔，仅在DPPlus方法中使用。单位为m。
-            
-            REGISTER_STRUCT(REGISTER_MEMBER(PATH_SIMPLIFICATION_TYPE),
-                            REGISTER_MEMBER(DISTANCE_THRESHOLD),
-                            REGISTER_MEMBER(ANGLE_THRESHOLD),
-                            REGISTER_MEMBER(OBSTACLE_THRESHOLD),
-                            REGISTER_MEMBER(LINE_WIDTH),
-                            REGISTER_MEMBER(MAX_INTAVAL));
-        } path_simplification_params;
-
-        // 曲线平滑相关参数
-        struct
-        {
-            TSHAstar::PathSmoothType PATH_SMOOTH_TYPE = TSHAstar::PathSmoothType::BSpline;    // 曲线平滑方法，共有两种
-            double T_STEP = 0.0005;     // 平滑曲线的步长，t∈(0, 1)， t越大，生成的曲线离散点的密度就越大。贝塞尔曲线是分段的，T_STEP作用于每一段；B样条曲线是全局的，T_STEP作用于全局。
-
-            REGISTER_STRUCT(REGISTER_MEMBER(PATH_SMOOTH_TYPE),
-                            REGISTER_MEMBER(T_STEP));
-        } path_smooth_params;
-
-        // 降采样相关参数
-        struct
-        {
-            double INTERVAL = 0.4;      // 根据res_转化到实际地图上后的尺寸进行判断，降采样后的路径上两点间距至少大于INTERVAL
-
-            REGISTER_STRUCT(REGISTER_MEMBER(INTERVAL));
-        } downsampling_params;
-
-        REGISTER_STRUCT(REGISTER_MEMBER(map_params),
-                        REGISTER_MEMBER(cost_function_params),
-                        REGISTER_MEMBER(path_simplification_params),
-                        REGISTER_MEMBER(path_smooth_params),
-                        REGISTER_MEMBER(downsampling_params));
+        } sample;
+        
+        REGISTER_STRUCT(REGISTER_MEMBER(map),
+                        REGISTER_MEMBER(search));
     };
 
     /// @brief 用于TSHAstar规划器使用的辅助类，实现数据记录和结果打印
@@ -195,71 +209,79 @@ public:
         using GlobalPlannerHelper::GlobalPlannerHelper;
         ~TSHAstarHelper() = default;
 
-        struct
+        struct 
         {
-            size_t raw_node_nums = 0;       // 搜索到节点的数量，不包括障碍物节点
-            size_t raw_node_counter = 0;    // 搜索到节点的次数，会重复计算同一个节点，不包括障碍物节点
-            size_t raw_path_length = 0;     // 规划出的路径长度，单位为栅格数，包含起点和终点
-            double cost_time = 0;           // 搜索总耗时，单位ms
+            struct
+            {
+                size_t raw_node_nums = 0;       // 搜索到节点的数量，不包括障碍物节点
+                size_t raw_node_counter = 0;    // 搜索到节点的次数，会重复计算同一个节点，不包括障碍物节点
+                size_t raw_path_length = 0;     // 规划出的路径长度，单位为栅格数，包含起点和终点
+                double cost_time = 0;           // 搜索总耗时，单位ms
 
-            std::vector<cv::Point2d> nodes;     // 按顺序搜索到的节点，不包括障碍物节点
-            std::vector<cv::Point2d> raw_path;  // 原始的规划路径结果
+                std::vector<cv::Point2d> nodes;     // 按顺序搜索到的节点，不包括障碍物节点
+                std::vector<cv::Point2d> raw_path;  // 原始的规划路径结果
 
-            REGISTER_STRUCT(REGISTER_MEMBER(raw_node_nums),
-                            REGISTER_MEMBER(raw_node_counter),
-                            REGISTER_MEMBER(raw_path_length),
-                            REGISTER_MEMBER(cost_time))
-        } search_result;
+                REGISTER_STRUCT(REGISTER_MEMBER(raw_node_nums),
+                                REGISTER_MEMBER(raw_node_counter),
+                                REGISTER_MEMBER(raw_path_length),
+                                REGISTER_MEMBER(cost_time))
+            } search;
 
-        struct
-        {
-            size_t reduced_path_length = 0;         // 去除冗余点后的路径长度
-            double cost_time = 0;                   // 去除冗余点后搜索总耗时，单位ms
+            struct
+            {
+                size_t reduced_path_length = 0;         // 去除冗余点后的路径长度
+                double cost_time = 0;                   // 去除冗余点后搜索总耗时，单位ms
 
-            std::vector<cv::Point2d> reduced_path;  // 去除冗余点后的规划路径结果
+                std::vector<cv::Point2d> reduced_path;  // 去除冗余点后的规划路径结果
 
-            REGISTER_STRUCT(REGISTER_MEMBER(reduced_path_length),
-                            REGISTER_MEMBER(cost_time))
-        } path_simplification_result;
+                REGISTER_STRUCT(REGISTER_MEMBER(reduced_path_length),
+                                REGISTER_MEMBER(cost_time))
+            } path_simplification;
 
-        struct
-        {
-            size_t smooth_path_length = 0;          // 曲线平滑后的路径长度
-            double cost_time = 0;                   // 曲线平滑后搜索总耗时，单位ms
+            struct
+            {
+                size_t smooth_path_length = 0;          // 曲线平滑后的路径长度
+                double cost_time = 0;                   // 曲线平滑后搜索总耗时，单位ms
 
-            REGISTER_STRUCT(REGISTER_MEMBER(smooth_path_length),
-                            REGISTER_MEMBER(cost_time))
-        } path_smooth_result;
+                REGISTER_STRUCT(REGISTER_MEMBER(smooth_path_length),
+                                REGISTER_MEMBER(cost_time))
+            } path_smooth;
 
-        struct
-        {
-            size_t path_length = 0;                 // 降采样后的路径长度
-            double cost_time = 0;                   // 降采样后搜索总耗时，单位ms
+            struct
+            {
+                size_t path_length = 0;                 // 降采样后的路径长度
+                double cost_time = 0;                   // 降采样后搜索总耗时，单位ms
 
-            REGISTER_STRUCT(REGISTER_MEMBER(path_length),
-                            REGISTER_MEMBER(cost_time))
-        } downsampling_result;
+                REGISTER_STRUCT(REGISTER_MEMBER(path_length),
+                                REGISTER_MEMBER(cost_time))
+            } downsampling;
+
+            REGISTER_STRUCT(REGISTER_MEMBER(search),
+                            REGISTER_MEMBER(path_simplification),
+                            REGISTER_MEMBER(path_smooth),
+                            REGISTER_MEMBER(downsampling))
+        } search;
 
     public:
         /// @brief 清空当前记录的所有结果信息，便于下次记录
         void resetResultInfo() override
         {
-            search_result.raw_node_nums = 0;
-            search_result.raw_node_counter = 0;
-            search_result.raw_path_length = 0;
-            search_result.cost_time = 0.0;
-            search_result.nodes.clear();
-            search_result.raw_path.clear();
+            search.search.raw_node_nums = 0;
+            search.search.raw_node_counter = 0;
+            search.search.raw_path_length = 0;
+            search.search.cost_time = 0.0;
+            search.search.nodes.clear();
+            search.search.raw_path.clear();
             
-            path_simplification_result.reduced_path_length = 0;
-            path_simplification_result.cost_time = 0.0;
-            path_simplification_result.reduced_path.clear();
+            search.path_simplification.reduced_path_length = 0;
+            search.path_simplification.cost_time = 0.0;
+            search.path_simplification.reduced_path.clear();
 
-            path_smooth_result.smooth_path_length = 0;
-            path_smooth_result.cost_time = 0.0;
+            search.path_smooth.smooth_path_length = 0;
+            search.path_smooth.cost_time = 0.0;
 
-            downsampling_result.path_length = 0;
-            downsampling_result.cost_time = 0.0;
+            search.downsampling.path_length = 0;
+            search.downsampling.cost_time = 0.0;
         }
 
     private:
@@ -275,7 +297,7 @@ public:
     };
 
 private:
-    /// @brief 用于描述规划过程中的单个栅格节点
+    /// @brief 用于描述搜索过程中的单个栅格节点
     struct Node
     {
         // 相关配置
@@ -380,14 +402,22 @@ public:
     void showAllInfo(const bool save = false, const std::string & save_dir_path = "") const override { helper_.showAllInfo(save, save_dir_path); }
 
 private:
-    TSHAstarParams params_;                 // 规划器参数
-    TSHAstarHelper helper_;                 // 规划器辅助
+    TSHAstarParams params_;         // 规划器参数
+    TSHAstarHelper helper_;         // 规划器辅助
 
-    cv::Mat obs_map_;                       // 仅有代价值的障碍物地图
-    std::vector<std::vector<Node>> map_;    // 在规划中实际使用地图
-    Node * start_node_ = nullptr;           // 起点节点
-    Node * end_node_ = nullptr;             // 终点节点
+    // 通用
+    cv::Mat discrete_map_;          // 离散代价值的障碍物地图，正常范围在[0, 100]，也包括255未探明的情况
+    cv::Mat binary_map_;            // 代价值二值化后的障碍物地图，未探明情况视为障碍物。即[0, OBSTACLE_THRESHOLD)值为0，[OBSTACLE_THRESHOLD, 255]值为255
+    cv::Mat distance_map_;          // 在二值化地图中进行distanceTransform变换的结果，用于描述每个栅格到障碍物的距离
+    cv::Point2d start_point_;       // 起点，真实地图上的起点落在栅格地图中的离散坐标
+    cv::Point2d end_point_;         // 终点，真实地图上的终点落在栅格地图中的离散坐标
+    
+    // 搜索过程
+    std::vector<std::vector<Node>> search_map_;     // 在搜索规划中实际使用地图
+    Node * start_node_ = nullptr;                   // 起点节点
+    Node * end_node_ = nullptr;                     // 终点节点
 
+    
     /// @brief 根据配置参数，确定当前当前节点的相邻节点在Node::neightbor_offset_table中的索引值列表
     /// @param n 当前节点
     /// @return Node::neightbor_offset_table中的索引值列表
@@ -427,14 +457,14 @@ private:
     /// @param dis 两点间最小间距
     void downsampling(std::vector<cv::Point2d> & path);
     /// @brief 将当前地图中的参数全部初始化。一般在完成一次规划的所有步骤后进行。
-    void resetMap();
+    void resetSearchMap();
 };
 
-using TSHAstarNeighborType = TSHAstar::NeighborType;
-REGISTER_ENUM(TSHAstarNeighborType);
-using TSHAstarHeuristicsType = TSHAstar::HeuristicsType;
-REGISTER_ENUM(TSHAstarHeuristicsType);
-using TSHAstarPathSimplificationType = TSHAstar::PathSimplificationType;
-REGISTER_ENUM(TSHAstarPathSimplificationType);
-using TSHAstarPathSmoothType = TSHAstar::PathSmoothType;
-REGISTER_ENUM(TSHAstarPathSmoothType);
+using NeighborType = TSHAstar::NeighborType;
+REGISTER_ENUM(NeighborType);
+using HeuristicsType = TSHAstar::HeuristicsType;
+REGISTER_ENUM(HeuristicsType);
+using PathSimplificationType = TSHAstar::PathSimplificationType;
+REGISTER_ENUM(PathSimplificationType);
+using PathSmoothType = TSHAstar::PathSmoothType;
+REGISTER_ENUM(PathSmoothType);

@@ -312,58 +312,58 @@ int main(int argc, char *argv[])
     if (planner_name == "TSHAstar")
     {
         TSHAstar::TSHAstarParams TSHAstar_params;
-        TSHAstar_params.map_params.EXPANDED_K = 1.3;
-        TSHAstar_params.map_params.EXPANDED_MIN_THRESHOLD = 0;
-        TSHAstar_params.map_params.EXPANDED_MAX_THRESHOLD = 100;
-        TSHAstar_params.map_params.COST_THRESHOLD = 10;
-        TSHAstar_params.map_params.OBSTACLE_THRESHOLD = 100;
-        TSHAstar_params.cost_function_params.NEIGHBOR_TYPE = TSHAstar::NeighborType::FiveConnected;
-        TSHAstar_params.cost_function_params.HEURISTICS_TYPE = TSHAstar::HeuristicsType::Euclidean;
-        TSHAstar_params.cost_function_params.TRAV_COST_K = 2.0;
-        TSHAstar_params.cost_function_params.TURN_COST_STRAIGHT = 1.0;
-        TSHAstar_params.cost_function_params.TURN_COST_SLANT = 1.1;
-        TSHAstar_params.cost_function_params.TURN_COST_VERTICAL = 2.0;
-        TSHAstar_params.cost_function_params.TURN_COST_REVERSE_SLANT = 3.0;
-        TSHAstar_params.path_simplification_params.PATH_SIMPLIFICATION_TYPE = TSHAstar::PathSimplificationType::DPPlus;
-        TSHAstar_params.path_simplification_params.DISTANCE_THRESHOLD = 1.5;
-        TSHAstar_params.path_simplification_params.ANGLE_THRESHOLD = 10 / 180 * M_PI;
-        TSHAstar_params.path_simplification_params.OBSTACLE_THRESHOLD = 70;
-        TSHAstar_params.path_simplification_params.LINE_WIDTH = 1.0;
-        TSHAstar_params.path_simplification_params.MAX_INTAVAL = 8.0;
-        TSHAstar_params.path_smooth_params.PATH_SMOOTH_TYPE = TSHAstar::PathSmoothType::BSpline;
-        TSHAstar_params.path_smooth_params.T_STEP = 0.0005;
-        TSHAstar_params.downsampling_params.INTERVAL = 0.4;
+        TSHAstar_params.map.EXPANDED_K = 1.3;
+        TSHAstar_params.map.EXPANDED_MIN_THRESHOLD = 0;
+        TSHAstar_params.map.EXPANDED_MAX_THRESHOLD = 100;
+        TSHAstar_params.map.COST_THRESHOLD = 10;
+        TSHAstar_params.map.OBSTACLE_THRESHOLD = 100;
+        TSHAstar_params.search.cost_function.NEIGHBOR_TYPE = TSHAstar::NeighborType::FiveConnected;
+        TSHAstar_params.search.cost_function.HEURISTICS_TYPE = TSHAstar::HeuristicsType::Euclidean;
+        TSHAstar_params.search.cost_function.TRAV_COST_K = 2.0;
+        TSHAstar_params.search.cost_function.TURN_COST_STRAIGHT = 1.0;
+        TSHAstar_params.search.cost_function.TURN_COST_SLANT = 1.1;
+        TSHAstar_params.search.cost_function.TURN_COST_VERTICAL = 2.0;
+        TSHAstar_params.search.cost_function.TURN_COST_REVERSE_SLANT = 3.0;
+        TSHAstar_params.search.path_simplification.PATH_SIMPLIFICATION_TYPE = TSHAstar::PathSimplificationType::DPPlus;
+        TSHAstar_params.search.path_simplification.DISTANCE_THRESHOLD = 1.5;
+        TSHAstar_params.search.path_simplification.ANGLE_THRESHOLD = 10 / 180 * M_PI;
+        TSHAstar_params.search.path_simplification.OBSTACLE_THRESHOLD = 70;
+        TSHAstar_params.search.path_simplification.LINE_WIDTH = 1.0;
+        TSHAstar_params.search.path_simplification.MAX_INTAVAL = 8.0;
+        TSHAstar_params.search.path_smooth.PATH_SMOOTH_TYPE = TSHAstar::PathSmoothType::BSpline;
+        TSHAstar_params.search.path_smooth.T_STEP = 0.0005;
+        TSHAstar_params.search.downsampling.INTERVAL = 0.4;
         planner = new TSHAstar;
         planner->initParams(TSHAstar_params);
     }
     else if (planner_name == "Astar")
     {
         Astar::AstarParams astar_params;
-        astar_params.map_params.OBSTACLE_THRESHOLD = 50;
-        astar_params.cost_function_params.HEURISTICS_TYPE = Astar::HeuristicsType::Euclidean;
+        astar_params.map.OBSTACLE_THRESHOLD = 50;
+        astar_params.cost_function.HEURISTICS_TYPE = Astar::HeuristicsType::Euclidean;
         planner = new Astar;
         planner->initParams(astar_params);
     }
     else if (planner_name == "RRT")
     {
         RRT::RRTParams rrt_params;
-        rrt_params.map_params.OBSTACLE_THRESHOLD = 50;
-        rrt_params.sample_params.ITERATOR_TIMES = 100000;
-        rrt_params.sample_params.GOAL_SAMPLE_RATE = 0.1;
-        rrt_params.sample_params.GOAL_DIS_TOLERANCE = 2.0;
-        rrt_params.sample_params.STEP_SIZE = 3.0;
+        rrt_params.map.OBSTACLE_THRESHOLD = 50;
+        rrt_params.sample.ITERATOR_TIMES = 100000;
+        rrt_params.sample.GOAL_SAMPLE_RATE = 0.1;
+        rrt_params.sample.GOAL_DIS_TOLERANCE = 2.0;
+        rrt_params.sample.STEP_SIZE = 3.0;
         planner = new RRT;
         planner->initParams(rrt_params);
     }
     else if (planner_name == "RRTstar")
     {
         RRTstar::RRTstarParams rrtstar_params;
-        rrtstar_params.map_params.OBSTACLE_THRESHOLD = 50;
-        rrtstar_params.sample_params.ITERATOR_TIMES = 10000000;
-        rrtstar_params.sample_params.GOAL_SAMPLE_RATE = 0.1;
-        rrtstar_params.sample_params.GOAL_DIS_TOLERANCE = 2.0;
-        rrtstar_params.sample_params.STEP_SIZE = 3.0;
-        rrtstar_params.sample_params.NEAR_DIS = 10.0;
+        rrtstar_params.map.OBSTACLE_THRESHOLD = 50;
+        rrtstar_params.sample.ITERATOR_TIMES = 10000000;
+        rrtstar_params.sample.GOAL_SAMPLE_RATE = 0.1;
+        rrtstar_params.sample.GOAL_DIS_TOLERANCE = 2.0;
+        rrtstar_params.sample.STEP_SIZE = 3.0;
+        rrtstar_params.sample.NEAR_DIS = 10.0;
         planner = new RRTstar;
         planner->initParams(rrtstar_params);
     }
@@ -371,12 +371,12 @@ int main(int argc, char *argv[])
     {
         // GA规划器
         GA::GAParams ga_params;
-        ga_params.map_params.OBSTACLE_THRESHOLD = 50;
-        ga_params.optimization_params.GENERATION_SIZE = 1000;
-        ga_params.optimization_params.POPULATION_SIZE = 200;
-        ga_params.optimization_params.CHROMOSOME_SIZE = 2;
-        ga_params.optimization_params.CROSSOVER_RATE = 0.7;
-        ga_params.optimization_params.MUTATION_RATE = 0.01;
+        ga_params.map.OBSTACLE_THRESHOLD = 50;
+        ga_params.optimization.GENERATION_SIZE = 1000;
+        ga_params.optimization.POPULATION_SIZE = 200;
+        ga_params.optimization.CHROMOSOME_SIZE = 2;
+        ga_params.optimization.CROSSOVER_RATE = 0.7;
+        ga_params.optimization.MUTATION_RATE = 0.01;
         planner = new GA;
         planner->initParams(ga_params);
     }

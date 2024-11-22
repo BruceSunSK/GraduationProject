@@ -30,17 +30,17 @@ public:
         {
             uint16_t OBSTACLE_THRESHOLD = 50;   // 地图中栅格代价值大于等于(>=)该值的栅格，会被视为障碍物，搜索过程中将直接跳过该栅格
             REGISTER_STRUCT(REGISTER_MEMBER(OBSTACLE_THRESHOLD));
-        } map_params;
+        } map;
 
         // 代价函数相关参数
         struct
         {
             Astar::HeuristicsType HEURISTICS_TYPE = Astar::HeuristicsType::Euclidean;   // 启发值类型，共有五种
             REGISTER_STRUCT(REGISTER_MEMBER(HEURISTICS_TYPE));
-        } cost_function_params;
+        } cost_function;
 
-        REGISTER_STRUCT(REGISTER_MEMBER(map_params),
-                        REGISTER_MEMBER(cost_function_params));
+        REGISTER_STRUCT(REGISTER_MEMBER(map),
+                        REGISTER_MEMBER(cost_function));
     };
 
     /// @brief 用于Astar规划器的辅助类，实现数据记录和结果打印
@@ -63,17 +63,17 @@ public:
                             REGISTER_MEMBER(node_counter),
                             REGISTER_MEMBER(path_length),
                             REGISTER_MEMBER(cost_time))
-        } search_result;
+        } search;
 
     public:
         /// @brief 清空当前记录的所有结果信息，便于下次记录
         void resetResultInfo() override
         {
-            search_result.node_nums = 0;
-            search_result.node_counter = 0;
-            search_result.path_length = 0;
-            search_result.cost_time = 0.0;
-            search_result.nodes.clear();
+            search.node_nums = 0;
+            search.node_counter = 0;
+            search.path_length = 0;
+            search.cost_time = 0.0;
+            search.nodes.clear();
         }
 
     private:
@@ -178,5 +178,5 @@ private:
     double getH(const cv::Point2i & p) const;
 };
 
-using AstarHeuristicsType = Astar::HeuristicsType;
-REGISTER_ENUM(AstarHeuristicsType);
+using AHeuristicsType = Astar::HeuristicsType;
+REGISTER_ENUM(AHeuristicsType);

@@ -32,7 +32,7 @@ std::string GA::GAHelper::resultInfo() const
 {
     std::stringstream result_info;
     result_info << "[Result Info]:\n";
-    PRINT_STRUCT(result_info, optimization_result);
+    PRINT_STRUCT(result_info, optimization);
     return result_info.str();
 }
 // ========================= GA::GAHelper =========================
@@ -79,7 +79,7 @@ bool GA::setMap(const cv::Mat & map)
         for (size_t j = 0; j < cols_; j++)
         {
             const uchar & cost = map.at<uchar>(i, j);
-            if (cost < params_.map_params.OBSTACLE_THRESHOLD)
+            if (cost < params_.map.OBSTACLE_THRESHOLD)
             {
                 map_.at<uchar>(i, j) = 0;
             }
@@ -108,7 +108,7 @@ bool GA::setStartPoint(const double x, const double y)
     if (init_map_info_ == false)
     {
         std::cout << "设置起点前需设置地图信息！" << '\n';
-        init_start_node_ = false;
+        init_start_point_ = false;
         return false;
     }
 
@@ -120,21 +120,21 @@ bool GA::setStartPoint(const double x, const double y)
     if ((x_grid >= 0 && x_grid < cols_ && y_grid >= 0 && y_grid < rows_) == false)
     {
         std::cout << "起点必须设置在地图内部！" << '\n';
-        init_start_node_ = false;
+        init_start_point_ = false;
         return false;
     }
 
-    if (map_.at<uchar>(y_grid, x_grid) >= params_.map_params.OBSTACLE_THRESHOLD)
+    if (map_.at<uchar>(y_grid, x_grid) >= params_.map.OBSTACLE_THRESHOLD)
     {
         std::cout << "起点必须设置在非障碍物处！" << '\n';
-        init_start_node_ = false;
+        init_start_point_ = false;
         return false;
     }
 
     // printf("起点设置成功，位置：(%d, %d)\n", x_grid, y_grid);
     start_point_.x = x_grid_double;
     start_point_.y = y_grid_double;
-    init_start_node_ = true;
+    init_start_point_ = true;
     return true;
 }
 
@@ -148,7 +148,7 @@ bool GA::setEndPoint(const double x, const double y)
     if (init_map_info_ == false)
     {
         std::cout << "设置终点前需设置地图信息！" << '\n';
-        init_end_node_ = false;
+        init_end_point_ = false;
         return false;
     }
 
@@ -160,21 +160,21 @@ bool GA::setEndPoint(const double x, const double y)
     if ((x_grid >= 0 && x_grid < cols_ && y_grid >= 0 && y_grid < rows_) == false)
     {
         std::cout << "终点必须设置在地图内部！\n";
-        init_end_node_ = false;
+        init_end_point_ = false;
         return false;
     }
 
-    if (map_.at<uchar>(y_grid, x_grid) >= params_.map_params.OBSTACLE_THRESHOLD)
+    if (map_.at<uchar>(y_grid, x_grid) >= params_.map.OBSTACLE_THRESHOLD)
     {
         std::cout << "终点必须设置在非障碍物处！\n";
-        init_end_node_ = false;
+        init_end_point_ = false;
         return false;
     }
 
     // printf("终点设置成功，位置：(%d, %d)\n", x_grid, y_grid);
     end_point_.x = x_grid_double;
     end_point_.y = y_grid_double;
-    init_end_node_ = true;
+    init_end_point_ = true;
     return true;
 }
 
@@ -208,7 +208,7 @@ bool GA::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv::Po
     calc_fitness();
 
     // 3. 循环迭代
-    for (size_t iter = 0; iter < params_.optimization_params.GENERATION_SIZE; iter++)
+    for (size_t iter = 0; iter < params_.optimization.GENERATION_SIZE; iter++)
     {
         // 3.1 选择
         std::vector<size_t> selected_idx = selection();
@@ -231,7 +231,7 @@ bool GA::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv::Po
 
     // 5. 计算辅助信息
     auto end_time = std::chrono::steady_clock::now();
-    helper_.optimization_result.cost_time = (end_time - start_time).count() / 1000000.0;  // 算法耗时 ms
+    helper_.optimization.cost_time = (end_time - start_time).count() / 1000000.0;  // 算法耗时 ms
 
     return sucess;
 }
@@ -245,7 +245,7 @@ cv::Point2d GA::get_random_point()
         p.x = dis_col_(rand_generator_);
         p.y = dis_row_(rand_generator_);
         cv::Point2i p_grid(static_cast<int>(p.x), static_cast<int>(p.y));
-        if (map_.at<uchar>(p_grid) < params_.map_params.OBSTACLE_THRESHOLD)
+        if (map_.at<uchar>(p_grid) < params_.map.OBSTACLE_THRESHOLD)
         {
             return p;
         }
@@ -259,7 +259,7 @@ bool GA::check_collision(const cv::Point2d & pt1, const cv::Point2d & pt2) const
     const std::vector<cv::Point2i> pts = Math::Bresenham(pt1_grid, pt2_grid, 2);
     for (const cv::Point2i & p : pts)
     {
-        if (map_.at<uchar>(p) >= params_.map_params.OBSTACLE_THRESHOLD)
+        if (map_.at<uchar>(p) >= params_.map.OBSTACLE_THRESHOLD)
         {
             return true;
         }
@@ -269,17 +269,17 @@ bool GA::check_collision(const cv::Point2d & pt1, const cv::Point2d & pt2) const
 
 void GA::init_population()
 {
-    population_.resize(params_.optimization_params.POPULATION_SIZE);
+    population_.resize(params_.optimization.POPULATION_SIZE);
     is_collision_.resize(population_.size(), false);
 
     for (size_t i = 0; i < population_.size(); i++)
     {
-        std::vector<cv::Point2d> individual(params_.optimization_params.CHROMOSOME_SIZE + 2);   // 单个个体，即一条路径，需要包含起点终点
+        std::vector<cv::Point2d> individual(params_.optimization.CHROMOSOME_SIZE + 2);   // 单个个体，即一条路径，需要包含起点终点
 
         // 终点与中间路径不进行碰撞检测
         individual[0] = start_point_;
-        individual[params_.optimization_params.CHROMOSOME_SIZE + 1] = end_point_;
-        for (size_t i = 1; i <= params_.optimization_params.CHROMOSOME_SIZE; i++)
+        individual[params_.optimization.CHROMOSOME_SIZE + 1] = end_point_;
+        for (size_t i = 1; i <= params_.optimization.CHROMOSOME_SIZE; i++)
         {
             while (true)
             {
@@ -292,7 +292,7 @@ void GA::init_population()
             }
         }
 
-        is_collision_[i] = check_collision(individual[params_.optimization_params.CHROMOSOME_SIZE + 1], individual[params_.optimization_params.CHROMOSOME_SIZE]);
+        is_collision_[i] = check_collision(individual[params_.optimization.CHROMOSOME_SIZE + 1], individual[params_.optimization.CHROMOSOME_SIZE]);
         population_[i] = std::move(individual);
     }
 }
@@ -389,13 +389,13 @@ std::vector<std::vector<cv::Point2d>> GA::crossover(std::vector<size_t> && selec
         const std::vector<cv::Point2d> & parent2 = population_[parent2_idx];
 
         std::vector<cv::Point2d> & offspring_i = offspring[i];
-        offspring_i.resize(params_.optimization_params.CHROMOSOME_SIZE + 2);   // 单个个体，即一条路径，需要包含起点终点
+        offspring_i.resize(params_.optimization.CHROMOSOME_SIZE + 2);   // 单个个体，即一条路径，需要包含起点终点
 
         // 判断是否交叉
-        if (dis_prob_(rand_generator_) < params_.optimization_params.CROSSOVER_RATE)
+        if (dis_prob_(rand_generator_) < params_.optimization.CROSSOVER_RATE)
         {
             // 1. 随机选择交叉点
-            size_t cross_idx = dis_prob_(rand_generator_) * (params_.optimization_params.CHROMOSOME_SIZE + 2);
+            size_t cross_idx = dis_prob_(rand_generator_) * (params_.optimization.CHROMOSOME_SIZE + 2);
 
             // 2. 交叉
             for (size_t j = 0; j < offspring_i.size(); j++)
@@ -429,7 +429,7 @@ void GA::mutation(std::vector<std::vector<cv::Point2d>> && offspring)
         std::vector<size_t> mut_idx;
         for (size_t j = 1; j < individual.size() - 1; j++)
         {
-            if (dis_prob_(rand_generator_) < params_.optimization_params.MUTATION_RATE)
+            if (dis_prob_(rand_generator_) < params_.optimization.MUTATION_RATE)
             {
                 mut_idx.push_back(j);
             }

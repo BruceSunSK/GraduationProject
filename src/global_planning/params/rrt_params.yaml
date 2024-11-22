@@ -1,8 +1,8 @@
 RRT:
-  map_params:
+  map:
     OBSTACLE_THRESHOLD: 50    # 地图中栅格代价值大于等于(>=)该值的栅格，会被视为障碍物，搜索过程中将直接跳过该栅格
 
-  sample_params:
+  sample:
     ITERATOR_TIMES: 100000    # 最大迭代次数
     GOAL_SAMPLE_RATE: 0.1     # 终点采样率，即每走一步，有多少的概率随机选取终点作为新的终点
     GOAL_DIS_TOLERANCE: 2.0   # 新增长节点若与终点的距离在该范围内，则直接将终点作为新增长节点

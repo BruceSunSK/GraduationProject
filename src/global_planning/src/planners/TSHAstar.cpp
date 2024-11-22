@@ -23,8 +23,8 @@ std::string TSHAstar::TSHAstarHelper::mapInfo() const
              << "  rows: "        << TSHAstar_planner->rows_ << std::endl
              << "  cols: "        << TSHAstar_planner->cols_ << std::endl
              << "  resolution: "  << TSHAstar_planner->res_ << std::endl
-             << "  start point: " << TSHAstar_planner->start_node_->point << std::endl
-             << "  end point:   " << TSHAstar_planner->end_node_->point << std::endl;
+             << "  start point: " << TSHAstar_planner->start_point_ << std::endl
+             << "  end point:   " << TSHAstar_planner->end_point_ << std::endl;
     return map_info.str();
 }
 
@@ -32,10 +32,7 @@ std::string TSHAstar::TSHAstarHelper::resultInfo() const
 {
     std::stringstream result_info;
     result_info << "[Result Info]:\n";
-    PRINT_STRUCT(result_info, search_result);
-    PRINT_STRUCT(result_info, path_simplification_result);
-    PRINT_STRUCT(result_info, path_smooth_result);
-    PRINT_STRUCT(result_info, downsampling_result);
+    PRINT_STRUCT(result_info, search);
     return result_info.str();
 }
 // ========================= TSHAstar::TSHAstarHelper =========================
@@ -71,27 +68,27 @@ const TSHAstar::Node::Direction TSHAstar::Node::direction_table[8] =
 
 // ========================= TSHAstar =========================
 
-REGISTER_ENUM_BODY(TSHAstarNeighborType,
-                   REGISTER_MEMBER(TSHAstarNeighborType::FourConnected),
-                   REGISTER_MEMBER(TSHAstarNeighborType::FiveConnected),
-                   REGISTER_MEMBER(TSHAstarNeighborType::EightConnected));
+REGISTER_ENUM_BODY(NeighborType,
+                   REGISTER_MEMBER(NeighborType::FourConnected),
+                   REGISTER_MEMBER(NeighborType::FiveConnected),
+                   REGISTER_MEMBER(NeighborType::EightConnected));
 
-REGISTER_ENUM_BODY(TSHAstarHeuristicsType,
-                   REGISTER_MEMBER(TSHAstarHeuristicsType::None),
-                   REGISTER_MEMBER(TSHAstarHeuristicsType::Manhattan),
-                   REGISTER_MEMBER(TSHAstarHeuristicsType::Euclidean),
-                   REGISTER_MEMBER(TSHAstarHeuristicsType::Chebyshev),
-                   REGISTER_MEMBER(TSHAstarHeuristicsType::Octile));
+REGISTER_ENUM_BODY(HeuristicsType,
+                   REGISTER_MEMBER(HeuristicsType::None),
+                   REGISTER_MEMBER(HeuristicsType::Manhattan),
+                   REGISTER_MEMBER(HeuristicsType::Euclidean),
+                   REGISTER_MEMBER(HeuristicsType::Chebyshev),
+                   REGISTER_MEMBER(HeuristicsType::Octile));
 
-REGISTER_ENUM_BODY(TSHAstarPathSimplificationType,
-                   REGISTER_MEMBER(TSHAstarPathSimplificationType::DouglasPeucker),
-                   REGISTER_MEMBER(TSHAstarPathSimplificationType::DistanceThreshold),
-                   REGISTER_MEMBER(TSHAstarPathSimplificationType::AngleThreshold),
-                   REGISTER_MEMBER(TSHAstarPathSimplificationType::DPPlus));
+REGISTER_ENUM_BODY(PathSimplificationType,
+                   REGISTER_MEMBER(PathSimplificationType::DouglasPeucker),
+                   REGISTER_MEMBER(PathSimplificationType::DistanceThreshold),
+                   REGISTER_MEMBER(PathSimplificationType::AngleThreshold),
+                   REGISTER_MEMBER(PathSimplificationType::DPPlus));
 
-REGISTER_ENUM_BODY(TSHAstarPathSmoothType,
-                   REGISTER_MEMBER(TSHAstarPathSmoothType::Bezier),
-                   REGISTER_MEMBER(TSHAstarPathSmoothType::BSpline));
+REGISTER_ENUM_BODY(PathSmoothType,
+                   REGISTER_MEMBER(PathSmoothType::Bezier),
+                   REGISTER_MEMBER(PathSmoothType::BSpline));
 
 void TSHAstar::initParams(const GlobalPlannerParams & params)
 {
@@ -151,8 +148,8 @@ bool TSHAstar::setMap(const cv::Mat & map)
         for (int j = 0; j < cols_; j++)
         {
             const uchar & cost = src.at<uchar>(i, j);
-            if (cost >= params_.map_params.EXPANDED_MIN_THRESHOLD &&
-                cost <= params_.map_params.EXPANDED_MAX_THRESHOLD) // 只对正常范围[0, 100]中的值进行膨胀扩展；(100, 255)未定义区域和255为探索区域不进行扩展。可手动修改
+            if (cost >= params_.map.EXPANDED_MIN_THRESHOLD &&
+                cost <= params_.map.EXPANDED_MAX_THRESHOLD) // 只对正常范围[0, 100]中的值进行膨胀扩展；(100, 255)未定义区域和255为探索区域不进行扩展。可手动修改
             {            
                 for (int m = -kernel_half_width; m <= kernel_half_width; m++)
                 {
@@ -177,7 +174,7 @@ bool TSHAstar::setMap(const cv::Mat & map)
                         }
                         
                         uchar new_cost = static_cast<uchar>(kernel.at<double>(m + kernel_half_width, n + kernel_half_width) 
-                                                            * cost * params_.map_params.EXPANDED_K);
+                                                            * cost * params_.map.EXPANDED_K);
                         new_cost = std::min<uchar>(new_cost, 100);  // 防止超过100范围               
                         if (out.at<uchar>(i + m, j + n) < new_cost)
                         {
@@ -191,9 +188,9 @@ bool TSHAstar::setMap(const cv::Mat & map)
 
 
     // 设置地图
-    obs_map_ = out.clone();
-    map_.clear();
-    map_.resize(rows_);
+    // 0. 设置搜索时所用的特例地图，并过滤掉小代价值栅格
+    search_map_.clear();
+    search_map_.resize(rows_);
     for (int i = 0; i < rows_; i++)
     {
         std::vector<Node> row(cols_);
@@ -202,20 +199,26 @@ bool TSHAstar::setMap(const cv::Mat & map)
             Node node;
             node.point.x = j;
             node.point.y = i;
-            if (out.at<uchar>(i, j) >= params_.map_params.COST_THRESHOLD)    // 过滤小代价值栅格
+            if (out.at<uchar>(i, j) >= params_.map.COST_THRESHOLD)    // 过滤小代价值栅格
             {
-                node.cost = out.at<uchar>(i, j);   
+                node.cost = out.at<uchar>(i, j);
             }
             else
             {
                 node.cost = 0;
-                obs_map_.at<uchar>(i, j) = 0;
+                out.at<uchar>(i, j) = 0;
             }
-            
+
             row[j] = std::move(node);
         }
-        map_[i] = std::move(row);
+        search_map_[i] = std::move(row);
     }
+    // 1. 离散代价值的障碍物地图，正常范围在[0, 100]，也包括255未探明的情况
+    discrete_map_ = std::move(out);
+    // 2. 代价值二值化后的障碍物地图，未探明情况视为障碍物。即[0, OBSTACLE_THRESHOLD)值为0，[OBSTACLE_THRESHOLD, 255]值为255
+    cv::threshold(discrete_map_, binary_map_, params_.map.OBSTACLE_THRESHOLD - 1, 255, cv::ThresholdTypes::THRESH_BINARY);
+    // 3. 在二值化地图中进行distanceTransform变换的结果，用于描述每个栅格到障碍物的距离
+    cv::distanceTransform(binary_map_, distance_map_, cv::DIST_L2, cv::DIST_MASK_PRECISE);
 
     // printf("地图设置成功，大小 %d x %d\n", rows_, cols_);
     init_map_ = true;
@@ -227,30 +230,34 @@ bool TSHAstar::setStartPoint(const double x, const double y)
     if (init_map_info_ == false)
     {
         std::cout << "设置起点前需设置地图信息！" << '\n';
-        init_start_node_ = false;
+        init_start_point_ = false;
         return false;
     }
 
-    int x_grid = static_cast<int>((x - ori_x_) / res_);
-    int y_grid = static_cast<int>((y - ori_y_) / res_);
+    double x_grid_double = (x - ori_x_) / res_;
+    double y_grid_double = (y - ori_y_) / res_;
+    int x_grid = static_cast<int>(x_grid_double);
+    int y_grid = static_cast<int>(y_grid_double);
 
     if ((x_grid >= 0 && x_grid < cols_ && y_grid >= 0 && y_grid < rows_) == false)
     {
         std::cout << "起点必须设置在地图内部！" << '\n';
-        init_start_node_ = false;
+        init_start_point_ = false;
         return false;
     }
 
-    if (map_[y_grid][x_grid].cost >= params_.map_params.OBSTACLE_THRESHOLD)
+    if (search_map_[y_grid][x_grid].cost >= params_.map.OBSTACLE_THRESHOLD)
     {
         std::cout << "起点必须设置在非障碍物处！" << '\n';
-        init_start_node_ = false;
+        init_start_point_ = false;
         return false;
     }
 
     // printf("起点设置成功，位置：(%d, %d)\n", x_grid, y_grid);
-    start_node_ = &map_[y_grid][x_grid];
-    init_start_node_ = true;
+    start_point_.x = x_grid_double;
+    start_point_.y = y_grid_double;
+    start_node_ = &search_map_[y_grid][x_grid];
+    init_start_point_ = true;
     return true;
 }
 
@@ -261,7 +268,7 @@ bool TSHAstar::setStartPoint(const cv::Point2d & p)
 
 bool TSHAstar::setStartPointYaw(const double yaw)
 {
-    if (!init_start_node_)
+    if (!init_start_point_)
     {
         std::cout << "设置起点朝向前必须先设置起点！\n";
         return false;
@@ -313,30 +320,34 @@ bool TSHAstar::setEndPoint(const double x, const double y)
     if (init_map_info_ == false)
     {
         std::cout << "设置终点前需设置地图信息！" << '\n';
-        init_end_node_ = false;
+        init_end_point_ = false;
         return false;
     }
 
-    int x_grid = static_cast<int>((x - ori_x_) / res_);
-    int y_grid = static_cast<int>((y - ori_y_) / res_);
+    double x_grid_double = (x - ori_x_) / res_;
+    double y_grid_double = (y - ori_y_) / res_;
+    int x_grid = static_cast<int>(x_grid_double);
+    int y_grid = static_cast<int>(y_grid_double);
 
     if ((x_grid >= 0 && x_grid < cols_ && y_grid >= 0 && y_grid < rows_) == false)
     {
         std::cout << "终点必须设置在地图内部！\n";
-        init_end_node_ = false;
+        init_end_point_ = false;
         return false;
     }
 
-    if (map_[y_grid][x_grid].cost >= params_.map_params.OBSTACLE_THRESHOLD)
+    if (search_map_[y_grid][x_grid].cost >= params_.map.OBSTACLE_THRESHOLD)
     {
         std::cout << "终点必须设置在非障碍物处！\n";
-        init_end_node_ = false;
+        init_end_point_ = false;
         return false;
     }
 
     // printf("终点设置成功，位置：(%d, %d)\n", x_grid, y_grid);
-    end_node_ = &map_[y_grid][x_grid];
-    init_end_node_ = true;
+    end_point_.x = x_grid_double;
+    end_point_.y = y_grid_double;
+    end_node_ = &search_map_[y_grid][x_grid];
+    init_end_point_ = true;
     return true;
 }
 
@@ -357,20 +368,13 @@ bool TSHAstar::getProcessedMap(cv::Mat & map) const
         return false;
     }
     
-    map = cv::Mat::zeros(rows_, cols_, CV_8UC1);
-    for (size_t i = 0; i < rows_; i++)
-    {
-        for (size_t j = 0; j < cols_; j++)
-        {
-            map.at<uchar>(i, j) = map_[i][j].cost;
-        }
-    }
+    map = discrete_map_.clone();
     return true;
 }
 
 bool TSHAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv::Point2d>> & auxiliary_info)
 {
-    if (!(init_map_ && init_start_node_ && init_end_node_ && init_map_info_))
+    if (!(init_map_ && init_start_point_ && init_end_point_ && init_map_info_))
     {
         std::cout << "请先设置地图、起点和终点！\n";
         return false;
@@ -379,12 +383,13 @@ bool TSHAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<
     // 0.初始化helper
     helper_.resetResultInfo();
 
-    // 1.规划原始路径
+    // 第一大步：搜索过程建立原始参考路径，并进行初步平滑
+    // 1.搜索方法规划原始路径
     std::vector<Node *> raw_nodes;
     if (!generateRawNodes(raw_nodes))
     {
         std::cout << "规划失败！目标点不可达！\n";
-        resetMap();
+        resetSearchMap();
         return false;
     }
 
@@ -403,13 +408,17 @@ bool TSHAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<
     downsampling(path);
 
     // 6.复原地图
-    resetMap();
+    resetSearchMap();
 
+    // 第二大步：使用采样开辟解空间，利用Frenet坐标系优化路径
+
+
+    // 辅助信息赋值
     // 7.auxiliary_info赋值
     auxiliary_info.clear();
-    auxiliary_info.push_back(helper_.search_result.raw_path);
-    auxiliary_info.push_back(helper_.search_result.nodes);
-    auxiliary_info.push_back(helper_.path_simplification_result.reduced_path);
+    auxiliary_info.push_back(helper_.search.search.raw_path);
+    auxiliary_info.push_back(helper_.search.search.nodes);
+    auxiliary_info.push_back(helper_.search.path_simplification.reduced_path);
     
     return true;
 }
@@ -418,7 +427,7 @@ bool TSHAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<
 std::vector<size_t> TSHAstar::getNeighborsIndex(const Node * const node) const
 {
     std::vector<size_t> index_range;
-    switch (params_.cost_function_params.NEIGHBOR_TYPE)
+    switch (params_.search.cost_function.NEIGHBOR_TYPE)
     {
     case NeighborType::FourConnected:
         index_range = { 0, 1, 2, 3 };
@@ -470,25 +479,25 @@ double TSHAstar::getG(const Node * const n, const Node::Direction direction, con
     uint8_t par_dir = static_cast<uint8_t>(par_direction);
 
     const double dis_cost = (dir & 0x10) == 0x00 ? 1 : 1.4142135623730950;                          // 扩展该节点的距离代价
-    const double trav_cost = std::exp(n->cost * 0.01 * params_.cost_function_params.TRAV_COST_K);   // 可通行度代价系数
+    const double trav_cost = std::exp(n->cost * 0.01 * params_.search.cost_function.TRAV_COST_K);   // 可通行度代价系数
     double turn_cost = 1;
     // 不可能出现反向直行的情况，因为parent的parent一定已经加入了CLOSE集合，在搜索parent的扩展节点时一定不会有parent的parent
     if (dir == par_dir)                         // 同向直行
     {
-        turn_cost = params_.cost_function_params.TURN_COST_STRAIGHT;
+        turn_cost = params_.search.cost_function.TURN_COST_STRAIGHT;
     }
     else if ((dir & par_dir) == dir ||
              (dir & par_dir) == par_dir)        // 同向斜行
     {
-        turn_cost = params_.cost_function_params.TURN_COST_SLANT;
+        turn_cost = params_.search.cost_function.TURN_COST_SLANT;
     }
     else if (((dir ^ par_dir) & 0x10) == 0x00)  // 垂向直行
     {
-        turn_cost = params_.cost_function_params.TURN_COST_VERTICAL;
+        turn_cost = params_.search.cost_function.TURN_COST_VERTICAL;
     }
     else                                        // 反向斜行
     {
-        turn_cost = params_.cost_function_params.TURN_COST_REVERSE_SLANT;
+        turn_cost = params_.search.cost_function.TURN_COST_REVERSE_SLANT;
     }
     return trav_cost * turn_cost * dis_cost;
 }
@@ -499,7 +508,7 @@ void TSHAstar::getH(Node * const n) const
     double h = 0;
     double dx = 0.0;
     double dy = 0.0;
-    switch (params_.cost_function_params.HEURISTICS_TYPE)
+    switch (params_.search.cost_function.HEURISTICS_TYPE)
     {
     case HeuristicsType::None:
         break;
@@ -546,7 +555,7 @@ void TSHAstar::getW(Node * const n) const
                 (n->point.x + l >= 0 && n->point.x + l < cols_)) // 保证当前索引不溢出
             {
                 num++;
-                sum += map_[n->point.y + k][n->point.x + l].cost;
+                sum += search_map_[n->point.y + k][n->point.x + l].cost;
             }
         }
     }
@@ -593,9 +602,9 @@ bool TSHAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
                 continue;
             }
             
-            Node * const new_node = &map_[this_point.y + k][this_point.x + l];
+            Node * const new_node = &search_map_[this_point.y + k][this_point.x + l];
             const cv::Point2i & new_point = new_node->point;
-            if ((new_node->cost < params_.map_params.OBSTACLE_THRESHOLD &&  // 保证该节点是非障碍物节点，才能联通。代价地图[0, 100] 0可通过 100不可通过 
+            if ((new_node->cost < params_.map.OBSTACLE_THRESHOLD &&         // 保证该节点是非障碍物节点，才能联通。代价地图[0, 100] 0可通过 100不可通过 
                     new_node->type != Node::NodeType::CLOSED) == false)     // 不对已加入CLOSED的数据再次判断
             {
                 continue;
@@ -616,7 +625,7 @@ bool TSHAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
                 queue.push(std::move(new_node));
 
                 // 按顺序记录访问到的节点
-                helper_.search_result.nodes.push_back(cv::Point2d((new_point.x + 0.5) * res_ + ori_x_,
+                helper_.search.search.nodes.push_back(cv::Point2d((new_point.x + 0.5) * res_ + ori_x_,
                                                                   (new_point.y + 0.5) * res_ + ori_y_));
 
             }
@@ -632,7 +641,7 @@ bool TSHAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
                 }
             }
 
-            helper_.search_result.raw_node_counter++;       // 访问节点的总次数
+            helper_.search.search.raw_node_counter++;       // 访问节点的总次数
         }
     }
 
@@ -643,19 +652,19 @@ bool TSHAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
     while (path_node != nullptr)
     {
         raw_nodes.push_back(path_node);
-        helper_.search_result.raw_path.push_back(cv::Point2d((path_node->point.x + 0.5) * res_ + ori_x_,
+        helper_.search.search.raw_path.push_back(cv::Point2d((path_node->point.x + 0.5) * res_ + ori_x_,
                                                              (path_node->point.y + 0.5) * res_ + ori_y_));
 
         path_node = path_node->parent_node;
     }
-    std::reverse(raw_nodes.begin(), raw_nodes.end());                                               // 翻转使得路径点从起点到终点排列
-    std::reverse(helper_.search_result.raw_path.begin(), helper_.search_result.raw_path.end());     // 翻转使得路径点从起点到终点排列
+    std::reverse(raw_nodes.begin(), raw_nodes.end());                                           // 翻转使得路径点从起点到终点排列
+    std::reverse(helper_.search.search.raw_path.begin(), helper_.search.search.raw_path.end()); // 翻转使得路径点从起点到终点排列
 
     // 保存结果信息
     auto end_time = std::chrono::steady_clock::now();
-    helper_.search_result.raw_node_nums   = helper_.search_result.nodes.size();     // 访问到的节点数
-    helper_.search_result.raw_path_length = helper_.search_result.raw_path.size();  // 路径长度
-    helper_.search_result.cost_time = (end_time - start_time).count() / 1000000.0;  // 算法耗时 ms
+    helper_.search.search.raw_node_nums = helper_.search.search.nodes.size();       // 访问到的节点数
+    helper_.search.search.raw_path_length = helper_.search.search.raw_path.size();  // 路径长度
+    helper_.search.search.cost_time = (end_time - start_time).count() / 1000000.0;  // 算法耗时 ms
     return raw_nodes.size() > 1;
 }
 
@@ -674,43 +683,43 @@ void TSHAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, 
     if (raw_path.size() <= 2)  // 只有两个点，说明只是起点和终点
     {
         reduced_path.insert(reduced_path.end(), raw_path.begin(), raw_path.end());
-        helper_.path_simplification_result.reduced_path_length = reduced_path.size();
-        helper_.path_simplification_result.cost_time = 0;
+        helper_.search.path_simplification.reduced_path_length = reduced_path.size();
+        helper_.search.path_simplification.cost_time = 0;
         return;
     }
 
     auto start_time = std::chrono::steady_clock::now();
-    switch (params_.path_simplification_params.PATH_SIMPLIFICATION_TYPE)
+    switch (params_.search.path_simplification.PATH_SIMPLIFICATION_TYPE)
     {
     // 1.使用Douglas-Peucker法去除冗余点
     // 测试结果：× 1. 也会破坏对称结构。
     //         √ 2. 但保留的点都很具有特征点代表性
     //         √ 3. 感觉在徐工地图上超级棒，甚至感觉不用平滑，用原始的折线也不错。
     case PathSimplificationType::DouglasPeucker:
-        Path::Simplification::Douglas_Peucker(raw_path, reduced_path, params_.path_simplification_params.DISTANCE_THRESHOLD / res_);
+        Path::Simplification::Douglas_Peucker(raw_path, reduced_path, params_.search.path_simplification.DISTANCE_THRESHOLD / res_);
         break;
 
     // 2.使用垂距限值法去除冗余点
     // 测试结果：√ 1. 能够较为有效的保留对称的形状；
     //         × 2. 但是只去除一轮的话，（由于节点特别密集）会存在连续的2 / 3个点都存在，还需要二次去除
     case PathSimplificationType::DistanceThreshold:
-        Path::Simplification::distance_threshold(raw_path, reduced_path, params_.path_simplification_params.DISTANCE_THRESHOLD / res_);
+        Path::Simplification::distance_threshold(raw_path, reduced_path, params_.search.path_simplification.DISTANCE_THRESHOLD / res_);
         break;
 
     // 3.使用角度限值法去除冗余点
     // 测试结果：× 1. 感觉容易破坏对称结构。本来对称的节点去除冗余点后有较为明显的差异，导致效果变差。
     //         √ 2. 在长直线路径下，能够有效去除多余歪点，只剩起点终点。
     case PathSimplificationType::AngleThreshold:
-        Path::Simplification::angle_threshold(raw_path, reduced_path, params_.path_simplification_params.ANGLE_THRESHOLD);
+        Path::Simplification::angle_threshold(raw_path, reduced_path, params_.search.path_simplification.ANGLE_THRESHOLD);
         break;
 
     // 4.使用改进的Douglas-Peucker法去除冗余点
     // 测试结果：在DP的基础上，增加了对障碍物的处理。
     case PathSimplificationType::DPPlus:
-        Path::Simplification::DPPlus(obs_map_, raw_path, reduced_path, params_.path_simplification_params.OBSTACLE_THRESHOLD,
-                                                                       params_.path_simplification_params.DISTANCE_THRESHOLD / res_, 
-                                                      static_cast<int>(params_.path_simplification_params.LINE_WIDTH / res_ + 0.5),
-                                                                       params_.path_simplification_params.MAX_INTAVAL / res_);
+        Path::Simplification::DPPlus(binary_map_, raw_path, reduced_path, params_.search.path_simplification.OBSTACLE_THRESHOLD,
+                                                                          params_.search.path_simplification.DISTANCE_THRESHOLD / res_, 
+                                                         static_cast<int>(params_.search.path_simplification.LINE_WIDTH / res_ + 0.5),
+                                                                          params_.search.path_simplification.MAX_INTAVAL / res_);
         break;
         
     default:
@@ -719,12 +728,12 @@ void TSHAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, 
     }
     auto end_time = std::chrono::steady_clock::now();
 
-    helper_.path_simplification_result.reduced_path_length = reduced_path.size();
-    helper_.path_simplification_result.cost_time = (end_time - start_time).count() / 1000000.0;
+    helper_.search.path_simplification.reduced_path_length = reduced_path.size();
+    helper_.search.path_simplification.cost_time = (end_time - start_time).count() / 1000000.0;
     std::for_each(reduced_path.begin(), reduced_path.end(), [this](cv::Point2i & p)
     {
-        this->helper_.path_simplification_result.reduced_path.push_back(cv::Point2d((p.x + 0.5) * res_ + ori_x_,
-                                                                                    (p.y + 0.5) * res_ + ori_y_));
+            this->helper_.search.path_simplification.reduced_path.push_back(cv::Point2d((p.x + 0.5) * res_ + ori_x_,
+                                                                                        (p.y + 0.5) * res_ + ori_y_));
     });
 }
 
@@ -737,7 +746,7 @@ bool TSHAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector
     }
 
     auto start_time = std::chrono::steady_clock::now();
-    switch (params_.path_smooth_params.PATH_SMOOTH_TYPE)
+    switch (params_.search.path_smooth.PATH_SMOOTH_TYPE)
     {
     // 使用优化后的分段三阶贝塞尔曲线进行平滑
     // 测试结果：不好。
@@ -745,7 +754,7 @@ bool TSHAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector
     //         2. 曲线会更倾向于中间，而非控制点。在两个控制点间隔较远时会更加明显，效果更差。
     //         3. 速度比B样条慢。毕竟B样条我狠狠优化过，贝塞尔貌似只能搞dp计算组合数打表。
     case PathSmoothType::Bezier:
-        Curve::BezierCurve::piecewise_smooth_curve(raw_path, smooth_path, params_.path_smooth_params.T_STEP);
+        Curve::BezierCurve::piecewise_smooth_curve(raw_path, smooth_path, params_.search.path_smooth.T_STEP);
         break;
 
     // 使用B样条曲线进行平滑
@@ -753,7 +762,7 @@ bool TSHAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector
     //         1. 效果很好，曲线平滑，作用在全局，控制点均匀分布。
     //         2. 速度快。
     case PathSmoothType::BSpline:
-        Curve::BSplineCurve::smooth_curve(raw_path, smooth_path, 4, params_.path_smooth_params.T_STEP);
+        Curve::BSplineCurve::smooth_curve(raw_path, smooth_path, 4, params_.search.path_smooth.T_STEP);
         break;
 
     default:
@@ -761,8 +770,8 @@ bool TSHAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector
     }
     auto end_time = std::chrono::steady_clock::now();
 
-    helper_.path_smooth_result.smooth_path_length = smooth_path.size();
-    helper_.path_smooth_result.cost_time = (end_time - start_time).count() / 1000000.0;
+    helper_.search.path_smooth.smooth_path_length = smooth_path.size();
+    helper_.search.path_smooth.cost_time = (end_time - start_time).count() / 1000000.0;
     
     // 消除0.5个栅格偏差
     std::for_each(smooth_path.begin(), smooth_path.end(), [this](cv::Point2d & p)
@@ -789,7 +798,7 @@ void TSHAstar::downsampling(std::vector<cv::Point2d> & path)
     for (size_t i = 1; i < size - 1; i++)
     {
         double temp_dis = std::hypot(path[i].x - temp_p.x, path[i].y - temp_p.y);
-        if (temp_dis > params_.downsampling_params.INTERVAL)
+        if (temp_dis > params_.search.downsampling.INTERVAL)
         {
             temp.push_back(path[i]);
             temp_p = path[i];
@@ -799,23 +808,23 @@ void TSHAstar::downsampling(std::vector<cv::Point2d> & path)
     path = temp;
     auto end_time = std::chrono::steady_clock::now();
 
-    helper_.downsampling_result.path_length = path.size();
-    helper_.downsampling_result.cost_time = (end_time - start_time).count() / 1000000.0;
+    helper_.search.downsampling.path_length = path.size();
+    helper_.search.downsampling.cost_time = (end_time - start_time).count() / 1000000.0;
 }
 
-void TSHAstar::resetMap()
+void TSHAstar::resetSearchMap()
 {
     for (int i = 0; i < rows_; i++)
     {
         for (int j = 0; j < cols_; j++)
         {
-            map_[i][j].g = 0;
-            map_[i][j].h = 0;
-            map_[i][j].w = 1;
-            map_[i][j].f = 0;
-            map_[i][j].type = Node::NodeType::UNKNOWN;
-            map_[i][j].parent_node = nullptr;
-            map_[i][j].direction_to_parent = Node::Direction::UNKNOWN;
+            search_map_[i][j].g = 0;
+            search_map_[i][j].h = 0;
+            search_map_[i][j].w = 1;
+            search_map_[i][j].f = 0;
+            search_map_[i][j].type = Node::NodeType::UNKNOWN;
+            search_map_[i][j].parent_node = nullptr;
+            search_map_[i][j].direction_to_parent = Node::Direction::UNKNOWN;
         }
     }
 }

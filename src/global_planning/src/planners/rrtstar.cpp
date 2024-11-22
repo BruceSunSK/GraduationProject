@@ -32,7 +32,7 @@ std::string RRTstar::RRTstarHelper::resultInfo() const
 {
     std::stringstream result_info;
     result_info << "[Result Info]:\n";
-    PRINT_STRUCT(result_info, sample_result);
+    PRINT_STRUCT(result_info, sample);
     return result_info.str();
 }
 // ========================= RRTstar::RRTstarHelper =========================
@@ -78,7 +78,7 @@ bool RRTstar::setMap(const cv::Mat & map)
         for (size_t j = 0; j < cols_; j++)
         {
             const uchar & cost = map.at<uchar>(i, j);
-            if (cost < params_.map_params.OBSTACLE_THRESHOLD)
+            if (cost < params_.map.OBSTACLE_THRESHOLD)
             {
                 map_.at<uchar>(i, j) = 0;
             }
@@ -103,7 +103,7 @@ bool RRTstar::setStartPoint(const double x, const double y)
     if (init_map_info_ == false)
     {
         std::cout << "设置起点前需设置地图信息！" << '\n';
-        init_start_node_ = false;
+        init_start_point_ = false;
         return false;
     }
 
@@ -115,21 +115,21 @@ bool RRTstar::setStartPoint(const double x, const double y)
     if ((x_grid >= 0 && x_grid < cols_ && y_grid >= 0 && y_grid < rows_) == false)
     {
         std::cout << "起点必须设置在地图内部！" << '\n';
-        init_start_node_ = false;
+        init_start_point_ = false;
         return false;
     }
 
-    if (map_.at<uchar>(y_grid, x_grid) >= params_.map_params.OBSTACLE_THRESHOLD)
+    if (map_.at<uchar>(y_grid, x_grid) >= params_.map.OBSTACLE_THRESHOLD)
     {
         std::cout << "起点必须设置在非障碍物处！" << '\n';
-        init_start_node_ = false;
+        init_start_point_ = false;
         return false;
     }
 
     // printf("起点设置成功，位置：(%d, %d)\n", x_grid, y_grid);
     start_point_.x = x_grid_double;
     start_point_.y = y_grid_double;
-    init_start_node_ = true;
+    init_start_point_ = true;
     return true;
 }
 
@@ -143,7 +143,7 @@ bool RRTstar::setEndPoint(const double x, const double y)
     if (init_map_info_ == false)
     {
         std::cout << "设置终点前需设置地图信息！" << '\n';
-        init_end_node_ = false;
+        init_end_point_ = false;
         return false;
     }
 
@@ -155,21 +155,21 @@ bool RRTstar::setEndPoint(const double x, const double y)
     if ((x_grid >= 0 && x_grid < cols_ && y_grid >= 0 && y_grid < rows_) == false)
     {
         std::cout << "终点必须设置在地图内部！\n";
-        init_end_node_ = false;
+        init_end_point_ = false;
         return false;
     }
 
-    if (map_.at<uchar>(y_grid, x_grid) >= params_.map_params.OBSTACLE_THRESHOLD)
+    if (map_.at<uchar>(y_grid, x_grid) >= params_.map.OBSTACLE_THRESHOLD)
     {
         std::cout << "终点必须设置在非障碍物处！\n";
-        init_end_node_ = false;
+        init_end_point_ = false;
         return false;
     }
 
     // printf("终点设置成功，位置：(%d, %d)\n", x_grid, y_grid);
     end_point_.x = x_grid_double;
     end_point_.y = y_grid_double;
-    init_end_node_ = true;
+    init_end_point_ = true;
     return true;
 }
 
@@ -192,7 +192,7 @@ bool RRTstar::getProcessedMap(cv::Mat & map) const
 
 bool RRTstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<cv::Point2d>> & auxiliary_info)
 {
-    if (!(init_map_ && init_start_node_ && init_end_node_ && init_map_info_))
+    if (!(init_map_ && init_start_point_ && init_end_point_ && init_map_info_))
     {
         std::cout << "请先设置地图、起点和终点！\n";
         return false;
@@ -211,11 +211,11 @@ bool RRTstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<c
     tree_list_.push_back(std::move(start_node));
 
     // 开始迭代
-    for (size_t it = 0; it < params_.sample_params.ITERATOR_TIMES; it++)
+    for (size_t it = 0; it < params_.sample.ITERATOR_TIMES; it++)
     {
         // 生成随机节点
         cv::Point2d random_point;
-        if (dis_goal(random_number_generator) < params_.sample_params.GOAL_SAMPLE_RATE)    // 直接选取终点为目标点
+        if (dis_goal(random_number_generator) < params_.sample.GOAL_SAMPLE_RATE)    // 直接选取终点为目标点
         {
             random_point.x = end_point_.x;
             random_point.y = end_point_.y;
@@ -232,10 +232,10 @@ bool RRTstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<c
         // 沿最近节点和随机节点方向创建新节点
         const cv::Point2d & nearest_point = tree_list_[nearest_index]->pos;
         const double angle = std::atan2(random_point.y - nearest_point.y, random_point.x - nearest_point.x);
-        cv::Point2d new_point(nearest_point.x + params_.sample_params.STEP_SIZE / res_ * std::cos(angle),
-                              nearest_point.y + params_.sample_params.STEP_SIZE / res_ * std::sin(angle));
+        cv::Point2d new_point(nearest_point.x + params_.sample.STEP_SIZE / res_ * std::cos(angle),
+                              nearest_point.y + params_.sample.STEP_SIZE / res_ * std::sin(angle));
         bool finish = false;
-        if (std::hypot(new_point.x - end_point_.x, new_point.y - end_point_.y) < params_.sample_params.GOAL_DIS_TOLERANCE / res_)
+        if (std::hypot(new_point.x - end_point_.x, new_point.y - end_point_.y) < params_.sample.GOAL_DIS_TOLERANCE / res_)
         {
             new_point = end_point_;
             finish = true;
@@ -277,18 +277,18 @@ bool RRTstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<c
             std::reverse(path.begin(), path.end());
             for (size_t i = 1; i < tree_list_.size(); i++)  // 排除起点
             {
-                helper_.sample_result.cur_points.push_back(cv::Point2d(tree_list_[i]->pos.x * res_ + ori_x_, tree_list_[i]->pos.y * res_ + ori_y_));
-                helper_.sample_result.par_points.push_back(cv::Point2d(tree_list_[i]->parent->pos.x * res_ + ori_x_, tree_list_[i]->parent->pos.y * res_ + ori_y_));
+                helper_.sample.cur_points.push_back(cv::Point2d(tree_list_[i]->pos.x * res_ + ori_x_, tree_list_[i]->pos.y * res_ + ori_y_));
+                helper_.sample.par_points.push_back(cv::Point2d(tree_list_[i]->parent->pos.x * res_ + ori_x_, tree_list_[i]->parent->pos.y * res_ + ori_y_));
             }
 
             // 保存结果信息
             auto end_time = std::chrono::steady_clock::now();
-            helper_.sample_result.node_nums = tree_list_.size();
-            helper_.sample_result.node_counter = it + 1;                                    // +1表示实际执行的第i次迭代
-            helper_.sample_result.path_length = path.size();                                // 路径长度
-            helper_.sample_result.cost_time = (end_time - start_time).count() / 1000000.0;  // 算法耗时 ms
-            auxiliary_info.push_back(helper_.sample_result.cur_points);
-            auxiliary_info.push_back(helper_.sample_result.par_points);
+            helper_.sample.node_nums = tree_list_.size();
+            helper_.sample.node_counter = it + 1;                                    // +1表示实际执行的第i次迭代
+            helper_.sample.path_length = path.size();                                // 路径长度
+            helper_.sample.cost_time = (end_time - start_time).count() / 1000000.0;  // 算法耗时 ms
+            auxiliary_info.push_back(helper_.sample.cur_points);
+            auxiliary_info.push_back(helper_.sample.par_points);
 
             // 释放内存
             for (size_t i = 0; i < tree_list_.size(); i++)
@@ -300,7 +300,7 @@ bool RRTstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<c
         }
     }
 
-    std::cout << "RRTstar求解失败！ 超出迭代次数：" << params_.sample_params.ITERATOR_TIMES << " \n";
+    std::cout << "RRTstar求解失败！ 超出迭代次数：" << params_.sample.ITERATOR_TIMES << " \n";
     for (size_t i = 0; i < tree_list_.size(); i++)
     {
         delete tree_list_[i];
@@ -341,7 +341,7 @@ bool RRTstar::check_collision(const cv::Point2d & pt1, const cv::Point2d & pt2) 
     const std::vector<cv::Point2i> pts = Math::Bresenham(pt1_grid, pt2_grid, 2);
     for (const cv::Point2i & p : pts)
     {
-        if (map_.at<uchar>(p) >= params_.map_params.OBSTACLE_THRESHOLD)
+        if (map_.at<uchar>(p) >= params_.map.OBSTACLE_THRESHOLD)
         {
             return true;
         }
@@ -355,7 +355,7 @@ std::vector<std::pair<size_t, double>> RRTstar::near_nodes_info(cv::Point2d & ne
     for (size_t i = 0; i < tree_list_.size(); i++)
     {
         const double dis = std::hypot(new_pt.x - tree_list_[i]->pos.x, new_pt.y - tree_list_[i]->pos.y);
-        if (dis < params_.sample_params.NEAR_DIS / res_ && !check_collision(new_pt, tree_list_[i]->pos))
+        if (dis < params_.sample.NEAR_DIS / res_ && !check_collision(new_pt, tree_list_[i]->pos))
         {
             ret.push_back({i, dis});
         }

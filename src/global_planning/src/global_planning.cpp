@@ -26,75 +26,75 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
     if (planner_name_ == "TSHAstar")
     {
         TSHAstar::TSHAstarParams p;
-        p.map_params.EXPANDED_K                         = nh_.param<double>("TSHAstar/map_params/EXPANDED_K", 1.3);
-        p.map_params.EXPANDED_MIN_THRESHOLD             = nh_.param<int>("TSHAstar/map_params/EXPANDED_MIN_THRESHOLD", 0);
-        p.map_params.EXPANDED_MAX_THRESHOLD             = nh_.param<int>("TSHAstar/map_params/EXPANDED_MAX_THRESHOLD", 100);
-        p.map_params.COST_THRESHOLD                     = nh_.param<int>("TSHAstar/map_params/COST_THRESHOLD", 10);
-        p.map_params.OBSTACLE_THRESHOLD                 = nh_.param<int>("TSHAstar/map_params/OBSTACLE_THRESHOLD", 100);
-        p.cost_function_params.NEIGHBOR_TYPE            = static_cast<TSHAstar::NeighborType>(
-                                                          nh_.param<int>("TSHAstar/cost_function_params/NEIGHBOR_TYPE", 1));
-        p.cost_function_params.HEURISTICS_TYPE          = static_cast<TSHAstar::HeuristicsType>(
-                                                          nh_.param<int>("TSHAstar/cost_function_params/HEURISTICS_TYPE", 2));
-        p.cost_function_params.TRAV_COST_K              = nh_.param<double>("TSHAstar/cost_function_params/TRAV_COST_K", 2.0);
-        p.cost_function_params.TURN_COST_STRAIGHT       = nh_.param<double>("TSHAstar/cost_function_params/TURN_COST_STRAIGHT", 1.0);
-        p.cost_function_params.TURN_COST_SLANT          = nh_.param<double>("TSHAstar/cost_function_params/TURN_COST_SLANT", 1.4);
-        p.cost_function_params.TURN_COST_VERTICAL       = nh_.param<double>("TSHAstar/cost_function_params/TURN_COST_VERTICAL", 2.0);
-        p.cost_function_params.TURN_COST_REVERSE_SLANT  = nh_.param<double>("TSHAstar/cost_function_params/TURN_COST_REVERSE_SLANT", 3.0);
-        p.path_simplification_params.PATH_SIMPLIFICATION_TYPE = static_cast<TSHAstar::PathSimplificationType>(
-                                                          nh_.param<int>("TSHAstar/path_simplification_params/PATH_SIMPLIFICATION_TYPE", 3));
-        p.path_simplification_params.DISTANCE_THRESHOLD = nh_.param<double>("TSHAstar/path_simplification_params/DISTANCE_THRESHOLD", 1.5);
-        p.path_simplification_params.ANGLE_THRESHOLD    = nh_.param<double>("TSHAstar/path_simplification_params/ANGLE_THRESHOLD", 0.17);
-        p.path_simplification_params.OBSTACLE_THRESHOLD = nh_.param<int>("TSHAstar/path_simplification_params/OBSTACLE_THRESHOLD", 70);
-        p.path_simplification_params.LINE_WIDTH         = nh_.param<double>("TSHAstar/path_simplification_params/LINE_WIDTH", 1.0);
-        p.path_simplification_params.MAX_INTAVAL        = nh_.param<double>("TSHAstar/path_simplification_params/MAX_INTAVAL", 8.0);
-        p.path_smooth_params.PATH_SMOOTH_TYPE           = static_cast<TSHAstar::PathSmoothType>(
-                                                          nh_.param<int>("TSHAstar/path_smooth_params/PATH_SMOOTH_TYPE", 1));
-        p.path_smooth_params.T_STEP                     = nh_.param<double>("TSHAstar/path_smooth_params/T_STEP", 0.0005);
-        p.downsampling_params.INTERVAL                  = nh_.param<double>("TSHAstar/downsampling_params/INTERVAL", 0.4);
+        p.map.EXPANDED_K                                = nh_.param<double>("TSHAstar/map/EXPANDED_K", 1.3);
+        p.map.EXPANDED_MIN_THRESHOLD                    = nh_.param<int>("TSHAstar/map/EXPANDED_MIN_THRESHOLD", 0);
+        p.map.EXPANDED_MAX_THRESHOLD                    = nh_.param<int>("TSHAstar/map/EXPANDED_MAX_THRESHOLD", 100);
+        p.map.COST_THRESHOLD                            = nh_.param<int>("TSHAstar/map/COST_THRESHOLD", 10);
+        p.map.OBSTACLE_THRESHOLD                        = nh_.param<int>("TSHAstar/map/OBSTACLE_THRESHOLD", 100);
+        p.search.cost_function.NEIGHBOR_TYPE            = static_cast<TSHAstar::NeighborType>(
+                                                          nh_.param<int>("TSHAstar/search/cost_function/NEIGHBOR_TYPE", 1));
+        p.search.cost_function.HEURISTICS_TYPE          = static_cast<TSHAstar::HeuristicsType>(
+                                                          nh_.param<int>("TSHAstar/search/cost_function/HEURISTICS_TYPE", 2));
+        p.search.cost_function.TRAV_COST_K              = nh_.param<double>("TSHAstar/search/cost_function/TRAV_COST_K", 2.0);
+        p.search.cost_function.TURN_COST_STRAIGHT       = nh_.param<double>("TSHAstar/search/cost_function/TURN_COST_STRAIGHT", 1.0);
+        p.search.cost_function.TURN_COST_SLANT          = nh_.param<double>("TSHAstar/search/cost_function/TURN_COST_SLANT", 1.4);
+        p.search.cost_function.TURN_COST_VERTICAL       = nh_.param<double>("TSHAstar/search/cost_function/TURN_COST_VERTICAL", 2.0);
+        p.search.cost_function.TURN_COST_REVERSE_SLANT  = nh_.param<double>("TSHAstar/search/cost_function/TURN_COST_REVERSE_SLANT", 3.0);
+        p.search.path_simplification.PATH_SIMPLIFICATION_TYPE = static_cast<TSHAstar::PathSimplificationType>(
+                                                          nh_.param<int>("TSHAstar/search/path_simplification/PATH_SIMPLIFICATION_TYPE", 3));
+        p.search.path_simplification.DISTANCE_THRESHOLD = nh_.param<double>("TSHAstar/search/path_simplification/DISTANCE_THRESHOLD", 1.5);
+        p.search.path_simplification.ANGLE_THRESHOLD    = nh_.param<double>("TSHAstar/search/path_simplification/ANGLE_THRESHOLD", 0.17);
+        p.search.path_simplification.OBSTACLE_THRESHOLD = nh_.param<int>("TSHAstar/search/path_simplification/OBSTACLE_THRESHOLD", 70);
+        p.search.path_simplification.LINE_WIDTH         = nh_.param<double>("TSHAstar/search/path_simplification/LINE_WIDTH", 1.0);
+        p.search.path_simplification.MAX_INTAVAL        = nh_.param<double>("TSHAstar/search/path_simplification/MAX_INTAVAL", 8.0);
+        p.search.path_smooth.PATH_SMOOTH_TYPE           = static_cast<TSHAstar::PathSmoothType>(
+                                                          nh_.param<int>("TSHAstar/search/path_smooth/PATH_SMOOTH_TYPE", 1));
+        p.search.path_smooth.T_STEP                     = nh_.param<double>("TSHAstar/search/path_smooth/T_STEP", 0.0005);
+        p.search.downsampling.INTERVAL                  = nh_.param<double>("TSHAstar/search/downsampling/INTERVAL", 0.4);
         planner_ = new TSHAstar;
         planner_->initParams(p);
     }
     else if (planner_name_ == "Astar")
     {
         Astar::AstarParams p;
-        p.map_params.OBSTACLE_THRESHOLD                 = nh_.param<int>("Astar/map_params/OBSTACLE_THRESHOLD", 50);
-        p.cost_function_params.HEURISTICS_TYPE          = static_cast<Astar::HeuristicsType>(
-                                                          nh_.param<int>("Astar/cost_function_params/HEURISTICS_TYPE", 2));
+        p.map.OBSTACLE_THRESHOLD                 = nh_.param<int>("Astar/map/OBSTACLE_THRESHOLD", 50);
+        p.cost_function.HEURISTICS_TYPE          = static_cast<Astar::HeuristicsType>(
+                                                   nh_.param<int>("Astar/cost_function/HEURISTICS_TYPE", 2));
         planner_ = new Astar;
         planner_->initParams(p);
     }
     else if (planner_name_ == "RRT")
     {
         RRT::RRTParams p;
-        p.map_params.OBSTACLE_THRESHOLD                 = nh_.param<int>("RRT/map_params/OBSTACLE_THRESHOLD", 50);
-        p.sample_params.ITERATOR_TIMES                  = nh_.param<int>("RRT/sample_params/ITERATOR_TIMES", 100000);
-        p.sample_params.GOAL_SAMPLE_RATE                = nh_.param<double>("RRT/sample_params/GOAL_SAMPLE_RATE", 0.1);
-        p.sample_params.GOAL_DIS_TOLERANCE              = nh_.param<double>("RRT/sample_params/GOAL_DIS_TOLERANCE", 2.0);
-        p.sample_params.STEP_SIZE                       = nh_.param<double>("RRT/sample_params/STEP_SIZE", 3.0);
+        p.map.OBSTACLE_THRESHOLD                 = nh_.param<int>("RRT/map/OBSTACLE_THRESHOLD", 50);
+        p.sample.ITERATOR_TIMES                  = nh_.param<int>("RRT/sample/ITERATOR_TIMES", 100000);
+        p.sample.GOAL_SAMPLE_RATE                = nh_.param<double>("RRT/sample/GOAL_SAMPLE_RATE", 0.1);
+        p.sample.GOAL_DIS_TOLERANCE              = nh_.param<double>("RRT/sample/GOAL_DIS_TOLERANCE", 2.0);
+        p.sample.STEP_SIZE                       = nh_.param<double>("RRT/sample/STEP_SIZE", 3.0);
         planner_ = new RRT;
         planner_->initParams(p);
     }
     else if (planner_name_ == "RRTstar")
     {
         RRTstar::RRTstarParams p;
-        p.map_params.OBSTACLE_THRESHOLD                 = nh_.param<int>("RRTstar/map_params/OBSTACLE_THRESHOLD", 50);
-        p.sample_params.ITERATOR_TIMES                  = nh_.param<int>("RRTstar/sample_params/ITERATOR_TIMES", 100000);
-        p.sample_params.GOAL_SAMPLE_RATE                = nh_.param<double>("RRTstar/sample_params/GOAL_SAMPLE_RATE", 0.1);
-        p.sample_params.GOAL_DIS_TOLERANCE              = nh_.param<double>("RRTstar/sample_params/GOAL_DIS_TOLERANCE", 2.0);
-        p.sample_params.STEP_SIZE                       = nh_.param<double>("RRTstar/sample_params/STEP_SIZE", 3.0);
-        p.sample_params.NEAR_DIS                        = nh_.param<double>("RRTstar/sample_params/NEAR_DIS", 10.0);
+        p.map.OBSTACLE_THRESHOLD                 = nh_.param<int>("RRTstar/map/OBSTACLE_THRESHOLD", 50);
+        p.sample.ITERATOR_TIMES                  = nh_.param<int>("RRTstar/sample/ITERATOR_TIMES", 100000);
+        p.sample.GOAL_SAMPLE_RATE                = nh_.param<double>("RRTstar/sample/GOAL_SAMPLE_RATE", 0.1);
+        p.sample.GOAL_DIS_TOLERANCE              = nh_.param<double>("RRTstar/sample/GOAL_DIS_TOLERANCE", 2.0);
+        p.sample.STEP_SIZE                       = nh_.param<double>("RRTstar/sample/STEP_SIZE", 3.0);
+        p.sample.NEAR_DIS                        = nh_.param<double>("RRTstar/sample/NEAR_DIS", 10.0);
         planner_ = new RRTstar;
         planner_->initParams(p);
     }
     else if (planner_name_ == "GA")
     {
         GA::GAParams p;
-        p.map_params.OBSTACLE_THRESHOLD                 = nh_.param<int>("GA/map_params/OBSTACLE_THRESHOLD", 50);
-        p.optimization_params.GENERATION_SIZE           = nh_.param<int>("GA/optimization_params/GENERATION_SIZE", 200);
-        p.optimization_params.POPULATION_SIZE           = nh_.param<int>("GA/optimization_params/POPULATION_SIZE", 50);
-        p.optimization_params.CHROMOSOME_SIZE           = nh_.param<int>("GA/optimization_params/CHROMOSOME_SIZE", 10);
-        p.optimization_params.CROSSOVER_RATE            = nh_.param<double>("GA/optimization_params/CROSSOVER_RATE", 0.7);
-        p.optimization_params.MUTATION_RATE             = nh_.param<double>("GA/optimization_params/MUTATION_RATE", 0.01);
+        p.map.OBSTACLE_THRESHOLD                 = nh_.param<int>("GA/map/OBSTACLE_THRESHOLD", 50);
+        p.optimization.GENERATION_SIZE           = nh_.param<int>("GA/optimization/GENERATION_SIZE", 200);
+        p.optimization.POPULATION_SIZE           = nh_.param<int>("GA/optimization/POPULATION_SIZE", 50);
+        p.optimization.CHROMOSOME_SIZE           = nh_.param<int>("GA/optimization/CHROMOSOME_SIZE", 10);
+        p.optimization.CROSSOVER_RATE            = nh_.param<double>("GA/optimization/CROSSOVER_RATE", 0.7);
+        p.optimization.MUTATION_RATE             = nh_.param<double>("GA/optimization/MUTATION_RATE", 0.01);
         planner_ = new GA;
         planner_->initParams(p);
     }

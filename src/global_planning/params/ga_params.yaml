@@ -1,8 +1,8 @@
 GA:
-  map_params:
+  map:
     OBSTACLE_THRESHOLD: 50    # 地图中栅格代价值大于等于(>=)该值的栅格，会被视为障碍物，搜索过程中将直接跳过该栅格
 
-  optimization_params:
+  optimization:
     GENERATION_SIZE: 200      # 种群迭代次数，此处指算法迭代次数
     POPULATION_SIZE: 50       # 种群数量，此处指每次迭代中将生成的待选路径的数量
     CHROMOSOME_SIZE: 10       # 染色体数目，此处指每条路径上的节点数目，不包括起点和终点

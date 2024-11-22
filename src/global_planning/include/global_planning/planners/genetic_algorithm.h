@@ -23,7 +23,7 @@ public:
             uint16_t OBSTACLE_THRESHOLD = 50;   // 地图中栅格代价值大于等于(>=)该值的栅格，会被视为障碍物，搜索过程中将直接跳过该栅格
 
             REGISTER_STRUCT(REGISTER_MEMBER(OBSTACLE_THRESHOLD));
-        } map_params;
+        } map;
 
         struct
         {
@@ -38,10 +38,10 @@ public:
                             REGISTER_MEMBER(CHROMOSOME_SIZE),
                             REGISTER_MEMBER(CROSSOVER_RATE),
                             REGISTER_MEMBER(MUTATION_RATE));
-        } optimization_params;
+        } optimization;
 
-        REGISTER_STRUCT(REGISTER_MEMBER(map_params),
-                        REGISTER_MEMBER(optimization_params));
+        REGISTER_STRUCT(REGISTER_MEMBER(map),
+                        REGISTER_MEMBER(optimization));
     };
 
     /// @brief 用于GA规划器的辅助类，实现数据记录和结果打印
@@ -56,13 +56,13 @@ public:
             double cost_time = 0;           // 搜索总耗时，单位ms
 
             REGISTER_STRUCT(REGISTER_MEMBER(cost_time));
-        } optimization_result;
+        } optimization;
 
     public:
         /// @brief 清空当前记录的所有结果信息，便于下次记录
         void resetResultInfo() override
         {
-            optimization_result.cost_time = 0;
+            optimization.cost_time = 0;
         }
 
     private:

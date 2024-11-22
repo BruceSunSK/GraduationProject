@@ -1,6 +1,6 @@
 Astar:
-  map_params:
+  map:
     OBSTACLE_THRESHOLD: 50  # 地图中栅格代价值大于等于(>=)该值的栅格，会被视为障碍物，搜索过程中将直接跳过该栅格
 
-  cost_function_params:
+  cost_function:
     HEURISTICS_TYPE: 2      # 启发值类型，0:None, 1:Manhattan, 2:Euclidean, 3:Chebyshev, 4:Octile
