@@ -23,7 +23,7 @@ public:
     /// @param bezier_points 输出的平滑后的稠密序列点
     /// @param t_step 贝塞尔平滑中t的步增长度，t∈[0, 1]，每一步生成一个输出点
     template <typename PointType>
-    static void smooth_curve(const std::vector<cv::Point_<PointType>> & control_points, std::vector<cv::Point2d> & bezier_points, double t_step = 0.01)
+    static void SmoothCurve(const std::vector<cv::Point_<PointType>> & control_points, std::vector<cv::Point2d> & bezier_points, double t_step = 0.01)
     {
         bezier_points.clear();
 
@@ -58,13 +58,13 @@ public:
     /// @param bezier_points 输出的平滑后的稠密序列点
     /// @param t_step 贝塞尔平滑中t的步增长度，t∈[0, 1]，每一步生成一个输出点
     template <typename PointType>
-    static void piecewise_smooth_curve(const std::vector<cv::Point_<PointType>> & input_points, std::vector<cv::Point2d> & bezier_points, double t_step = 0.01)
+    static void PiecewiseSmoothCurve(const std::vector<cv::Point_<PointType>> & input_points, std::vector<cv::Point2d> & bezier_points, double t_step = 0.01)
     {
         bezier_points.clear();
         const size_t size = input_points.size();
         if (size <= 4)  // 4个点以下就不分段，直接拟合。
         {
-            smooth_curve(input_points, bezier_points, t_step);
+            SmoothCurve(input_points, bezier_points, t_step);
             return;
         }
 
@@ -86,7 +86,7 @@ public:
 
             // 生成该段的三阶贝塞尔曲线
             std::vector<cv::Point2d> sub_smooth_points;
-            smooth_curve(sub_points, sub_smooth_points, t_step);
+            SmoothCurve(sub_points, sub_smooth_points, t_step);
             bezier_points.insert(bezier_points.end(), sub_smooth_points.begin(), sub_smooth_points.end());
 
             // 插入的新节点也将作为下一段贝塞尔曲线的第一个节点
@@ -97,7 +97,7 @@ public:
         // 最后一段特殊处理，可能是三阶贝塞尔，也可能是二阶贝塞尔
         sub_points.insert(sub_points.end(), input_points.begin() + part_nums * 2 - 1, input_points.end());
         std::vector<cv::Point2d> sub_smooth_points;
-        smooth_curve(sub_points, sub_smooth_points, t_step);
+        SmoothCurve(sub_points, sub_smooth_points, t_step);
         bezier_points.insert(bezier_points.end(), sub_smooth_points.begin(), sub_smooth_points.end());
     }
 

@@ -18,6 +18,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 find_package(OpenCV REQUIRED QUIET)
+find_package(Eigen3 REQUIRED QUIET)
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -122,12 +123,14 @@ include_directories(
   include
   ${catkin_INCLUDE_DIRS}  
   ${OpenCV_INCLUDE_DIRS}
+  ${EIGEN3_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
 add_library(tools               SHARED  src/tools/math.cpp)
 add_library(curve               SHARED  src/curve/bezier_curve.cpp
-                                        src/curve/bspline_curve.cpp)
+                                        src/curve/bspline_curve.cpp
+                                        src/curve/cubic_spline_curve.cpp)
 add_library(path                SHARED  src/path/simplification.cpp)
 add_library(planners            SHARED  src/planners/TSHAstar.cpp
                                         src/planners/astar.cpp

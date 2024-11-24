@@ -9,6 +9,7 @@
 
 #include "global_planning/curve/bezier_curve.h"
 #include "global_planning/curve/bspline_curve.h"
+#include "global_planning/curve/cubic_spline_curve.h"
 
 
 int main(int argc, char * argv[])
@@ -16,18 +17,15 @@ int main(int argc, char * argv[])
     ros::init(argc, argv, "test_path_smooth");
     ros::NodeHandle nh;
 
-    std::vector<cv::Point2d> input = { {0, 0}, {10, 0}, {20, 5}, { 50, 10 }, {50, 90}, {80, 95}, {90, 100}, { 100, 100 } };
+    // std::vector<cv::Point2d> input = { {0, 0}, {10, 0}, {20, 5}, { 50, 10 }, {50, 90}, {80, 95}, {90, 100}, { 100, 100 } };
+    std::vector<cv::Point2d> input = { {20, 50}, {25, 10}, {35, 5}, { 50, 10 }, {50, 90}, {65, 95}, {75, 90}, { 80, 50 } };
     std::vector<cv::Point2d> output;
     cv::Mat img = cv::Mat::zeros(101, 101, CV_8UC3);
-    for (auto && p : input)
-    {
-        img.at<cv::Vec3b>(p.y, p.x) = { 0, 0, 255 };
-    }
 
     // 1. 使用Bezier曲线平滑路径
     auto t1 = std::chrono::steady_clock::now();
-    Curve::BezierCurve::smooth_curve(input, output);
-    std::cout << "Bezier time: " << (std::chrono::steady_clock::now() - t1).count() / 1e6 << " ms" << std::endl;
+    Curve::BezierCurve::SmoothCurve(input, output, 0.005);
+    std::cout << "Bezier fit time: " << (std::chrono::steady_clock::now() - t1).count() / 1e6 << " ms" << std::endl;
     for (auto && p : output)
     {
         img.at<cv::Vec3b>(p.y + 0.5, p.x + 0.5) = { 255, 100, 100 };    // 蓝色
@@ -35,11 +33,45 @@ int main(int argc, char * argv[])
 
     // 2. 使用B样条曲线平滑路径
     auto t2 = std::chrono::steady_clock::now();
-    Curve::BSplineCurve::smooth_curve(input, output);
-    std::cout << "B-spline time: " << (std::chrono::steady_clock::now() - t2).count() / 1e6 << " ms" << std::endl;
+    Curve::BSplineCurve::SmoothCurve(input, output, 4, 0.0025);
+    std::cout << "B-spline fit time: " << (std::chrono::steady_clock::now() - t2).count() / 1e6 << " ms" << std::endl;
     for (auto && p : output)
     {
         img.at<cv::Vec3b>(p.y + 0.5, p.x + 0.5) = { 100, 200, 255 };    // 黄色
+    }
+
+    // 3. 使用三次样条曲线插值路径
+    auto t3 = std::chrono::steady_clock::now();
+    std::vector<cv::Point2d> X_S;
+    std::vector<cv::Point2d> Y_S;
+    double s = 0.0;
+    X_S.emplace_back(s, input.front().x);
+    Y_S.emplace_back(s, input.front().y);
+    for (size_t i = 1; i < input.size(); i++)
+    {
+        s += cv::norm(input[i] - input[i - 1]);
+        X_S.emplace_back(s, input[i].x);
+        Y_S.emplace_back(s, input[i].y);
+    }
+    Curve::CubicSplineCurve X_S_curve(std::move(X_S), Curve::CubicSplineCurve::BoundaryCondition::Second_Derive, 0.0,
+                                                      Curve::CubicSplineCurve::BoundaryCondition::Second_Derive, 0.0);
+    Curve::CubicSplineCurve Y_S_curve(std::move(Y_S), Curve::CubicSplineCurve::BoundaryCondition::Second_Derive, 0.0,
+                                                      Curve::CubicSplineCurve::BoundaryCondition::Second_Derive, 0.0);
+    output.clear();
+    for (double s_temp = -20; s_temp < s + 20 ; s_temp += 0.5)
+    {
+        output.emplace_back(X_S_curve(s_temp), Y_S_curve(s_temp));
+    }
+    std::cout << "Cubic Spline interpolate time: " << (std::chrono::steady_clock::now() - t3).count() / 1e6 << " ms" << std::endl;
+    for (auto && p : output)
+    {
+        img.at<cv::Vec3b>(p.y + 0.5, p.x + 0.5) = { 147, 20, 255 };     // 粉色
+    }
+
+    // 4. 绘制原始节点
+    for (auto && p : input)
+    {
+        img.at<cv::Vec3b>(p.y, p.x) = { 255, 255, 255 };
     }
 
     cv::namedWindow("Smooth Curve", cv::WindowFlags::WINDOW_NORMAL | cv::WindowFlags::WINDOW_KEEPRATIO);

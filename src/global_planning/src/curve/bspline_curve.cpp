@@ -6,7 +6,7 @@ namespace Curve
 std::vector<double> BSplineCurve::knots_ = {};
 std::vector<std::vector<double>> BSplineCurve::b_matrix_ = {};
 
-void BSplineCurve::generate_knots(const size_t k, const size_t n, const double min, const double max)
+void BSplineCurve::GenerateKnots(const size_t k, const size_t n, const double min, const double max)
 {
     knots_.clear();
     knots_.resize(n + k + 1);
@@ -19,7 +19,7 @@ void BSplineCurve::generate_knots(const size_t k, const size_t n, const double m
     std::fill(knots_.rbegin(), knots_.rbegin() + k, max);
 }
 
-void BSplineCurve::bik_u(const double u, const size_t k, const size_t n)
+void BSplineCurve::Bik_u(const double u, const size_t k, const size_t n)
 {
     b_matrix_.clear();
     const size_t k_1 = k - 1;

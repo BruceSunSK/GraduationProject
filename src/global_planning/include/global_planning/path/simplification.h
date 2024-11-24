@@ -25,7 +25,7 @@ public:
     /// @param out_path 抽稀后的路径
     /// @param threshold 垂距限值法中的垂距阈值，超过该阈值的点将保留，否则将剔除。
     template <typename PointType>
-    static void distance_threshold(const std::vector<cv::Point_<PointType>> & in_path, std::vector<cv::Point_<PointType>> & out_path, double threshold = 1.0)
+    static void DistanceThreshold(const std::vector<cv::Point_<PointType>> & in_path, std::vector<cv::Point_<PointType>> & out_path, double threshold = 1.0)
     {
         out_path.clear();
         const size_t n = in_path.size();
@@ -39,7 +39,7 @@ public:
         out_path.push_back(in_path.front());
         for (size_t l = 0, i = 1, r = 2; r < n; i++, r++)
         {
-            const double dis = point_to_line_distance(in_path[i], in_path[l], in_path[r]);
+            const double dis = PointToLineDistance(in_path[i], in_path[l], in_path[r]);
             if (dis > threshold)
             {
                 out_path.push_back(in_path[i]);
@@ -55,7 +55,7 @@ public:
     /// @param out_path 抽稀后的路径
     /// @param threshold 角度限值法中的光栏开口尺寸，超过该光栏的点将保留，否则将剔除
     template <typename PointType>
-    static void angle_threshold(const std::vector<cv::Point_<PointType>> & in_path, std::vector<cv::Point_<PointType>> & out_path, double threshold = 1.0)
+    static void AngleThreshold(const std::vector<cv::Point_<PointType>> & in_path, std::vector<cv::Point_<PointType>> & out_path, double threshold = 1.0)
     {
         using Point = cv::Point_<PointType>;
 
@@ -73,21 +73,21 @@ public:
         // 计算初始光栏边界
         const Point * p1 = &in_path[0];
         const Point * p2 = &in_path[1];
-        double al = distance_to_line_angle(*p1, *p2, threshold / 2);
+        double al = DistanceToLineAngle(*p1, *p2, threshold / 2);
         double angle_limit[2] = { -al, al };
         for (size_t r = 2; r < n; r++)
         {
             const Point * p3 = &in_path[r];
 
             // 计算当前角度
-            const double angle = point_to_line_angle(*p3, *p1, *p2);
+            const double angle = PointToLineAngle(*p3, *p1, *p2);
             // 判断是否在光栏内部
             if (angle > angle_limit[0] && angle < angle_limit[1])
             {
                 p2 = p3;
 
                 // 重新计算两个边界
-                al = distance_to_line_angle(*p1, *p2, threshold / 2);
+                al = DistanceToLineAngle(*p1, *p2, threshold / 2);
                 if (angle - al > angle_limit[0])    // 下边界未超出光栏
                 {
                     angle_limit[0] = -al;
@@ -112,7 +112,7 @@ public:
 
                 // 保留节点并更新光栅边界
                 out_path.push_back(*p1);
-                al = distance_to_line_angle(*p1, *p2, threshold / 2);
+                al = DistanceToLineAngle(*p1, *p2, threshold / 2);
                 angle_limit[0] = -al;
                 angle_limit[1] = al;
             }
@@ -127,7 +127,7 @@ public:
     /// @param out_path 抽稀后的路径
     /// @param threshold Douglas-Peucker法中的阈值。递归过程中超过阈值的点将保留，否则将剔除
     template <typename PointType>
-    static void Douglas_Peucker(const std::vector<cv::Point_<PointType>> & in_path, std::vector<cv::Point_<PointType>> & out_path, double threshold = 1.0)
+    static void DouglasPeucker(const std::vector<cv::Point_<PointType>> & in_path, std::vector<cv::Point_<PointType>> & out_path, double threshold = 1.0)
     {
         using Point = cv::Point_<PointType>;
 
@@ -286,7 +286,7 @@ private:
     /// @param p2 直线的第二个点
     /// @return 点到直线的距离
     template <typename PointType>
-    static double point_to_line_distance(const cv::Point_<PointType> & p, const cv::Point_<PointType> & p1, const cv::Point_<PointType> & p2)
+    static double PointToLineDistance(const cv::Point_<PointType> & p, const cv::Point_<PointType> & p1, const cv::Point_<PointType> & p2)
     {
         cv::Point_<PointType> v1 = p2 - p1;
         cv::Point_<PointType> v2 = p - p1;
@@ -300,7 +300,7 @@ private:
     /// @param p2 直线的第二个点
     /// @return 点到直线的角度
     template <typename PointType>
-    static double point_to_line_angle(const cv::Point_<PointType> & p, const cv::Point_<PointType> & p1, const cv::Point_<PointType> & p2)
+    static double PointToLineAngle(const cv::Point_<PointType> & p, const cv::Point_<PointType> & p1, const cv::Point_<PointType> & p2)
     {
         cv::Point_<PointType> v1 = p2 - p1;
         cv::Point_<PointType> v2 = p - p1;
@@ -313,7 +313,7 @@ private:
     /// @param p2 直线的第二个点
     /// @return pp1和p1p2夹角的大小
     template <typename PointType>
-    static double distance_to_line_angle(const cv::Point_<PointType> & p1, const cv::Point_<PointType> & p2, const double d)
+    static double DistanceToLineAngle(const cv::Point_<PointType> & p1, const cv::Point_<PointType> & p2, const double d)
     {
         return std::abs(std::atan2(d, std::hypot<double>(p2.x - p1.x, p2.y - p1.y)));
     }

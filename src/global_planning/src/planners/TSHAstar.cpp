@@ -696,21 +696,21 @@ void TSHAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, 
     //         √ 2. 但保留的点都很具有特征点代表性
     //         √ 3. 感觉在徐工地图上超级棒，甚至感觉不用平滑，用原始的折线也不错。
     case PathSimplificationType::DouglasPeucker:
-        Path::Simplification::Douglas_Peucker(raw_path, reduced_path, params_.search.path_simplification.DISTANCE_THRESHOLD / res_);
+        Path::Simplification::DouglasPeucker(raw_path, reduced_path, params_.search.path_simplification.DISTANCE_THRESHOLD / res_);
         break;
 
     // 2.使用垂距限值法去除冗余点
     // 测试结果：√ 1. 能够较为有效的保留对称的形状；
     //         × 2. 但是只去除一轮的话，（由于节点特别密集）会存在连续的2 / 3个点都存在，还需要二次去除
     case PathSimplificationType::DistanceThreshold:
-        Path::Simplification::distance_threshold(raw_path, reduced_path, params_.search.path_simplification.DISTANCE_THRESHOLD / res_);
+        Path::Simplification::DistanceThreshold(raw_path, reduced_path, params_.search.path_simplification.DISTANCE_THRESHOLD / res_);
         break;
 
     // 3.使用角度限值法去除冗余点
     // 测试结果：× 1. 感觉容易破坏对称结构。本来对称的节点去除冗余点后有较为明显的差异，导致效果变差。
     //         √ 2. 在长直线路径下，能够有效去除多余歪点，只剩起点终点。
     case PathSimplificationType::AngleThreshold:
-        Path::Simplification::angle_threshold(raw_path, reduced_path, params_.search.path_simplification.ANGLE_THRESHOLD);
+        Path::Simplification::AngleThreshold(raw_path, reduced_path, params_.search.path_simplification.ANGLE_THRESHOLD);
         break;
 
     // 4.使用改进的Douglas-Peucker法去除冗余点
@@ -754,7 +754,7 @@ bool TSHAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector
     //         2. 曲线会更倾向于中间，而非控制点。在两个控制点间隔较远时会更加明显，效果更差。
     //         3. 速度比B样条慢。毕竟B样条我狠狠优化过，贝塞尔貌似只能搞dp计算组合数打表。
     case PathSmoothType::Bezier:
-        Curve::BezierCurve::piecewise_smooth_curve(raw_path, smooth_path, params_.search.path_smooth.T_STEP);
+        Curve::BezierCurve::PiecewiseSmoothCurve(raw_path, smooth_path, params_.search.path_smooth.T_STEP);
         break;
 
     // 使用B样条曲线进行平滑
@@ -762,7 +762,7 @@ bool TSHAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector
     //         1. 效果很好，曲线平滑，作用在全局，控制点均匀分布。
     //         2. 速度快。
     case PathSmoothType::BSpline:
-        Curve::BSplineCurve::smooth_curve(raw_path, smooth_path, 4, params_.search.path_smooth.T_STEP);
+        Curve::BSplineCurve::SmoothCurve(raw_path, smooth_path, 4, params_.search.path_smooth.T_STEP);
         break;
 
     default:

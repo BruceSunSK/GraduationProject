@@ -12,7 +12,7 @@ namespace Math
 /// @param angle 弧度值角度
 /// @return 规范后的弧度角度
 template<typename T>
-T normalize_angle(T angle)
+T NormalizeAngle(T angle)
 {
     static_assert(std::is_floating_point<T>::value);
     while (angle > M_PI)
