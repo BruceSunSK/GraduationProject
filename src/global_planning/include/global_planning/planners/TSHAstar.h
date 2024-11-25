@@ -8,12 +8,16 @@
 
 #include "global_planning/planners/global_planner_interface.h"
 #include "global_planning/tools/print_struct_and_enum.h"
+#include "global_planning/tools/math.h"
 #include "global_planning/curve/bezier_curve.h"
 #include "global_planning/curve/bspline_curve.h"
+#include "global_planning/curve/cubic_spline_curve.h"
 #include "global_planning/path/simplification.h"
+#include "global_planning/path/reference_path.h"
 
 
 /// @brief Two-Stage Hybird Astar (TSHAstar)
+/// @details 总共可以分为预处理、搜索、采样三个步骤
 /// 【预处理】：主要是实现代价地图离散化的效果。此处本身使用的代价地图就是离散的，但是还是进行一步预处理，实现膨胀、距离地图的生成。
 /// [1] 实现栅格代价值离散化，0~100和255。代价值低处更易通过；OBSTACLE值(默认为100)以上为障碍物，彻底不可通过；255为未探索区域（与建图相关），直接当做障碍物处理。
 ///     具体操作为：使用预处理对原始离散地图进行膨胀。只对代价值处于[min, max]区间的栅格进行按照距离反比进行膨胀，且乘以系数K，目前为1.3
@@ -149,7 +153,7 @@ public:
                                 REGISTER_MEMBER(TURN_COST_SLANT),
                                 REGISTER_MEMBER(TURN_COST_VERTICAL),
                                 REGISTER_MEMBER(TURN_COST_REVERSE_SLANT));
-            } cost_function;
+            } path_search;
 
             // 冗余点去除相关参数
             struct
@@ -179,18 +183,9 @@ public:
                                 REGISTER_MEMBER(T_STEP));
             } path_smooth;
 
-            // 降采样相关参数
-            struct
-            {
-                double INTERVAL = 0.4;      // 根据res_转化到实际地图上后的尺寸进行判断，降采样后的路径上两点间距至少大于INTERVAL
-
-                REGISTER_STRUCT(REGISTER_MEMBER(INTERVAL));
-            } downsampling;
-
-            REGISTER_STRUCT(REGISTER_MEMBER(cost_function),
+            REGISTER_STRUCT(REGISTER_MEMBER(path_search),
                             REGISTER_MEMBER(path_simplification),
-                            REGISTER_MEMBER(path_smooth),
-                            REGISTER_MEMBER(downsampling));
+                            REGISTER_MEMBER(path_smooth));
         } search;
 
         // 采样过程相关参数，对应第三大步。
@@ -225,7 +220,7 @@ public:
                                 REGISTER_MEMBER(raw_node_counter),
                                 REGISTER_MEMBER(raw_path_length),
                                 REGISTER_MEMBER(cost_time))
-            } search;
+            } path_search;
 
             struct
             {
@@ -243,35 +238,27 @@ public:
                 size_t smooth_path_length = 0;          // 曲线平滑后的路径长度
                 double cost_time = 0;                   // 曲线平滑后搜索总耗时，单位ms
 
+                std::vector<cv::Point2d> smooth_path;   // 曲线平滑后的路径结果
+
                 REGISTER_STRUCT(REGISTER_MEMBER(smooth_path_length),
                                 REGISTER_MEMBER(cost_time))
             } path_smooth;
 
-            struct
-            {
-                size_t path_length = 0;                 // 降采样后的路径长度
-                double cost_time = 0;                   // 降采样后搜索总耗时，单位ms
-
-                REGISTER_STRUCT(REGISTER_MEMBER(path_length),
-                                REGISTER_MEMBER(cost_time))
-            } downsampling;
-
-            REGISTER_STRUCT(REGISTER_MEMBER(search),
+            REGISTER_STRUCT(REGISTER_MEMBER(path_search),
                             REGISTER_MEMBER(path_simplification),
-                            REGISTER_MEMBER(path_smooth),
-                            REGISTER_MEMBER(downsampling))
+                            REGISTER_MEMBER(path_smooth));
         } search;
 
     public:
         /// @brief 清空当前记录的所有结果信息，便于下次记录
         void resetResultInfo() override
         {
-            search.search.raw_node_nums = 0;
-            search.search.raw_node_counter = 0;
-            search.search.raw_path_length = 0;
-            search.search.cost_time = 0.0;
-            search.search.nodes.clear();
-            search.search.raw_path.clear();
+            search.path_search.raw_node_nums = 0;
+            search.path_search.raw_node_counter = 0;
+            search.path_search.raw_path_length = 0;
+            search.path_search.cost_time = 0.0;
+            search.path_search.nodes.clear();
+            search.path_search.raw_path.clear();
             
             search.path_simplification.reduced_path_length = 0;
             search.path_simplification.cost_time = 0.0;
@@ -279,9 +266,6 @@ public:
 
             search.path_smooth.smooth_path_length = 0;
             search.path_smooth.cost_time = 0.0;
-
-            search.downsampling.path_length = 0;
-            search.downsampling.cost_time = 0.0;
         }
 
     private:
@@ -417,6 +401,8 @@ private:
     Node * start_node_ = nullptr;                   // 起点节点
     Node * end_node_ = nullptr;                     // 终点节点
 
+    // 采样过程
+
     
     /// @brief 根据配置参数，确定当前当前节点的相邻节点在Node::neightbor_offset_table中的索引值列表
     /// @param n 当前节点
@@ -434,14 +420,16 @@ private:
     /// @brief 计算p点到终点的启发权重。【效果很差，暂不使用】
     /// @param p 待计算的点，计算该点到终点的启发权重
     void getW(Node * const n) const;
+    /// @brief 将当前地图中的参数全部初始化。一般在完成一次规划的所有步骤后进行。
+    void resetSearchMap();
     /// @brief 通过代价地图计算得到的原始路径，未经过去除冗余点、平滑操作
     /// @param raw_nodes 输出规划的原始结果
     /// @return 规划是否成功。如果起点和终点不可达则规划失败
     bool generateRawNodes(std::vector<Node *> & raw_nodes);
-    /// @brief 将节点Node数据类型转换成便于后续计算的Point数据类型
+    /// @brief 将节点Node数据类型转换成便于后续计算的Point数据类型，并将当前地图中的参数全部初始化
     /// @param nodes 输入的待转换节点
     /// @param path 输出的路径
-    void nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Point2i> & path) const;
+    void nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Point2i> & path);
     /// @brief 根据路径节点之间的关系，去除中间的冗余点，只保留关键点，如：起始点、转向点
     /// @param raw_path 输入的待去除冗余点的路径
     /// @param reduced_path 输出的去除冗余点后的路径
@@ -452,12 +440,11 @@ private:
     /// @param control_nums_per_subpath 每个子路径的点的数目
     /// @return 平滑操作是否成功。若缺少地图信息或输入路径为空，返回false
     bool smoothPath(const std::vector<cv::Point2i> & reduced_path, std::vector<cv::Point2d> & smooth_path);
-    /// @brief 对路径进行降采样。在进行完贝塞尔曲线平滑后进行，避免规划出的路径过于稠密
-    /// @param path 待降采样的路径
-    /// @param dis 两点间最小间距
-    void downsampling(std::vector<cv::Point2d> & path);
-    /// @brief 将当前地图中的参数全部初始化。一般在完成一次规划的所有步骤后进行。
-    void resetSearchMap();
+    /// @brief 将平滑后的路径利用三次样条曲线均匀降采样，并使用数据优化的方法进一步平滑，得到全局参考路径
+    /// @param smooth_path 平滑路径
+    /// @param reference_path 经过优化平滑的参考线路径
+    /// @return 优化是否成功
+    bool optimizePath(const std::vector<cv::Point2d> & smooth_path, Path::ReferencePath::Ptr & reference_path);
 };
 
 using NeighborType = TSHAstar::NeighborType;

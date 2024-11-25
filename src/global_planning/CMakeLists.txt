@@ -131,7 +131,8 @@ add_library(tools               SHARED  src/tools/math.cpp)
 add_library(curve               SHARED  src/curve/bezier_curve.cpp
                                         src/curve/bspline_curve.cpp
                                         src/curve/cubic_spline_curve.cpp)
-add_library(path                SHARED  src/path/simplification.cpp)
+add_library(path                SHARED  src/path/reference_path.cpp
+                                        src/path/simplification.cpp)
 add_library(planners            SHARED  src/planners/TSHAstar.cpp
                                         src/planners/astar.cpp
                                         src/planners/rrt.cpp

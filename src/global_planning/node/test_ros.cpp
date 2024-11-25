@@ -6,6 +6,9 @@
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <visualization_msgs/MarkerArray.h>
 
+#include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
+
 #include "global_planning/planners/TSHAstar.h"
 #include "global_planning/planners/astar.h"
 #include "global_planning/planners/rrt.h"
@@ -24,7 +27,284 @@ double ori_y = 0.0;
 bool start_point_flag = false;
 bool end_point_flag = false;
 bool map_flag = false;
-void pub_path();
+
+
+void load_map(const std::string & map_path)
+{
+    cv::Mat map = cv::imread(map_path, cv::IMREAD_GRAYSCALE);
+
+    int rows = map.rows;
+    int cols = map.cols;
+    res = 0.4;
+    ori_x = 0.0;
+    ori_y = 0.0;
+    planner->setMapInfo(res, ori_x, ori_y);
+
+    map_flag = planner->setMap(map);
+
+    if (map_flag)
+    {
+        cv::Mat processed_map;
+        planner->getProcessedMap(processed_map);
+
+        nav_msgs::OccupancyGrid msg;
+        msg.header.frame_id = "/map";
+        msg.header.stamp = ros::Time::now();
+        msg.info.height = rows;
+        msg.info.width = cols;
+        msg.info.origin.position.x = ori_x;
+        msg.info.origin.position.y = ori_y;
+        msg.info.resolution = res;
+        msg.data.resize(rows * cols);
+        for (size_t i = 0; i < rows; i++)
+        {
+            for (size_t j = 0; j < cols; j++)
+            {
+                msg.data[i * cols + j] = processed_map.at<uchar>(i, j);
+            }
+        }
+        processed_map_pub.publish(msg);
+    }
+}
+
+void pub_path()
+{
+    std::vector<cv::Point2d> path;
+    std::vector<std::vector<cv::Point2d>> auxiliary_info;
+    if (planner->getPath(path, auxiliary_info) == false)
+    {
+        return;
+    }
+
+    // 规划路径信息
+    nav_msgs::Path path_msg;
+    path_msg.header.frame_id = "map";
+    path_msg.header.stamp = ros::Time::now();
+    for (cv::Point2d & p : path)
+    {
+        geometry_msgs::PoseStamped m;
+        m.header = path_msg.header;
+        m.pose.position.x = p.x;
+        m.pose.position.y = p.y;
+        m.pose.position.z = 10;
+        path_msg.poses.push_back(m);
+    }
+
+
+    // 辅助信息
+    visualization_msgs::MarkerArray marker_array;
+    visualization_msgs::Marker clean_marker;
+    clean_marker.header = path_msg.header;
+    clean_marker.action = visualization_msgs::Marker::DELETEALL;
+    marker_array.markers.push_back(std::move(clean_marker));
+    if (planner_name == "TSHAstar")
+    {
+        // 用于显示
+        visualization_msgs::Marker line_marker;
+        line_marker.header = path_msg.header;
+        line_marker.type = visualization_msgs::Marker::LINE_STRIP;
+        line_marker.action = visualization_msgs::Marker::ADD;
+        line_marker.pose.orientation.x = 0.0;
+        line_marker.pose.orientation.y = 0.0;
+        line_marker.pose.orientation.z = 0.0;
+        line_marker.pose.orientation.w = 1.0;
+        visualization_msgs::Marker points_marker;
+        points_marker.header = path_msg.header;
+        points_marker.type = visualization_msgs::Marker::CUBE_LIST;
+        points_marker.action = visualization_msgs::Marker::ADD;
+        points_marker.pose.orientation.x = 0.0;
+        points_marker.pose.orientation.y = 0.0;
+        points_marker.pose.orientation.z = 0.0;
+        points_marker.pose.orientation.w = 1.0;
+
+
+        // 0. 规划原始节点
+        points_marker.ns = "search_raw_nodes";
+        points_marker.id = 0;
+        points_marker.scale.x = 0.35;
+        points_marker.scale.y = 0.35;
+        points_marker.scale.z = 0.35;
+        points_marker.color.a = 0.9;
+        points_marker.color.r = 0.0 / 255.0;
+        points_marker.color.g = 0.0 / 255.0;
+        points_marker.color.b = 255.0 / 255.0;
+        points_marker.points.clear();
+        for (size_t i = 0; i < auxiliary_info[0].size(); i++)
+        {
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[0][i].x;
+            p.y = auxiliary_info[0][i].y;
+            p.z = 1;
+            points_marker.points.push_back(std::move(p));
+        }
+        marker_array.markers.push_back(points_marker);
+
+
+        // 1. 规划扩展节点
+        points_marker.ns = "search_expanded_nodes";
+        points_marker.id = 1;
+        points_marker.scale.x = 0.2;
+        points_marker.scale.y = 0.2;
+        points_marker.scale.z = 0.2;
+        points_marker.color.a = 1.0;
+        points_marker.color.r = 65.0 / 255.0;
+        points_marker.color.g = 105.0 / 255.0;
+        points_marker.color.b = 255.0 / 255.0;
+        points_marker.points.clear();
+        for (size_t i = 0; i < auxiliary_info[1].size(); i++)
+        {
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[1][i].x;
+            p.y = auxiliary_info[1][i].y;
+            p.z = 0;
+            points_marker.points.push_back(std::move(p));
+        }
+        marker_array.markers.push_back(points_marker);
+
+
+        // 2. 去除冗余点后的关键节点
+        points_marker.ns = "search_key_nodes";
+        points_marker.id = 2;
+        points_marker.scale.x = 0.7;
+        points_marker.scale.y = 0.7;
+        points_marker.scale.z = 0.7;
+        points_marker.color.a = 1.0;
+        points_marker.color.r = 255.0 / 255.0;
+        points_marker.color.g = 215.0 / 255.0;
+        points_marker.color.b = 0.0 / 255.0;
+        points_marker.points.clear();
+        for (size_t i = 0; i < auxiliary_info[2].size(); i++)
+        {
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[2][i].x;
+            p.y = auxiliary_info[2][i].y;
+            p.z = 2;
+            points_marker.points.push_back(std::move(p));
+        }
+        marker_array.markers.push_back(points_marker);
+
+
+        // 3. 进行曲线平滑后的结果
+        line_marker.ns = "search_bspline_smooth_path";
+        line_marker.id = 3;
+        line_marker.scale.x = 0.5;
+        line_marker.scale.y = 0.5;
+        line_marker.scale.z = 0.5;
+        line_marker.color.a = 1.0;
+        line_marker.color.r = 255.0 / 255.0;
+        line_marker.color.g = 228.0 / 255.0;
+        line_marker.color.b = 196.0 / 255.0;
+        line_marker.points.clear();
+        for (size_t i = 0; i < auxiliary_info[3].size(); i++)
+        {
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[3][i].x;
+            p.y = auxiliary_info[3][i].y;
+            p.z = 3;
+            line_marker.points.push_back(std::move(p));
+        }
+        marker_array.markers.push_back(line_marker);
+    }
+    else if (planner_name == "Astar")
+    {
+        // 用于显示
+        visualization_msgs::Marker points_marker;
+        points_marker.header = path_msg.header;
+        points_marker.type = visualization_msgs::Marker::CUBE_LIST;
+        points_marker.action = visualization_msgs::Marker::ADD;
+        points_marker.pose.orientation.x = 0.0;
+        points_marker.pose.orientation.y = 0.0;
+        points_marker.pose.orientation.z = 0.0;
+        points_marker.pose.orientation.w = 1.0;
+
+
+        // 0. 规划扩展节点
+        points_marker.ns = "expanded_nodes";
+        points_marker.id = 0;
+        points_marker.scale.x = 0.2;
+        points_marker.scale.y = 0.2;
+        points_marker.scale.z = 0.2;
+        points_marker.color.a = 0.7;
+        points_marker.color.r = 65.0 / 255.0;
+        points_marker.color.g = 105.0 / 255.0;
+        points_marker.color.b = 255.0 / 255.0;
+        for (size_t i = 0; i < auxiliary_info[0].size(); i++)
+        {
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[0][i].x;
+            p.y = auxiliary_info[0][i].y;
+            p.z = 0;
+            points_marker.points.push_back(std::move(p));
+        }
+        marker_array.markers.push_back(points_marker);
+    }
+    else if (planner_name == "RRT" || planner_name == "RRTstar")
+    {
+        // 用于显示
+        visualization_msgs::Marker lines_marker;
+        lines_marker.header = path_msg.header;
+        lines_marker.type = visualization_msgs::Marker::LINE_LIST;
+        lines_marker.action = visualization_msgs::Marker::ADD;
+        lines_marker.pose.orientation.x = 0.0;
+        lines_marker.pose.orientation.y = 0.0;
+        lines_marker.pose.orientation.z = 0.0;
+        lines_marker.pose.orientation.w = 1.0;
+        visualization_msgs::Marker points_marker;
+        points_marker.header = path_msg.header;
+        points_marker.type = visualization_msgs::Marker::CUBE_LIST;
+        points_marker.action = visualization_msgs::Marker::ADD;
+        points_marker.pose.orientation.x = 0.0;
+        points_marker.pose.orientation.y = 0.0;
+        points_marker.pose.orientation.z = 0.0;
+        points_marker.pose.orientation.w = 1.0;
+
+
+        // 0. rrt树上所有节点
+        lines_marker.ns = "tree_lines";
+        lines_marker.id = 0;
+        lines_marker.scale.x = 0.2;
+        lines_marker.scale.y = 0.2;
+        lines_marker.scale.z = 0.2;
+        lines_marker.color.a = 0.7;
+        lines_marker.color.r = 255.0 / 255.0;
+        lines_marker.color.g = 215.0 / 255.0;
+        lines_marker.color.b = 0.0 / 255.0;
+
+        points_marker.ns = "tree_nodes";
+        points_marker.id = 1;
+        points_marker.scale.x = 0.4;
+        points_marker.scale.y = 0.4;
+        points_marker.scale.z = 0.4;
+        points_marker.color.a = 1.0;
+        points_marker.color.r = 139.0 / 255.0;
+        points_marker.color.g = 105.0 / 255.0;
+        points_marker.color.b = 20.0 / 255.0;
+        for (size_t i = 0; i < auxiliary_info[0].size(); i++)
+        {
+            geometry_msgs::Point p1;
+            p1.x = auxiliary_info[0][i].x;
+            p1.y = auxiliary_info[0][i].y;
+            p1.z = 0;
+            points_marker.points.push_back(p1);
+            p1.z = 5;
+            lines_marker.points.push_back(std::move(p1));
+            geometry_msgs::Point p2;
+            p2.x = auxiliary_info[1][i].x;
+            p2.y = auxiliary_info[1][i].y;
+            p2.z = 0;
+            lines_marker.points.push_back(std::move(p2));
+        }
+        marker_array.markers.push_back(lines_marker);
+        marker_array.markers.push_back(points_marker);
+    }
+    else if (planner_name == "GA")
+    {
+    }
+
+    path_pub.publish(path_msg);
+    auxiliary_pub.publish(marker_array);
+    planner->showAllInfo(true, ros::package::getPath("global_planning") + "/result/test_result/");
+}
 
 void start_point_callback(const geometry_msgs::PoseWithCovarianceStamped & msg)
 {
@@ -63,6 +343,8 @@ void map_callback(const nav_msgs::OccupancyGrid & msg)
             map.at<uchar>(i, j) = msg.data[i * cols + j];
         }
     }
+    std::string file_path = ros::package::getPath("global_planning") + "/map/XG_map.png";
+    cv::imwrite(file_path, map);
     map_flag = planner->setMap(map);
 
     if (map_flag)
@@ -86,217 +368,8 @@ void map_callback(const nav_msgs::OccupancyGrid & msg)
     }
 }
 
-void pub_path()
-{
-    std::vector<cv::Point2d> path;
-    std::vector<std::vector<cv::Point2d>> auxiliary_info;
-    if (planner->getPath(path, auxiliary_info) == false)
-    {
-        return;
-    }
 
-    // 规划路径信息
-    nav_msgs::Path path_msg;
-    path_msg.header.frame_id = "map";
-    path_msg.header.stamp = ros::Time::now();
-    for (cv::Point2d & p : path)
-    {
-        geometry_msgs::PoseStamped m;
-        m.header = path_msg.header;
-        m.pose.position.x = p.x;
-        m.pose.position.y = p.y;
-        m.pose.position.z = 10;
-        path_msg.poses.push_back(m);
-    }
-
-    
-    // 辅助信息
-    visualization_msgs::MarkerArray marker_array;
-    visualization_msgs::Marker clean_marker;
-    clean_marker.header = path_msg.header;
-    clean_marker.action = visualization_msgs::Marker::DELETEALL;
-    marker_array.markers.push_back(std::move(clean_marker));
-    if (planner_name == "TSHAstar")
-    {
-        // 用于显示
-        visualization_msgs::Marker marker;
-        marker.header = path_msg.header;
-        marker.type = visualization_msgs::Marker::CUBE_LIST;
-        marker.action = visualization_msgs::Marker::ADD;
-        marker.pose.orientation.x = 0.0;
-        marker.pose.orientation.y = 0.0;
-        marker.pose.orientation.z = 0.0;
-        marker.pose.orientation.w = 1.0;
-
-        
-        // 0. 规划原始节点
-        marker.ns = "raw_nodes";
-        marker.id = 0;
-        marker.scale.x = 0.35;
-        marker.scale.y = 0.35;
-        marker.scale.z = 0.35;
-        marker.color.a = 0.9;
-        marker.color.r = 0.0 / 255.0;
-        marker.color.g = 0.0 / 255.0;
-        marker.color.b = 255.0 / 255.0;
-        marker.points.clear();
-        for (size_t i = 0; i < auxiliary_info[0].size(); i++)
-        {
-            geometry_msgs::Point p;
-            p.x = auxiliary_info[0][i].x;
-            p.y = auxiliary_info[0][i].y;
-            p.z = 1;
-            marker.points.push_back(std::move(p));
-        }
-        marker_array.markers.push_back(marker);
-
-        
-        // 1. 规划扩展节点
-        marker.ns = "expanded_nodes";
-        marker.id = 1;
-        marker.scale.x = 0.2;
-        marker.scale.y = 0.2;
-        marker.scale.z = 0.2;
-        marker.color.a = 1.0;
-        marker.color.r = 65.0 / 255.0;
-        marker.color.g = 105.0 / 255.0;
-        marker.color.b = 255.0 / 255.0;
-        marker.points.clear();
-        for (size_t i = 0; i < auxiliary_info[1].size(); i++)
-        {
-            geometry_msgs::Point p;
-            p.x = auxiliary_info[1][i].x;
-            p.y = auxiliary_info[1][i].y;
-            p.z = 0;
-            marker.points.push_back(std::move(p));
-        }
-        marker_array.markers.push_back(marker);
-
-        
-        // 2. 去除冗余点后的关键节点
-        marker.ns = "key_nodes";
-        marker.id = 2;
-        marker.scale.x = 0.7;
-        marker.scale.y = 0.7;
-        marker.scale.z = 0.7;
-        marker.color.a = 1.0;
-        marker.color.r = 255.0 / 255.0;
-        marker.color.g = 215.0 / 255.0;
-        marker.color.b = 0.0 / 255.0;
-        marker.points.clear();
-        for (size_t i = 0; i < auxiliary_info[2].size(); i++)
-        {
-            geometry_msgs::Point p;
-            p.x = auxiliary_info[2][i].x;
-            p.y = auxiliary_info[2][i].y;
-            p.z = 2;
-            marker.points.push_back(std::move(p));
-        }
-        marker_array.markers.push_back(marker);
-    }
-    else if (planner_name == "Astar")
-    {
-        // 用于显示
-        visualization_msgs::Marker marker;
-        marker.header = path_msg.header;
-        marker.type = visualization_msgs::Marker::CUBE_LIST;
-        marker.action = visualization_msgs::Marker::ADD;
-        marker.pose.orientation.x = 0.0;
-        marker.pose.orientation.y = 0.0;
-        marker.pose.orientation.z = 0.0;
-        marker.pose.orientation.w = 1.0;
-
-        
-        // 0. 规划扩展节点
-        marker.ns = "expanded_nodes";
-        marker.id = 0;
-        marker.scale.x = 0.2;
-        marker.scale.y = 0.2;
-        marker.scale.z = 0.2;
-        marker.color.a = 0.7;
-        marker.color.r = 65.0 / 255.0;
-        marker.color.g = 105.0 / 255.0;
-        marker.color.b = 255.0 / 255.0;
-        for (size_t i = 0; i < auxiliary_info[0].size(); i++)
-        {
-            geometry_msgs::Point p;
-            p.x = auxiliary_info[0][i].x;
-            p.y = auxiliary_info[0][i].y;
-            p.z = 0;
-            marker.points.push_back(std::move(p));
-        }
-        marker_array.markers.push_back(marker);
-    }
-    else if (planner_name == "RRT" || planner_name == "RRTstar")
-    {
-        // 用于显示
-        visualization_msgs::Marker line_marker;
-        line_marker.header = path_msg.header;
-        line_marker.type = visualization_msgs::Marker::LINE_LIST;
-        line_marker.action = visualization_msgs::Marker::ADD;
-        line_marker.pose.orientation.x = 0.0;
-        line_marker.pose.orientation.y = 0.0;
-        line_marker.pose.orientation.z = 0.0;
-        line_marker.pose.orientation.w = 1.0;
-        visualization_msgs::Marker point_marker;
-        point_marker.header = path_msg.header;
-        point_marker.type = visualization_msgs::Marker::CUBE_LIST;
-        point_marker.action = visualization_msgs::Marker::ADD;
-        point_marker.pose.orientation.x = 0.0;
-        point_marker.pose.orientation.y = 0.0;
-        point_marker.pose.orientation.z = 0.0;
-        point_marker.pose.orientation.w = 1.0;
-
-
-        // 0. rrt树上所有节点
-        line_marker.ns = "tree_lines";
-        line_marker.id = 0;
-        line_marker.scale.x = 0.2;
-        line_marker.scale.y = 0.2;
-        line_marker.scale.z = 0.2;
-        line_marker.color.a = 0.7;
-        line_marker.color.r = 255.0 / 255.0;
-        line_marker.color.g = 215.0 / 255.0;
-        line_marker.color.b = 0.0 / 255.0;
-
-        point_marker.ns = "tree_nodes";
-        point_marker.id = 1;
-        point_marker.scale.x = 0.4;
-        point_marker.scale.y = 0.4;
-        point_marker.scale.z = 0.4;
-        point_marker.color.a = 1.0;
-        point_marker.color.r = 139.0 / 255.0;
-        point_marker.color.g = 105.0 / 255.0;
-        point_marker.color.b = 20.0 / 255.0;
-        for (size_t i = 0; i < auxiliary_info[0].size(); i++)
-        {
-            geometry_msgs::Point p1;
-            p1.x = auxiliary_info[0][i].x;
-            p1.y = auxiliary_info[0][i].y;
-            p1.z = 0;
-            point_marker.points.push_back(p1);
-            p1.z = 5;
-            line_marker.points.push_back(std::move(p1));
-            geometry_msgs::Point p2;
-            p2.x = auxiliary_info[1][i].x;
-            p2.y = auxiliary_info[1][i].y;
-            p2.z = 0;
-            line_marker.points.push_back(std::move(p2));
-        }
-        marker_array.markers.push_back(line_marker);
-        marker_array.markers.push_back(point_marker);
-    }
-    else if (planner_name == "GA")
-    {
-    }
-    
-    path_pub.publish(path_msg);
-    auxiliary_pub.publish(marker_array);
-    planner->showAllInfo(true, ros::package::getPath("global_planning") + "/result/test_result/");
-}
-
-
-int main(int argc, char *argv[])
+int main(int argc, char * argv[])
 {
     ros::init(argc, argv, "test_ros");
     ros::NodeHandle nh("~");
@@ -317,13 +390,13 @@ int main(int argc, char *argv[])
         TSHAstar_params.map.EXPANDED_MAX_THRESHOLD = 100;
         TSHAstar_params.map.COST_THRESHOLD = 10;
         TSHAstar_params.map.OBSTACLE_THRESHOLD = 100;
-        TSHAstar_params.search.cost_function.NEIGHBOR_TYPE = TSHAstar::NeighborType::FiveConnected;
-        TSHAstar_params.search.cost_function.HEURISTICS_TYPE = TSHAstar::HeuristicsType::Euclidean;
-        TSHAstar_params.search.cost_function.TRAV_COST_K = 2.0;
-        TSHAstar_params.search.cost_function.TURN_COST_STRAIGHT = 1.0;
-        TSHAstar_params.search.cost_function.TURN_COST_SLANT = 1.1;
-        TSHAstar_params.search.cost_function.TURN_COST_VERTICAL = 2.0;
-        TSHAstar_params.search.cost_function.TURN_COST_REVERSE_SLANT = 3.0;
+        TSHAstar_params.search.path_search.NEIGHBOR_TYPE = TSHAstar::NeighborType::FiveConnected;
+        TSHAstar_params.search.path_search.HEURISTICS_TYPE = TSHAstar::HeuristicsType::Euclidean;
+        TSHAstar_params.search.path_search.TRAV_COST_K = 2.0;
+        TSHAstar_params.search.path_search.TURN_COST_STRAIGHT = 1.0;
+        TSHAstar_params.search.path_search.TURN_COST_SLANT = 1.1;
+        TSHAstar_params.search.path_search.TURN_COST_VERTICAL = 2.0;
+        TSHAstar_params.search.path_search.TURN_COST_REVERSE_SLANT = 3.0;
         TSHAstar_params.search.path_simplification.PATH_SIMPLIFICATION_TYPE = TSHAstar::PathSimplificationType::DPPlus;
         TSHAstar_params.search.path_simplification.DISTANCE_THRESHOLD = 1.5;
         TSHAstar_params.search.path_simplification.ANGLE_THRESHOLD = 10 / 180 * M_PI;
@@ -332,7 +405,6 @@ int main(int argc, char *argv[])
         TSHAstar_params.search.path_simplification.MAX_INTAVAL = 8.0;
         TSHAstar_params.search.path_smooth.PATH_SMOOTH_TYPE = TSHAstar::PathSmoothType::BSpline;
         TSHAstar_params.search.path_smooth.T_STEP = 0.0005;
-        TSHAstar_params.search.downsampling.INTERVAL = 0.4;
         planner = new TSHAstar;
         planner->initParams(TSHAstar_params);
     }
@@ -381,6 +453,10 @@ int main(int argc, char *argv[])
         planner->initParams(ga_params);
     }
 
+    // 可以选择手动加载地图，也可以选择订阅地图
+    std::string map_path = ros::package::getPath("global_planning") + "/map/XG_map.png";
+    load_map(map_path);
+    
     ros::spin();
     delete planner;
     return 0;

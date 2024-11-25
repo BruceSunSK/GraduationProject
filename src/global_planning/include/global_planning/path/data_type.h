@@ -1,8 +1,8 @@
 #pragma once
-
 #include <vector>
 
 #include <opencv2/core.hpp>
+
 
 namespace Path
 {
@@ -31,9 +31,8 @@ struct PathNode : public PointXY, public PointSL
     PathNode(double x, double y, double s, double l) : PointXY(x, y), PointSL(s, l) {}
     operator cv::Point2d() = delete;
 
-    double yaw;
+    double theta;
     double kappa;
-    double dkappa;
 };
 
 } // namespace Path

@@ -24,13 +24,13 @@ int main(int argc, char * argv[])
         TSHAstar_params.map.EXPANDED_MAX_THRESHOLD = 100;
         TSHAstar_params.map.COST_THRESHOLD = 10;
         TSHAstar_params.map.OBSTACLE_THRESHOLD = 100;
-        TSHAstar_params.search.cost_function.NEIGHBOR_TYPE = TSHAstar::NeighborType::FiveConnected;
-        TSHAstar_params.search.cost_function.HEURISTICS_TYPE = TSHAstar::HeuristicsType::Euclidean;
-        TSHAstar_params.search.cost_function.TRAV_COST_K = 2.0;
-        TSHAstar_params.search.cost_function.TURN_COST_STRAIGHT = 1.0;
-        TSHAstar_params.search.cost_function.TURN_COST_SLANT = 1.4;
-        TSHAstar_params.search.cost_function.TURN_COST_VERTICAL = 2.0;
-        TSHAstar_params.search.cost_function.TURN_COST_REVERSE_SLANT = 3.0;
+        TSHAstar_params.search.path_search.NEIGHBOR_TYPE = TSHAstar::NeighborType::FiveConnected;
+        TSHAstar_params.search.path_search.HEURISTICS_TYPE = TSHAstar::HeuristicsType::Euclidean;
+        TSHAstar_params.search.path_search.TRAV_COST_K = 2.0;
+        TSHAstar_params.search.path_search.TURN_COST_STRAIGHT = 1.0;
+        TSHAstar_params.search.path_search.TURN_COST_SLANT = 1.4;
+        TSHAstar_params.search.path_search.TURN_COST_VERTICAL = 2.0;
+        TSHAstar_params.search.path_search.TURN_COST_REVERSE_SLANT = 3.0;
         TSHAstar_params.search.path_simplification.PATH_SIMPLIFICATION_TYPE = TSHAstar::PathSimplificationType::DPPlus;
         TSHAstar_params.search.path_simplification.DISTANCE_THRESHOLD = 18;
         TSHAstar_params.search.path_simplification.ANGLE_THRESHOLD = 10 / 180 * M_PI;
@@ -39,7 +39,6 @@ int main(int argc, char * argv[])
         TSHAstar_params.search.path_simplification.MAX_INTAVAL = 120.0;
         TSHAstar_params.search.path_smooth.PATH_SMOOTH_TYPE = TSHAstar::PathSmoothType::BSpline;
         TSHAstar_params.search.path_smooth.T_STEP = 0.0005;
-        TSHAstar_params.search.downsampling.INTERVAL = 2;
         planner = new TSHAstar;
         planner->initParams(TSHAstar_params);
     }
