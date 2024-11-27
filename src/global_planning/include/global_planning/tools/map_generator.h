@@ -262,6 +262,7 @@ private:
         CLOSE,              // 加入close集合
         KETPOINT,           // 关键点
         KETPOINT2,          // 关键点2
+        KETPOINT3,          // 关键点3
         START,              // 起点
         END,                // 终点
         PATH,               // 最终路径
@@ -319,8 +320,10 @@ private:
             return cv::Vec3b(255, 0, 0);
         case GridType::KETPOINT:    // 金色
             return cv::Vec3b(0, 215, 255);
-        case GridType::KETPOINT2:   // 肉色
-            return cv::Vec3b(196, 228, 255);
+        case GridType::KETPOINT2:   // 橙色
+            return cv::Vec3b(0, 165, 255);
+        case GridType::KETPOINT3:   // 黄色
+            return cv::Vec3b(0, 255, 255);
         case GridType::START:       // 红色
             return cv::Vec3b(0, 0, 200);
         case GridType::END:         // 粉色
@@ -373,7 +376,14 @@ private:
                 set_show_image_color(p, get_grid_color(GridType::KETPOINT2));
             }
 
-            // 5. 绘制最终优化平滑后的路径
+            // 5. 曲线平滑后进行采样的的路径
+            for (size_t i = 0; i < auxiliary_info[4].size(); i++)
+            {
+                const cv::Point2d & p = auxiliary_info[4][i];
+                set_show_image_color(p, get_grid_color(GridType::KETPOINT3));
+            }
+
+            // 6. 绘制最终优化平滑后的路径
             for (size_t i = 0; i < path.size(); i++)
             {
                 const cv::Point2d & p = path[i];

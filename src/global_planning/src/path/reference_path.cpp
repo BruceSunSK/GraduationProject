@@ -6,6 +6,7 @@ namespace Path
 void ReferencePath::SetPath(const std::vector<cv::Point2d> & path, const double s_interval)
 {
     assert(path.size() > 6);
+    s_interval_ = s_interval;
 
     // 构造参考线的参数形式
     double s_sum = 0.0;
@@ -19,15 +20,15 @@ void ReferencePath::SetPath(const std::vector<cv::Point2d> & path, const double 
         X_S_points.emplace_back(s_sum, path[i].x);
         Y_S_points.emplace_back(s_sum, path[i].y);
     }
-    Curve::CubicSplineCurve X_S(std::move(X_S_points)); // 自然边界曲线
-    Curve::CubicSplineCurve Y_S(std::move(Y_S_points));
+    X_S_.SetPoints(std::move(X_S_points));
+    Y_S_.SetPoints(std::move(Y_S_points));
 
     // 根据离散间隔生成s集合，保证终点一定在曲线上，但也会使得曲线超出终点，不过不影响，后续超出的部分也有利于优化
     std::vector<double> s_list;
     s_list.emplace_back(0.0);
     while (s_list.back() < s_sum)
     {
-        s_list.emplace_back(s_list.back() + s_interval);
+        s_list.emplace_back(s_list.back() + s_interval_);
     }
     s_list.emplace_back(s_sum);
 
@@ -38,12 +39,12 @@ void ReferencePath::SetPath(const std::vector<cv::Point2d> & path, const double 
         PathNode node;
         node.s = s;
         node.l = 0.0;
-        node.x = X_S(s);
-        node.y = Y_S(s);
-        const double dx = X_S(s, 1);
-        const double dy = Y_S(s, 1);
-        const double ddx = X_S(s, 2);
-        const double ddy = Y_S(s, 2);
+        node.x = X_S_(s);
+        node.y = Y_S_(s);
+        const double dx = X_S_(s, 1);
+        const double dy = Y_S_(s, 1);
+        const double ddx = X_S_(s, 2);
+        const double ddy = Y_S_(s, 2);
         node.theta = Math::Heading(dx, dy);
         node.kappa = Math::Curvature(dx, dy, ddx, ddy);
         path_.push_back(std::move(node));
@@ -58,6 +59,22 @@ std::vector<cv::Point2d> ReferencePath::GetPath() const
         path.emplace_back(node.x, node.y);
     }
     return path;
+}
+
+PathNode ReferencePath::GetPathNode(const double s) const
+{
+    PathNode node;
+    node.s = s;
+    node.l = 0.0;
+    node.x = X_S_(s);
+    node.y = Y_S_(s);
+    const double dx = X_S_(s, 1);
+    const double dy = Y_S_(s, 1);
+    const double ddx = X_S_(s, 2);
+    const double ddy = Y_S_(s, 2);
+    node.theta = Math::Heading(dx, dy);
+    node.kappa = Math::Curvature(dx, dy, ddx, ddy);
+    return node;
 }
 
 } // namespace Path

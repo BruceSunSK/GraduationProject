@@ -23,7 +23,7 @@ public:
     };
 
 public:
-    CubicSplineCurve() = delete;
+    CubicSplineCurve() : left_bc_(BoundaryCondition::Second_Derive), right_bc_(BoundaryCondition::Second_Derive), left_value_(0.0), right_value_(0.0) {}
     /// @brief 根据边界条件，利用给定的点集生成三次样条曲线。调用后直接生成曲线结果，后续使用时直接调用operator()即可。
     /// @param points 给定的点集，需要保证x值递增
     /// @param left_bc 左边界条件
@@ -32,14 +32,14 @@ public:
     /// @param right_value 右边界值
     CubicSplineCurve(const std::vector<cv::Point2d> & points,
                      const BoundaryCondition left_bc = BoundaryCondition::Second_Derive, const double left_value = 0.0,
-        const BoundaryCondition right_bc = BoundaryCondition::Second_Derive, const double right_value = 0.0)
+                     const BoundaryCondition right_bc = BoundaryCondition::Second_Derive, const double right_value = 0.0)
                      : points_(points), left_bc_(left_bc), right_bc_(right_bc), left_value_(left_value), right_value_(right_value)
     {
         CalculateCoefficients();
     }
     CubicSplineCurve(std::vector<cv::Point2d> && points,
                      const BoundaryCondition left_bc = BoundaryCondition::Second_Derive, const double left_value = 0.0,
-        const BoundaryCondition right_bc = BoundaryCondition::Second_Derive, const double right_value = 0.0)
+                     const BoundaryCondition right_bc = BoundaryCondition::Second_Derive, const double right_value = 0.0)
                      : points_(std::move(points)), left_bc_(left_bc), right_bc_(right_bc), left_value_(left_value), right_value_(right_value)
     {
         CalculateCoefficients();
@@ -78,9 +78,9 @@ public:
         points_ = std::move(points);
         CalculateCoefficients();
     }
-    /// @brief 根据给定的x值，利用三次样条曲线的系数插值计算对应的y值、一阶导数、二阶导数。
+    /// @brief 根据给定的x值，利用三次样条曲线的系数插值计算对应的y值、一阶导数、二阶导数、三阶导数。
     /// @param x 待计算位置的x值
-    /// @param derivative 导数阶数，0表示插值，1表示一阶导数，2表示二阶导数
+    /// @param derivative 导数阶数，0表示插值，1表示一阶导数，2表示二阶导数，3表示三阶导数
     /// @return 插值结果
     double operator()(const double x, const int derivative = 0) const;
 

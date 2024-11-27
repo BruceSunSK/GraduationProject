@@ -19,6 +19,8 @@ find_package(catkin REQUIRED COMPONENTS
 
 find_package(OpenCV REQUIRED QUIET)
 find_package(Eigen3 REQUIRED QUIET)
+find_package(Osqp REQUIRED QUIET)
+find_package(OsqpEigen REQUIRED QUIET)
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -133,39 +135,27 @@ add_library(curve               SHARED  src/curve/bezier_curve.cpp
                                         src/curve/cubic_spline_curve.cpp)
 add_library(path                SHARED  src/path/reference_path.cpp
                                         src/path/simplification.cpp)
+add_library(smoothers           SHARED  src/smoothers/discrete_point_smoother.cpp)
 add_library(planners            SHARED  src/planners/TSHAstar.cpp
                                         src/planners/astar.cpp
                                         src/planners/rrt.cpp
                                         src/planners/rrtstar.cpp
                                         src/planners/genetic_algorithm.cpp)
 
-## Add cmake target dependencies of the library
-## as an example, code may need to be generated before libraries
-## either from message generation or dynamic reconfigure
-add_dependencies(path     ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(planners ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(curve     ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} tools)
+target_link_libraries(path      ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} tools curve)
+target_link_libraries(smoothers ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} osqp::osqp OsqpEigen::OsqpEigen tools curve path)
+target_link_libraries(planners  ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} curve path smoothers)
 
-target_link_libraries(path     ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} tools)
-target_link_libraries(planners ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} curve path)
 
 ## Declare a C++ executable
-## With catkin_make all packages are built within a single CMake context
-## The recommended prefix ensures that target names across packages don't collide
 add_executable(test_opencv              node/test_opencv.cpp)
 add_executable(test_ros                 node/test_ros.cpp)
 add_executable(test_curve               node/test_curve.cpp)
 add_executable(test_path_simplification node/test_path_simplification.cpp)
 add_executable(global_planning          node/global_planning_node.cpp
                                         src/global_planning.cpp)
-## Add cmake target dependencies of the executable
-## same as for the library above
-add_dependencies(test_opencv              ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(test_ros                 ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(test_curve               ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(test_path_simplification ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(global_planning          ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
-## Specify libraries to link a library or executable target against
 target_link_libraries(test_opencv               ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} planners)
 target_link_libraries(test_ros                  ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} planners)
 target_link_libraries(test_curve                ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} curve)

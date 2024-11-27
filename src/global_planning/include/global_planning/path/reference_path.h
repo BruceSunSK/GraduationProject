@@ -32,10 +32,17 @@ public:
 
     void SetPath(const std::vector<cv::Point2d> & path, const double s_interval);
     std::vector<cv::Point2d> GetPath() const;
+    PathNode GetPathNode(const double s) const;
+    const std::vector<PathNode> & GetPathNodes() const { return path_; }
+    double GetSInterval() const { return s_interval_; }
+    double GetLength() const { return path_.back().s; }
+    size_t GetSize() const { return path_.size(); }
 
 private:
     std::vector<PathNode> path_;
     double s_interval_;
+    Curve::CubicSplineCurve X_S_;   // 自然边界曲线
+    Curve::CubicSplineCurve Y_S_;
 };
 
 

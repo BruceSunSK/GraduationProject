@@ -14,6 +14,7 @@
 #include "global_planning/curve/cubic_spline_curve.h"
 #include "global_planning/path/simplification.h"
 #include "global_planning/path/reference_path.h"
+#include "global_planning/smoothers/discrete_point_smoother.h"
 
 
 /// @brief Two-Stage Hybird Astar (TSHAstar)
@@ -129,7 +130,7 @@ public:
                             REGISTER_MEMBER(EXPANDED_MIN_THRESHOLD),
                             REGISTER_MEMBER(EXPANDED_MAX_THRESHOLD),
                             REGISTER_MEMBER(COST_THRESHOLD),
-                            REGISTER_MEMBER(OBSTACLE_THRESHOLD));
+                            REGISTER_MEMBER(OBSTACLE_THRESHOLD))
         } map;
 
         // 搜索过程相关参数，对应第二大步。
@@ -152,7 +153,7 @@ public:
                                 REGISTER_MEMBER(TURN_COST_STRAIGHT),
                                 REGISTER_MEMBER(TURN_COST_SLANT),
                                 REGISTER_MEMBER(TURN_COST_VERTICAL),
-                                REGISTER_MEMBER(TURN_COST_REVERSE_SLANT));
+                                REGISTER_MEMBER(TURN_COST_REVERSE_SLANT))
             } path_search;
 
             // 冗余点去除相关参数
@@ -170,7 +171,7 @@ public:
                                 REGISTER_MEMBER(ANGLE_THRESHOLD),
                                 REGISTER_MEMBER(OBSTACLE_THRESHOLD),
                                 REGISTER_MEMBER(LINE_WIDTH),
-                                REGISTER_MEMBER(MAX_INTAVAL));
+                                REGISTER_MEMBER(MAX_INTAVAL))
             } path_simplification;
 
             // 曲线平滑相关参数
@@ -180,12 +181,27 @@ public:
                 double T_STEP = 0.0005;     // 平滑曲线的步长，t∈(0, 1)， t越大，生成的曲线离散点的密度就越大。贝塞尔曲线是分段的，T_STEP作用于每一段；B样条曲线是全局的，T_STEP作用于全局。
 
                 REGISTER_STRUCT(REGISTER_MEMBER(PATH_SMOOTH_TYPE),
-                                REGISTER_MEMBER(T_STEP));
+                                REGISTER_MEMBER(T_STEP))
             } path_smooth;
+
+            // 数值优化平滑相关参数
+            struct
+            {
+                double S_INTERVAL = 5.0;            // 曲线平滑后的路径进行均匀采样的间隔，单位为m。
+                double WEIGTH_SMOOTH = 100.0;       // 权重平滑系数，用于优化曲线时描述路径点折弯程度。
+                double WEIGTH_LENGTH = 1.0;         // 长度平滑系数，用于优化曲线时描述路径点总长度。
+                double WEIGTH_DEVIATION = 10.0;     // 偏差平滑系数，用于优化曲线时描述优化后路径点与原始路径点的偏差程度。
+
+                REGISTER_STRUCT(REGISTER_MEMBER(S_INTERVAL),
+                                REGISTER_MEMBER(WEIGTH_SMOOTH),
+                                REGISTER_MEMBER(WEIGTH_LENGTH),
+                                REGISTER_MEMBER(WEIGTH_DEVIATION))
+            } path_optimization;
 
             REGISTER_STRUCT(REGISTER_MEMBER(path_search),
                             REGISTER_MEMBER(path_simplification),
-                            REGISTER_MEMBER(path_smooth));
+                            REGISTER_MEMBER(path_smooth),
+                            REGISTER_MEMBER(path_optimization))
         } search;
 
         // 采样过程相关参数，对应第三大步。
@@ -210,43 +226,62 @@ public:
             {
                 size_t raw_node_nums = 0;       // 搜索到节点的数量，不包括障碍物节点
                 size_t raw_node_counter = 0;    // 搜索到节点的次数，会重复计算同一个节点，不包括障碍物节点
-                size_t raw_path_length = 0;     // 规划出的路径长度，单位为栅格数，包含起点和终点
-                double cost_time = 0;           // 搜索总耗时，单位ms
+                size_t raw_path_size = 0;       // 规划出的路径点个数，单位为栅格数，包含起点和终点
+                double cost_time = 0.0;         // 搜索总耗时，单位ms
 
                 std::vector<cv::Point2d> nodes;     // 按顺序搜索到的节点，不包括障碍物节点
                 std::vector<cv::Point2d> raw_path;  // 原始的规划路径结果
 
                 REGISTER_STRUCT(REGISTER_MEMBER(raw_node_nums),
                                 REGISTER_MEMBER(raw_node_counter),
-                                REGISTER_MEMBER(raw_path_length),
+                                REGISTER_MEMBER(raw_path_size),
                                 REGISTER_MEMBER(cost_time))
             } path_search;
 
             struct
             {
-                size_t reduced_path_length = 0;         // 去除冗余点后的路径长度
-                double cost_time = 0;                   // 去除冗余点后搜索总耗时，单位ms
+                size_t reduced_path_size = 0;           // 去除冗余点后的路径点个数
+                double cost_time = 0.0;                 // 去除冗余点后搜索总耗时，单位ms
 
                 std::vector<cv::Point2d> reduced_path;  // 去除冗余点后的规划路径结果
 
-                REGISTER_STRUCT(REGISTER_MEMBER(reduced_path_length),
-                                REGISTER_MEMBER(cost_time))
+                REGISTER_STRUCT(REGISTER_MEMBER(reduced_path_size),
+                                REGISTER_MEMBER(cost_time));
             } path_simplification;
 
             struct
             {
-                size_t smooth_path_length = 0;          // 曲线平滑后的路径长度
-                double cost_time = 0;                   // 曲线平滑后搜索总耗时，单位ms
+                size_t smooth_path_size = 0;            // 曲线平滑后的路径点个数
+                double cost_time = 0.0;                 // 曲线平滑后搜索总耗时，单位ms
 
                 std::vector<cv::Point2d> smooth_path;   // 曲线平滑后的路径结果
 
-                REGISTER_STRUCT(REGISTER_MEMBER(smooth_path_length),
+                REGISTER_STRUCT(REGISTER_MEMBER(smooth_path_size),
                                 REGISTER_MEMBER(cost_time))
             } path_smooth;
 
+            struct
+            {
+                size_t sample_path_size = 0;            // 采样后路径的大小
+                double sample_path_length = 0.0;        // 采样后路径的长度
+                size_t optimized_path_size = 0;         // 优化后路径的大小
+                double optimized_path_length = 0.0;     // 优化后路径的长度
+                double cost_time = 0.0;                 // 整个优化过程总耗时，单位ms
+
+                std::vector<cv::Point2d> sample_path;       // 使用三次样条插值降采样后得到的路径
+                std::vector<cv::Point2d> optimized_path;    // 优化后的路径
+                
+                REGISTER_STRUCT(REGISTER_MEMBER(sample_path_size),
+                                REGISTER_MEMBER(sample_path_length),
+                                REGISTER_MEMBER(optimized_path_size),
+                                REGISTER_MEMBER(optimized_path_length),
+                                REGISTER_MEMBER(cost_time))
+            } path_optimization;
+            
             REGISTER_STRUCT(REGISTER_MEMBER(path_search),
                             REGISTER_MEMBER(path_simplification),
-                            REGISTER_MEMBER(path_smooth));
+                            REGISTER_MEMBER(path_smooth),
+                            REGISTER_MEMBER(path_optimization))
         } search;
 
     public:
@@ -255,17 +290,26 @@ public:
         {
             search.path_search.raw_node_nums = 0;
             search.path_search.raw_node_counter = 0;
-            search.path_search.raw_path_length = 0;
+            search.path_search.raw_path_size = 0;
             search.path_search.cost_time = 0.0;
             search.path_search.nodes.clear();
             search.path_search.raw_path.clear();
             
-            search.path_simplification.reduced_path_length = 0;
+            search.path_simplification.reduced_path_size = 0;
             search.path_simplification.cost_time = 0.0;
             search.path_simplification.reduced_path.clear();
 
-            search.path_smooth.smooth_path_length = 0;
+            search.path_smooth.smooth_path_size = 0;
             search.path_smooth.cost_time = 0.0;
+            search.path_smooth.smooth_path.clear();
+
+            search.path_optimization.sample_path_size = 0;
+            search.path_optimization.sample_path_length = 0.0;
+            search.path_optimization.optimized_path_size = 0;
+            search.path_optimization.optimized_path_length = 0.0;
+            search.path_optimization.cost_time = 0.0;
+            search.path_optimization.sample_path.clear();
+            search.path_optimization.optimized_path.clear();
         }
 
     private:

@@ -29,4 +29,10 @@ TSHAstar:
       PATH_SMOOTH_TYPE: 1           # 曲线平滑方法，共有两种，0:Bezier, 1:Bspline
       T_STEP: 0.0005                # 平滑曲线的步长，t∈(0, 1)， t越大，生成的曲线离散点的密度就越大。贝塞尔曲线是分段的，T_STEP作用于每一段；B样条曲线是全局的，T_STEP作用于全局。
 
+    path_optimization:
+      S_INTERVAL: 5.0               # 曲线平滑后的路径进行均匀采样的间隔，单位为m。
+      WEIGTH_SMOOTH: 100.0          # 权重平滑系数，用于优化曲线时描述路径点折弯程度。
+      WEIGTH_LENGTH: 1.0            # 长度平滑系数，用于优化曲线时描述路径点总长度。
+      WEIGTH_DEVIATION: 10.0         # 偏差平滑系数，用于优化曲线时描述优化后路径点与原始路径点的偏差程度。
+
   sample:

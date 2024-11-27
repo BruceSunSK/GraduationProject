@@ -412,6 +412,8 @@ bool TSHAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<
         std::cout << "路径优化平滑失败！\n";
         return false;
     }
+
+
     path.clear();
     path = reference_path->GetPath();
     std::for_each(path.begin(), path.end(), [this](cv::Point2d & p)
@@ -431,6 +433,8 @@ bool TSHAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<
     auxiliary_info.push_back(std::move(helper_.search.path_search.nodes));
     auxiliary_info.push_back(std::move(helper_.search.path_simplification.reduced_path));
     auxiliary_info.push_back(std::move(helper_.search.path_smooth.smooth_path));
+    auxiliary_info.push_back(std::move(helper_.search.path_optimization.sample_path));
+    auxiliary_info.push_back(std::move(helper_.search.path_optimization.optimized_path));
 
     return true;
 }
@@ -692,7 +696,7 @@ bool TSHAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
     // 保存结果信息
     auto end_time = std::chrono::steady_clock::now();
     helper_.search.path_search.raw_node_nums = helper_.search.path_search.nodes.size();       // 访问到的节点数
-    helper_.search.path_search.raw_path_length = helper_.search.path_search.raw_path.size();  // 路径长度
+    helper_.search.path_search.raw_path_size = helper_.search.path_search.raw_path.size();  // 路径长度
     helper_.search.path_search.cost_time = (end_time - start_time).count() / 1000000.0;  // 算法耗时 ms
     return raw_nodes.size() > 1;
 }
@@ -714,7 +718,7 @@ void TSHAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, 
     if (raw_path.size() <= 2)  // 只有两个点，说明只是起点和终点
     {
         reduced_path.insert(reduced_path.end(), raw_path.begin(), raw_path.end());
-        helper_.search.path_simplification.reduced_path_length = reduced_path.size();
+        helper_.search.path_simplification.reduced_path_size = reduced_path.size();
         helper_.search.path_simplification.cost_time = 0;
         return;
     }
@@ -759,7 +763,7 @@ void TSHAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, 
     }
     auto end_time = std::chrono::steady_clock::now();
 
-    helper_.search.path_simplification.reduced_path_length = reduced_path.size();
+    helper_.search.path_simplification.reduced_path_size = reduced_path.size();
     helper_.search.path_simplification.cost_time = (end_time - start_time).count() / 1000000.0;
     std::for_each(reduced_path.begin(), reduced_path.end(), [this](cv::Point2i & p)
         {
@@ -801,7 +805,7 @@ bool TSHAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector
     }
     auto end_time = std::chrono::steady_clock::now();
 
-    helper_.search.path_smooth.smooth_path_length = smooth_path.size();
+    helper_.search.path_smooth.smooth_path_size = smooth_path.size();
     helper_.search.path_smooth.cost_time = (end_time - start_time).count() / 1000000.0;
     // 保存info信息时，和之前类似，全部正确的转换到真实坐标系下。
     // 但从此处开始，后续的工作全部都不需要栅格整数点，而是使用离散点，因此在此处消除掉所有0.5的偏移，但分辨率不变，只有在最后输出时才乘以分辨率。
@@ -818,8 +822,46 @@ bool TSHAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector
 
 bool TSHAstar::optimizePath(const std::vector<cv::Point2d> & path, Path::ReferencePath::Ptr & reference_path)
 {
-    reference_path.reset(new Path::ReferencePath(path, 5.0));
+    auto start_time = std::chrono::steady_clock::now();
 
+    // 将原始离散点转换成参考线数据类型，并进行均匀采样
+    Path::ReferencePath::Ptr raw_reference_path(new Path::ReferencePath(path, params_.search.path_optimization.S_INTERVAL));
+
+    // 使用离散点对参考线通过数值优化进行平滑。
+    // 代价函数包括：1.平滑代价。 2.长度代价。 3.偏离代价
+    // 约束：无
+    std::array<double, 3> weights = { params_.search.path_optimization.WEIGTH_SMOOTH,
+                                      params_.search.path_optimization.WEIGTH_LENGTH,
+                                      params_.search.path_optimization.WEIGTH_DEVIATION};
+    Smoother::DiscretePointSmoother smoother(weights);
+    if (!smoother.Solve(raw_reference_path, reference_path))
+    {
+        return false;
+    }
+    auto end_time = std::chrono::steady_clock::now();
+
+    helper_.search.path_optimization.cost_time = (end_time - start_time).count() / 1000000.0;
+    helper_.search.path_optimization.sample_path = raw_reference_path->GetPath();
+    helper_.search.path_optimization.sample_path_size = helper_.search.path_optimization.sample_path.size();
+    helper_.search.path_optimization.sample_path_length = raw_reference_path->GetLength();
+    helper_.search.path_optimization.optimized_path = reference_path->GetPath();
+    helper_.search.path_optimization.optimized_path_size = helper_.search.path_optimization.optimized_path.size();
+    helper_.search.path_optimization.optimized_path_length = reference_path->GetLength();
+    std::for_each(helper_.search.path_optimization.sample_path.begin(),
+                  helper_.search.path_optimization.sample_path.end(), 
+                  [this](cv::Point2d & p)
+        {
+            p.x = p.x * res_ + ori_x_;
+            p.y = p.y * res_ + ori_y_;
+        });
+    std::for_each(helper_.search.path_optimization.optimized_path.begin(),
+                  helper_.search.path_optimization.optimized_path.end(), 
+                  [this](cv::Point2d & p)
+        {
+            p.x = p.x * res_ + ori_x_;
+            p.y = p.y * res_ + ori_y_;
+        });
+    
     return true;
 }
 // ========================= TSHAstar =========================

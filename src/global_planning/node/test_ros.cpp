@@ -165,9 +165,9 @@ void pub_path()
         // 2. 去除冗余点后的关键节点
         points_marker.ns = "search_key_nodes";
         points_marker.id = 2;
-        points_marker.scale.x = 0.7;
-        points_marker.scale.y = 0.7;
-        points_marker.scale.z = 0.7;
+        points_marker.scale.x = 0.6;
+        points_marker.scale.y = 0.6;
+        points_marker.scale.z = 0.6;
         points_marker.color.a = 1.0;
         points_marker.color.r = 255.0 / 255.0;
         points_marker.color.g = 215.0 / 255.0;
@@ -187,13 +187,13 @@ void pub_path()
         // 3. 进行曲线平滑后的结果
         line_marker.ns = "search_bspline_smooth_path";
         line_marker.id = 3;
-        line_marker.scale.x = 0.5;
-        line_marker.scale.y = 0.5;
-        line_marker.scale.z = 0.5;
-        line_marker.color.a = 1.0;
+        line_marker.scale.x = 0.3;
+        line_marker.scale.y = 0.3;
+        line_marker.scale.z = 0.3;
+        line_marker.color.a = 0.8;
         line_marker.color.r = 255.0 / 255.0;
-        line_marker.color.g = 228.0 / 255.0;
-        line_marker.color.b = 196.0 / 255.0;
+        line_marker.color.g = 165.0 / 255.0;
+        line_marker.color.b = 0.0 / 255.0;
         line_marker.points.clear();
         for (size_t i = 0; i < auxiliary_info[3].size(); i++)
         {
@@ -201,6 +201,50 @@ void pub_path()
             p.x = auxiliary_info[3][i].x;
             p.y = auxiliary_info[3][i].y;
             p.z = 3;
+            line_marker.points.push_back(std::move(p));
+        }
+        marker_array.markers.push_back(line_marker);
+
+
+        // 4. 平滑后曲线均匀采样点
+        points_marker.ns = "search_s_sample_points";
+        points_marker.id = 4;
+        points_marker.scale.x = 0.3;
+        points_marker.scale.y = 0.3;
+        points_marker.scale.z = 0.3;
+        points_marker.color.a = 1.0;
+        points_marker.color.r = 255.0 / 255.0;
+        points_marker.color.g = 255.0 / 255.0;
+        points_marker.color.b = 0.0 / 255.0;
+        points_marker.points.clear();
+        for (size_t i = 0; i < auxiliary_info[4].size(); i++)
+        {
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[4][i].x;
+            p.y = auxiliary_info[4][i].y;
+            p.z = 4;
+            points_marker.points.push_back(std::move(p));
+        }
+        marker_array.markers.push_back(points_marker);
+
+
+        // 5. 进行数值优化平滑后的结果
+        line_marker.ns = "search_optimized_path";
+        line_marker.id = 5;
+        line_marker.scale.x = 0.3;
+        line_marker.scale.y = 0.3;
+        line_marker.scale.z = 0.3;
+        line_marker.color.a = 0.8;
+        line_marker.color.r = 238.0 / 255.0;
+        line_marker.color.g = 44.0 / 255.0;
+        line_marker.color.b = 44.0 / 255.0;
+        line_marker.points.clear();
+        for (size_t i = 0; i < auxiliary_info[5].size(); i++)
+        {
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[5][i].x;
+            p.y = auxiliary_info[5][i].y;
+            p.z = 5;
             line_marker.points.push_back(std::move(p));
         }
         marker_array.markers.push_back(line_marker);
@@ -405,6 +449,10 @@ int main(int argc, char * argv[])
         TSHAstar_params.search.path_simplification.MAX_INTAVAL = 8.0;
         TSHAstar_params.search.path_smooth.PATH_SMOOTH_TYPE = TSHAstar::PathSmoothType::BSpline;
         TSHAstar_params.search.path_smooth.T_STEP = 0.0005;
+        TSHAstar_params.search.path_optimization.S_INTERVAL = 5.0;
+        TSHAstar_params.search.path_optimization.WEIGTH_SMOOTH = 100.0;
+        TSHAstar_params.search.path_optimization.WEIGTH_LENGTH = 1.0;
+        TSHAstar_params.search.path_optimization.WEIGTH_DEVIATION = 10.0;
         planner = new TSHAstar;
         planner->initParams(TSHAstar_params);
     }

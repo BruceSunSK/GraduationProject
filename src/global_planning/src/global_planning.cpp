@@ -50,6 +50,10 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
         p.search.path_smooth.PATH_SMOOTH_TYPE           = static_cast<TSHAstar::PathSmoothType>(
                                                           nh_.param<int>("TSHAstar/search/path_smooth/PATH_SMOOTH_TYPE", 1));
         p.search.path_smooth.T_STEP                     = nh_.param<double>("TSHAstar/search/path_smooth/T_STEP", 0.0005);
+        p.search.path_optimization.S_INTERVAL           = nh_.param<double>("TSHAstar/search/path_optimization/S_INTERVAL", 5.0);
+        p.search.path_optimization.WEIGTH_SMOOTH        = nh_.param<double>("TSHAstar/search/path_optimization/WEIGTH_SMOOTH", 100.0);   
+        p.search.path_optimization.WEIGTH_LENGTH        = nh_.param<double>("TSHAstar/search/path_optimization/WEIGTH_LENGTH", 1.0);   
+        p.search.path_optimization.WEIGTH_DEVIATION     = nh_.param<double>("TSHAstar/search/path_optimization/WEIGTH_DEVIATION", 10.0);
         planner_ = new TSHAstar;
         planner_->initParams(p);
     }
