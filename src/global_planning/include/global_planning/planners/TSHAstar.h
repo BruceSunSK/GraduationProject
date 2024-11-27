@@ -187,15 +187,17 @@ public:
             // 数值优化平滑相关参数
             struct
             {
-                double S_INTERVAL = 5.0;            // 曲线平滑后的路径进行均匀采样的间隔，单位为m。
-                double WEIGTH_SMOOTH = 100.0;       // 权重平滑系数，用于优化曲线时描述路径点折弯程度。
-                double WEIGTH_LENGTH = 1.0;         // 长度平滑系数，用于优化曲线时描述路径点总长度。
-                double WEIGTH_DEVIATION = 10.0;     // 偏差平滑系数，用于优化曲线时描述优化后路径点与原始路径点的偏差程度。
-
+                double S_INTERVAL = 5.0;                // 曲线平滑后的路径进行均匀采样的间隔，单位为m。
+                double REF_WEIGTH_SMOOTH = 100.0;       // 参考线初步优化时的权重平滑系数，用于优化曲线时描述路径点折弯程度。
+                double REF_WEIGTH_LENGTH = 1.0;         // 参考线初步优化时的长度平滑系数，用于优化曲线时描述路径点总长度。
+                double REF_WEIGTH_DEVIATION = 10.0;     // 参考线初步优化时的偏差平滑系数，用于优化曲线时描述优化后路径点与原始路径点的偏差程度。
+                double REF_BUFFER_DISTANCE = 3.0;       // 参考线初步优化时原始点可在XY方向上最大偏移距离，单位为m。
+                
                 REGISTER_STRUCT(REGISTER_MEMBER(S_INTERVAL),
-                                REGISTER_MEMBER(WEIGTH_SMOOTH),
-                                REGISTER_MEMBER(WEIGTH_LENGTH),
-                                REGISTER_MEMBER(WEIGTH_DEVIATION))
+                                REGISTER_MEMBER(REF_WEIGTH_SMOOTH),
+                                REGISTER_MEMBER(REF_WEIGTH_LENGTH),
+                                REGISTER_MEMBER(REF_WEIGTH_DEVIATION),
+                                REGISTER_MEMBER(REF_BUFFER_DISTANCE))
             } path_optimization;
 
             REGISTER_STRUCT(REGISTER_MEMBER(path_search),

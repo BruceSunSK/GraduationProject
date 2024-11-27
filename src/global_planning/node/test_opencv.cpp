@@ -40,9 +40,10 @@ int main(int argc, char * argv[])
         TSHAstar_params.search.path_smooth.PATH_SMOOTH_TYPE = TSHAstar::PathSmoothType::BSpline;
         TSHAstar_params.search.path_smooth.T_STEP = 0.0005;
         TSHAstar_params.search.path_optimization.S_INTERVAL = 5.0;
-        TSHAstar_params.search.path_optimization.WEIGTH_SMOOTH = 100.0;
-        TSHAstar_params.search.path_optimization.WEIGTH_LENGTH = 1.0;
-        TSHAstar_params.search.path_optimization.WEIGTH_DEVIATION = 10.0;
+        TSHAstar_params.search.path_optimization.REF_WEIGTH_SMOOTH = 100.0;
+        TSHAstar_params.search.path_optimization.REF_WEIGTH_LENGTH = 1.0;
+        TSHAstar_params.search.path_optimization.REF_WEIGTH_DEVIATION = 10.0;
+        TSHAstar_params.search.path_optimization.REF_BUFFER_DISTANCE = 3.0;
         planner = new TSHAstar;
         planner->initParams(TSHAstar_params);
     }

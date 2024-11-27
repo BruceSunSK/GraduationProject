@@ -830,10 +830,10 @@ bool TSHAstar::optimizePath(const std::vector<cv::Point2d> & path, Path::Referen
     // 使用离散点对参考线通过数值优化进行平滑。
     // 代价函数包括：1.平滑代价。 2.长度代价。 3.偏离代价
     // 约束：无
-    std::array<double, 3> weights = { params_.search.path_optimization.WEIGTH_SMOOTH,
-                                      params_.search.path_optimization.WEIGTH_LENGTH,
-                                      params_.search.path_optimization.WEIGTH_DEVIATION};
-    Smoother::DiscretePointSmoother smoother(weights);
+    const std::array<double, 3> weights = { params_.search.path_optimization.REF_WEIGTH_SMOOTH,
+                                            params_.search.path_optimization.REF_WEIGTH_LENGTH,
+                                            params_.search.path_optimization.REF_WEIGTH_DEVIATION};
+    Smoother::DiscretePointSmoother smoother(weights, params_.search.path_optimization.REF_BUFFER_DISTANCE);
     if (!smoother.Solve(raw_reference_path, reference_path))
     {
         return false;

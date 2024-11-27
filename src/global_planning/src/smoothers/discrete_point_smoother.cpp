@@ -25,13 +25,13 @@ bool DiscretePointSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path,
     // 0. 变量个数、约束个数
     const size_t point_num = raw_ref_path->GetSize();
     const size_t variable_num = 2 * point_num;
-    const size_t constraint_num = 0;
+    const size_t constraint_num = 2 * point_num;
 
     // 1. 设置求解器配置
     OsqpEigen::Solver solver;
     solver.settings()->setVerbosity(false);                 // 关闭输出
     solver.settings()->setWarmStart(true);                  // 开启warm start
-    // solver.settings()->setTimeLimit(3);                     // 3秒内求解完成，否则返回失败
+    solver.settings()->setTimeLimit(3);                     // 3秒内求解完成，否则返回失败
     solver.data()->setNumberOfVariables(variable_num);      // 一个路点包含X、Y两个参数
     solver.data()->setNumberOfConstraints(constraint_num);  // 目前无约束，后续如果有约束的话，会对X、Y方向有大范围内的硬约束
     
@@ -87,15 +87,35 @@ bool DiscretePointSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path,
         return false;
 
     // 4. 设置约束矩阵 A
-    // 暂时没有约束，以后可能考虑添加
     Eigen::SparseMatrix<double> linear_matrix(constraint_num, variable_num);
+    // 目前只有对各个点的X、Y方向有硬约束，起点和终点完全与原始路径一致
+    for (size_t i = 0; i < constraint_num; i++)
+    {
+        linear_matrix.insert(i, i) = 1.0;
+    }
     if (!solver.data()->setLinearConstraintsMatrix(linear_matrix))
         return false;
     
     // 5. 设置上下线性边界 lb, ub
-    // 暂无，同上
     Eigen::VectorXd lower_bound = Eigen::VectorXd::Zero(constraint_num);
     Eigen::VectorXd upper_bound = Eigen::VectorXd::Zero(constraint_num);
+    // 5.1 起点和终点的硬约束
+    lower_bound(0) = raw_ref_path->GetPathNodes().front().x;
+    upper_bound(0) = raw_ref_path->GetPathNodes().front().x;
+    lower_bound(1) = raw_ref_path->GetPathNodes().front().y;
+    upper_bound(1) = raw_ref_path->GetPathNodes().front().y;
+    lower_bound(constraint_num - 2) = raw_ref_path->GetPathNodes().back().x;
+    upper_bound(constraint_num - 2) = raw_ref_path->GetPathNodes().back().x;
+    lower_bound(constraint_num - 1) = raw_ref_path->GetPathNodes().back().y;
+    upper_bound(constraint_num - 1) = raw_ref_path->GetPathNodes().back().y;
+    // 5.2 范围约束
+    for (size_t i = 2; i < constraint_num - 2; i += 2)
+    {
+        lower_bound(i)     = raw_ref_path->GetPathNodes()[i >> 1].x - buffer_;
+        upper_bound(i)     = raw_ref_path->GetPathNodes()[i >> 1].x + buffer_;
+        lower_bound(i + 1) = raw_ref_path->GetPathNodes()[i >> 1].y - buffer_;
+        upper_bound(i + 1) = raw_ref_path->GetPathNodes()[i >> 1].y + buffer_;
+    }
     if (!solver.data()->setLowerBound(lower_bound))
         return false;
     if (!solver.data()->setUpperBound(upper_bound))

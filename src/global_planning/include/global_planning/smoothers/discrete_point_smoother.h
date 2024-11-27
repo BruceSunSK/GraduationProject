@@ -18,7 +18,7 @@ class DiscretePointSmoother
 {
 public:
     DiscretePointSmoother() = delete;
-    DiscretePointSmoother(const std::array<double, 3> & weights) : weights_(weights) {}
+    DiscretePointSmoother(const std::array<double, 3> & weights, const double buffer) : weights_(weights), buffer_(buffer) {}
     DiscretePointSmoother(const DiscretePointSmoother & other) = delete;
     DiscretePointSmoother(DiscretePointSmoother && other) = delete;
     DiscretePointSmoother & operator=(const DiscretePointSmoother & other) = delete;
@@ -29,6 +29,7 @@ public:
 
 private:
     std::array<double, 3> weights_;     // 平滑代价权重、长度代价（均匀代价）权重、偏离代价权重
+    double buffer_ = 0.0;               // 路径边界缓冲距离
 };
 
 } // namespace Smoother

@@ -30,7 +30,15 @@ void ReferencePath::SetPath(const std::vector<cv::Point2d> & path, const double 
     {
         s_list.emplace_back(s_list.back() + s_interval_);
     }
-    s_list.emplace_back(s_sum);
+    if (s_list.back() > s_sum)      // 由于浮点数计算误差，可能导致最后一个s超出终点s，舍去
+    {
+        s_list.pop_back();
+    }
+    if (s_list.back() + 1 > s_sum)  // 终点s以内过近的最后一个点，舍去，防止与终点过近重合。此处的1的单位是栅格个数，即容忍的范围是一个分辨率的大小。
+    {
+        s_list.pop_back();
+    }
+    s_list.emplace_back(s_sum);     // 终点s
 
     // 根据s集合生成参考线
     path_.clear();

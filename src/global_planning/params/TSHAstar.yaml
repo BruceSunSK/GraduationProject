@@ -31,8 +31,9 @@ TSHAstar:
 
     path_optimization:
       S_INTERVAL: 5.0               # 曲线平滑后的路径进行均匀采样的间隔，单位为m。
-      WEIGTH_SMOOTH: 100.0          # 权重平滑系数，用于优化曲线时描述路径点折弯程度。
-      WEIGTH_LENGTH: 1.0            # 长度平滑系数，用于优化曲线时描述路径点总长度。
-      WEIGTH_DEVIATION: 10.0         # 偏差平滑系数，用于优化曲线时描述优化后路径点与原始路径点的偏差程度。
+      REF_WEIGTH_SMOOTH: 100.0      # 参考线初步优化时的权重平滑系数，用于优化曲线时描述路径点折弯程度。
+      REF_WEIGTH_LENGTH: 1.0        # 参考线初步优化时的长度平滑系数，用于优化曲线时描述路径点总长度。
+      REF_WEIGTH_DEVIATION: 10.0    # 参考线初步优化时的偏差平滑系数，用于优化曲线时描述优化后路径点与原始路径点的偏差程度。
+      REF_BUFFER_DISTANCE: 3.0      # 参考线初步优化时原始点可在XY方向上最大偏移距离，单位为m。
 
   sample:
