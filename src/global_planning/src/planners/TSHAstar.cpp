@@ -825,15 +825,13 @@ bool TSHAstar::optimizePath(const std::vector<cv::Point2d> & path, Path::Referen
     auto start_time = std::chrono::steady_clock::now();
 
     // 将原始离散点转换成参考线数据类型，并进行均匀采样
-    Path::ReferencePath::Ptr raw_reference_path(new Path::ReferencePath(path, params_.search.path_optimization.S_INTERVAL));
+    Path::ReferencePath::Ptr raw_reference_path(new Path::ReferencePath(path, params_.search.path_optimization.S_INTERVAL / res_));
 
     // 使用离散点对参考线通过数值优化进行平滑。
-    // 代价函数包括：1.平滑代价。 2.长度代价。 3.偏离代价
-    // 约束：无
     const std::array<double, 3> weights = { params_.search.path_optimization.REF_WEIGTH_SMOOTH,
                                             params_.search.path_optimization.REF_WEIGTH_LENGTH,
                                             params_.search.path_optimization.REF_WEIGTH_DEVIATION};
-    Smoother::DiscretePointSmoother smoother(weights, params_.search.path_optimization.REF_BUFFER_DISTANCE);
+    Smoother::DiscretePointSmoother smoother(weights, params_.search.path_optimization.REF_BUFFER_DISTANCE / res_);
     if (!smoother.Solve(raw_reference_path, reference_path))
     {
         return false;

@@ -82,7 +82,7 @@ public:
     /// @param x 待计算位置的x值
     /// @param derivative 导数阶数，0表示插值，1表示一阶导数，2表示二阶导数，3表示三阶导数
     /// @return 插值结果
-    double operator()(const double x, const int derivative = 0) const;
+    double operator()(const double x, const size_t derivative = 0) const;
 
 private:
     BoundaryCondition left_bc_;

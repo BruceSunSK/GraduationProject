@@ -132,7 +132,8 @@ include_directories(
 add_library(tools               SHARED  src/tools/math.cpp)
 add_library(curve               SHARED  src/curve/bezier_curve.cpp
                                         src/curve/bspline_curve.cpp
-                                        src/curve/cubic_spline_curve.cpp)
+                                        src/curve/cubic_spline_curve.cpp
+                                        src/curve/polynomial.cpp)
 add_library(path                SHARED  src/path/reference_path.cpp
                                         src/path/simplification.cpp)
 add_library(smoothers           SHARED  src/smoothers/discrete_point_smoother.cpp)

@@ -22,6 +22,20 @@ T NormalizeAngle(T angle)
     return angle;
 }
 
+/// @brief 计算阶乘
+/// @tparam T 整数型
+/// @param n 阶乘的阶数
+/// @return n的阶乘
+template<typename T>
+T Factorial(T n)
+{
+    static_assert(std::is_integral<T>::value);
+    T result = 1;
+    for (T i = 2; i <= n; i++)
+        result *= i;
+    return result;
+}
+
 /// @brief 计算某点处的朝向角
 /// @tparam T 浮点型
 /// @param dx 关于参数s的x坐标的导数

@@ -3,7 +3,7 @@
 
 namespace Curve
 {
-double CubicSplineCurve::operator()(const double x, const int derivative) const
+double CubicSplineCurve::operator()(const double x, const size_t derivative) const
 {
     std::vector<cv::Point2d>::const_iterator it = std::lower_bound(points_.begin(), points_.end(), x,
         [](const cv::Point2d & p, const double & x) -> bool

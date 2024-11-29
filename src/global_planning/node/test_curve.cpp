@@ -10,6 +10,7 @@
 #include "global_planning/curve/bezier_curve.h"
 #include "global_planning/curve/bspline_curve.h"
 #include "global_planning/curve/cubic_spline_curve.h"
+#include "global_planning/curve/polynomial.h"
 
 
 int main(int argc, char * argv[])
@@ -73,6 +74,19 @@ int main(int argc, char * argv[])
     {
         img.at<cv::Vec3b>(p.y, p.x) = { 255, 255, 255 };
     }
+
+    // 5. 测试多项式曲线
+    std::array<std::tuple<double, double, size_t>, 4> condtions;
+    condtions[0] = std::make_tuple(0, 1, 0);
+    condtions[1] = std::make_tuple(0, 0, 1);
+    condtions[2] = std::make_tuple(1, 6, 0);
+    condtions[3] = std::make_tuple(1, 13, 1);
+    Curve::Polynomial<3> poly(condtions);
+    std::cout << "x = 0.5, y = " << poly(0.5, 0) << std::endl;
+    std::cout << "x = 0.5, y' = " << poly(0.5, 1) << std::endl;
+    std::cout << "x = 2, y = " << poly(2, 0) << std::endl;
+    std::cout << "x = 2, y' = " << poly(2, 1) << std::endl;
+    std::cout << "x = 2, y\" = " << poly(2, 2) << std::endl;
 
     cv::namedWindow("Smooth Curve", cv::WindowFlags::WINDOW_NORMAL | cv::WindowFlags::WINDOW_KEEPRATIO);
     cv::imshow("Smooth Curve", img);
