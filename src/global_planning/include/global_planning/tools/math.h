@@ -7,6 +7,18 @@
 
 namespace Math
 {
+/// @brief 将value值限制在[min, max]之间
+/// @tparam T 数据类型，需要支持operator<
+/// @param value 待截断的值
+/// @param min 截断的下限
+/// @param max 截断的上限
+/// @return 截断后的值
+template<typename T>
+T Clamp(const T & value, const T & min, const T & max)
+{
+    return std::min(max, std::max(min, value));
+}
+
 /// @brief 将角度规范化到(-pi, pi]的范围内
 /// @tparam T 浮点型
 /// @param angle 弧度值角度

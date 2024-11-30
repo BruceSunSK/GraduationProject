@@ -134,7 +134,7 @@ bool DiscretePointSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path,
     {
         result_points.emplace_back(solution(i), solution(i + 1));
     }
-    ref_path.reset(new Path::ReferencePath(result_points, raw_ref_path->GetSInterval()));
+    ref_path = std::make_shared<Path::ReferencePath>(result_points, raw_ref_path->GetSInterval());
     return true;
 }
 

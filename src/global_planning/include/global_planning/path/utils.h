@@ -1,0 +1,28 @@
+#pragma once
+#include <cmath>
+
+#include "global_planning/path/data_type.h"
+
+
+namespace Path
+{
+namespace Utils
+{
+
+/// @brief 将Cartesian坐标系的xy值转换到Frenet坐标系的sl值
+/// @param xy Cartesian坐标系的xy值
+/// @param ref_xy xy点对应的参考线上的sl点的xy值
+/// @param ref_s xy点对应参考线上的sl点的s值
+/// @param ref_theta xy点对应参考线上的sl点的theta值
+/// @return Frenet坐标系的sl值
+PointSL XYtoSL(const PointXY xy, const PointXY ref_xy, const double ref_s, const double ref_theta);
+
+/// @brief 将Frenet坐标系的sl值转换到Cartesian坐标系的xy值
+/// @param sl Frenet坐标系的sl值
+/// @param ref_xy sl点对应的参考线上的xy点的xy值
+/// @param ref_theta sl点对应的参考线上的xy点的theta值
+/// @return Cartesian坐标系的xy值
+PointXY SLtoXY(const PointSL sl, const PointXY ref_xy, const double ref_theta);
+
+} // namespace Utils
+} // namespace Path

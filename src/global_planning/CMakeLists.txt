@@ -13,6 +13,8 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   nav_msgs
   geometry_msgs
+  grid_map_core
+  grid_map_cv
   tf2
   tf2_ros
 )
@@ -130,11 +132,13 @@ include_directories(
 
 ## Declare a C++ library
 add_library(tools               SHARED  src/tools/math.cpp)
+add_library(map                 SHARED  src/map/distance_map.cpp)
 add_library(curve               SHARED  src/curve/bezier_curve.cpp
                                         src/curve/bspline_curve.cpp
                                         src/curve/cubic_spline_curve.cpp
                                         src/curve/polynomial.cpp)
-add_library(path                SHARED  src/path/reference_path.cpp
+add_library(path                SHARED  src/path/utils.cpp
+                                        src/path/reference_path.cpp
                                         src/path/simplification.cpp)
 add_library(smoothers           SHARED  src/smoothers/discrete_point_smoother.cpp)
 add_library(planners            SHARED  src/planners/TSHAstar.cpp
@@ -143,10 +147,24 @@ add_library(planners            SHARED  src/planners/TSHAstar.cpp
                                         src/planners/rrtstar.cpp
                                         src/planners/genetic_algorithm.cpp)
 
-target_link_libraries(curve     ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} tools)
-target_link_libraries(path      ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} tools curve)
-target_link_libraries(smoothers ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} osqp::osqp OsqpEigen::OsqpEigen tools curve path)
-target_link_libraries(planners  ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} curve path smoothers)
+target_link_libraries(map       ${catkin_LIBRARIES} 
+                                ${OpenCV_LIBRARIES})
+target_link_libraries(curve     ${OpenCV_LIBRARIES} 
+                                tools)
+target_link_libraries(path      ${OpenCV_LIBRARIES} 
+                                tools 
+                                curve)
+target_link_libraries(smoothers ${OpenCV_LIBRARIES} 
+                                osqp::osqp 
+                                OsqpEigen::OsqpEigen 
+                                tools 
+                                curve 
+                                path)
+target_link_libraries(planners  ${OpenCV_LIBRARIES}
+                                map
+                                curve 
+                                path 
+                                smoothers)
 
 
 ## Declare a C++ executable

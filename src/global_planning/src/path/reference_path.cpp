@@ -24,7 +24,7 @@ void ReferencePath::SetPath(const std::vector<cv::Point2d> & path, const double 
     Y_S_.SetPoints(std::move(Y_S_points));
 
     // 根据离散间隔生成s集合，保证终点一定在曲线上，但也会使得曲线超出终点，不过不影响，后续超出的部分也有利于优化
-    std::vector<double> s_list;
+    std::list<double> s_list;
     s_list.emplace_back(0.0);
     while (s_list.back() < s_sum)
     {
