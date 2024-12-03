@@ -98,8 +98,8 @@ void CubicSplineCurve::CalculateCoefficients()
     }
 
     // 求解矩阵
-    Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
-    solver.compute(A_);
+    A_.makeCompressed();
+    Eigen::SparseLU<Eigen::SparseMatrix<double>> solver(A_);
     Eigen::VectorXd m_ = solver.solve(b_);
 
     // 计算系数

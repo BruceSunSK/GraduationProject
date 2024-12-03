@@ -34,6 +34,28 @@ T NormalizeAngle(T angle)
     return angle;
 }
 
+/// @brief 将弧度值转换为角度值
+/// @tparam T 浮点型
+/// @param rad 弧度值
+/// @return 角度值
+template<typename T>
+T Rad2Deg(const T rad)
+{
+    static_assert(std::is_floating_point<T>::value);
+    return rad * 180.0 / M_PI;
+}
+
+/// @brief 将角度值转换为弧度值
+/// @tparam T 浮点型
+/// @param deg 角度值
+/// @return 弧度值
+template<typename T>
+T Deg2Rad(const T deg)
+{
+    static_assert(std::is_floating_point<T>::value);
+    return deg * M_PI / 180.0;
+}
+
 /// @brief 计算阶乘
 /// @tparam T 整数型
 /// @param n 阶乘的阶数
@@ -92,6 +114,18 @@ T CurvatureRate(const T dx, const T dy, const T ddx, const T ddy, const T dddx, 
     const double c = dx * ddx + dy * ddy;
     const double d = dx * dx + dy * dy;
     return (b * d - 3.0 * a * c) / (d * d * d);
+}
+
+/// @brief 计算两个值之间的线性插值 
+/// @tparam T 数据类型，支持+ - *运算符
+/// @param a 起始值
+/// @param b 结束值
+/// @param t 表示插值的权重，取值范围为 [0, 1]
+/// @return 线性插值结果
+template<typename T>
+T Lerp(const T a, const T b, const double t)
+{
+    return a + (b - a) * t;
 }
 
 /// @brief 计算两点之间的直线上的所有点的栅格坐标，使用8领域扩展。

@@ -129,7 +129,8 @@ bool DiscretePointSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path,
 
     // 7. 保存数据
     const Eigen::VectorXd & solution = solver.getSolution();
-    std::vector<cv::Point2d> result_points;
+    std::vector<cv::Point2d> result_points(point_num);
+    result_points.clear();
     for (size_t i = 0; i < variable_num; i += 2)
     {
         result_points.emplace_back(solution(i), solution(i + 1));
