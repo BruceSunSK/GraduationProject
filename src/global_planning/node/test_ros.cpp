@@ -5,6 +5,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <visualization_msgs/MarkerArray.h>
+#include <tf2/utils.h>
 
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
@@ -29,13 +30,15 @@ bool end_point_flag = false;
 bool map_flag = false;
 
 
-void load_map(const std::string & map_path)
+void load_map(const std::string & map_path, const double resulution)
 {
     cv::Mat map = cv::imread(map_path, cv::IMREAD_GRAYSCALE);
 
+ 
+    
     int rows = map.rows;
     int cols = map.cols;
-    res = 0.4;
+    res = resulution;
     ori_x = 0.0;
     ori_y = 0.0;
     planner->setMapInfo(res, ori_x, ori_y);
@@ -248,6 +251,69 @@ void pub_path()
             line_marker.points.push_back(std::move(p));
         }
         marker_array.markers.push_back(line_marker);
+
+
+        // 6. dp后的路径和上下边界
+        // 6.1 dp路径
+        line_marker.ns = "sample_dp_path";
+        line_marker.id = 6;
+        line_marker.scale.x = 0.3;
+        line_marker.scale.y = 0.3;
+        line_marker.scale.z = 0.3;
+        line_marker.color.a = 0.8;
+        line_marker.color.r = 54.0 / 255.0;
+        line_marker.color.g = 54.0 / 255.0;
+        line_marker.color.b = 54.0 / 255.0;
+        line_marker.points.clear();
+        for (size_t i = 0; i < auxiliary_info[6].size(); i++)
+        {
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[6][i].x;
+            p.y = auxiliary_info[6][i].y;
+            p.z = 6;
+            line_marker.points.push_back(std::move(p));
+        }
+        marker_array.markers.push_back(line_marker);
+        // 6.2 dp得到的下边界
+        line_marker.ns = "sample_dp_lower_bound";
+        line_marker.id = 7;
+        line_marker.scale.x = 0.4;
+        line_marker.scale.y = 0.4;
+        line_marker.scale.z = 0.4;
+        line_marker.color.a = 0.9;
+        line_marker.color.r = 47.0 / 255.0;
+        line_marker.color.g = 79.0 / 255.0;
+        line_marker.color.b = 79.0 / 255.0;
+        line_marker.points.clear();
+        for (size_t i = 0; i < auxiliary_info[7].size(); i++)
+        {
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[7][i].x;
+            p.y = auxiliary_info[7][i].y;
+            p.z = 7;
+            line_marker.points.push_back(std::move(p));
+        }
+        marker_array.markers.push_back(line_marker);
+        // 6.3 dp得到的上边界
+        line_marker.ns = "sample_dp_upper_bound";
+        line_marker.id = 8;
+        line_marker.scale.x = 0.4;
+        line_marker.scale.y = 0.4;
+        line_marker.scale.z = 0.4;
+        line_marker.color.a = 0.9;
+        line_marker.color.r = 47.0 / 255.0;
+        line_marker.color.g = 79.0 / 255.0;
+        line_marker.color.b = 79.0 / 255.0;
+        line_marker.points.clear();
+        for (size_t i = 0; i < auxiliary_info[8].size(); i++)
+        {
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[8][i].x;
+            p.y = auxiliary_info[8][i].y;
+            p.z = 7;
+            line_marker.points.push_back(std::move(p));
+        }
+        marker_array.markers.push_back(line_marker);
     }
     else if (planner_name == "Astar")
     {
@@ -352,7 +418,8 @@ void pub_path()
 
 void start_point_callback(const geometry_msgs::PoseWithCovarianceStamped & msg)
 {
-    start_point_flag = planner->setStartPoint(msg.pose.pose.position.x, msg.pose.pose.position.y);
+    start_point_flag = planner->setStartPoint(msg.pose.pose.position.x, msg.pose.pose.position.y) &&
+                       planner->setStartPointYaw(tf2::getYaw(msg.pose.pose.orientation));
 
     if (start_point_flag && end_point_flag && map_flag)
     {
@@ -362,7 +429,8 @@ void start_point_callback(const geometry_msgs::PoseWithCovarianceStamped & msg)
 
 void end_point_callback(const geometry_msgs::PoseStamped & msg)
 {
-    end_point_flag = planner->setEndPoint(msg.pose.position.x, msg.pose.position.y);
+    end_point_flag = planner->setEndPoint(msg.pose.position.x, msg.pose.position.y) &&
+                     planner->setEndPointYaw(tf2::getYaw(msg.pose.orientation));
 
     if (start_point_flag && end_point_flag && map_flag)
     {
@@ -454,6 +522,16 @@ int main(int argc, char * argv[])
         TSHAstar_params.search.path_optimization.REF_WEIGTH_LENGTH = 1.0;
         TSHAstar_params.search.path_optimization.REF_WEIGTH_DEVIATION = 10.0;
         TSHAstar_params.search.path_optimization.REF_BUFFER_DISTANCE = 3.0;
+        TSHAstar_params.sample.path_sample.LONGITUDIAL_SAMPLE_SPACING = 0.5;
+        TSHAstar_params.sample.path_sample.LATERAL_SAMPLE_SPACING = 0.5;
+        TSHAstar_params.sample.path_sample.LATERAL_SAMPLE_RANGE = 10.0;
+        TSHAstar_params.sample.path_dp.COLLISION_DISTANCE = 0.5;
+        TSHAstar_params.sample.path_dp.WARNING_DISTANCE = 5.0;
+        TSHAstar_params.sample.path_dp.BOUND_CHECK_INTERVAL = 0.3;
+        TSHAstar_params.sample.path_dp.WEIGHT_OFFSET = 1.0;
+        TSHAstar_params.sample.path_dp.WEIGHT_OBSTACLE = 10.0;
+        TSHAstar_params.sample.path_dp.WEIGHT_ANGLE_CHANGE = 2000.0;
+        TSHAstar_params.sample.path_dp.WEIGHT_ANGLE_DIFF = 1.0;
         planner = new TSHAstar;
         planner->initParams(TSHAstar_params);
     }
@@ -503,9 +581,10 @@ int main(int argc, char * argv[])
     }
 
     // 可以选择手动加载地图，也可以选择订阅地图
-    std::string map_path = ros::package::getPath("global_planning") + "/map/XG_map.png";
-    load_map(map_path);
-    
+    // std::string map_path = ros::package::getPath("global_planning") + "/map/XG_map.png";
+    std::string map_path = ros::package::getPath("global_planning") + "/map/map2.png";
+    load_map(map_path, 0.4);
+     
     ros::spin();
     delete planner;
     return 0;

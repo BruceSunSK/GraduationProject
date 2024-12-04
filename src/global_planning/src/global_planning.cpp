@@ -55,6 +55,16 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
         p.search.path_optimization.REF_WEIGTH_LENGTH    = nh_.param<double>("TSHAstar/search/path_optimization/REF_WEIGTH_LENGTH", 1.0);   
         p.search.path_optimization.REF_WEIGTH_DEVIATION = nh_.param<double>("TSHAstar/search/path_optimization/REF_WEIGTH_DEVIATION", 10.0);
         p.search.path_optimization.REF_BUFFER_DISTANCE  = nh_.param<double>("TSHAstar/search/path_optimization/REF_BUFFER_DISTANCE", 3.0);
+        p.sample.path_sample.LONGITUDIAL_SAMPLE_SPACING = nh_.param<double>("TSHAstar/sample/path_sample/LONGITUDIAL_SAMPLE_SPACING", 0.5); 
+        p.sample.path_sample.LATERAL_SAMPLE_SPACING     = nh_.param<double>("TSHAstar/sample/path_sample/LATERAL_SAMPLE_SPACING", 0.5); 
+        p.sample.path_sample.LATERAL_SAMPLE_RANGE       = nh_.param<double>("TSHAstar/sample/path_sample/LATERAL_SAMPLE_RANGE", 10.0); 
+        p.sample.path_dp.COLLISION_DISTANCE             = nh_.param<double>("TSHAstar/sample/path_dp/COLLISION_DISTANCE", 0.5); 
+        p.sample.path_dp.WARNING_DISTANCE               = nh_.param<double>("TSHAstar/sample/path_dp/WARNING_DISTANCE", 5.0); 
+        p.sample.path_dp.BOUND_CHECK_INTERVAL           = nh_.param<double>("TSHAstar/sample/path_dp/BOUND_CHECK_INTERVAL", 0.3); 
+        p.sample.path_dp.WEIGHT_OFFSET                  = nh_.param<double>("TSHAstar/sample/path_dp/WEIGHT_OFFSET", 1.0); 
+        p.sample.path_dp.WEIGHT_OBSTACLE                = nh_.param<double>("TSHAstar/sample/path_dp/WEIGHT_OBSTACLE", 10.0); 
+        p.sample.path_dp.WEIGHT_ANGLE_CHANGE            = nh_.param<double>("TSHAstar/sample/path_dp/WEIGHT_ANGLE_CHANGE", 2000.0); 
+        p.sample.path_dp.WEIGHT_ANGLE_DIFF              = nh_.param<double>("TSHAstar/sample/path_dp/WEIGHT_ANGLE_DIFF", 1.0); 
         planner_ = new TSHAstar;
         planner_->initParams(p);
     }
@@ -167,7 +177,8 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
     try
     {
         tfs = buffer_.lookupTransform("map", "veh", ros::Time(0));
-        goal_flag = planner_->setStartPoint(tfs.transform.translation.x, tfs.transform.translation.y);
+        goal_flag = planner_->setStartPoint(tfs.transform.translation.x, tfs.transform.translation.y) &&
+                    planner_->setStartPointYaw(tf2::getYaw(tfs.transform.rotation));
         if (goal_flag == false)
         {
             return;
@@ -181,8 +192,8 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
     }
 
     // 终点
-    goal_flag = planner_->setEndPoint(msg->pose.position.x, msg->pose.position.y);
-
+    goal_flag = planner_->setEndPoint(msg->pose.position.x, msg->pose.position.y) &&
+                planner_->setEndPointYaw(tf2::getYaw(msg->pose.orientation));
 
     // 发布路径
     if ((goal_flag && map_flag) == false)
@@ -282,9 +293,9 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
         // 2. 去除冗余点后的关键节点
         points_marker.ns = "search_key_nodes";
         points_marker.id = 2;
-        points_marker.scale.x = 0.7;
-        points_marker.scale.y = 0.7;
-        points_marker.scale.z = 0.7;
+        points_marker.scale.x = 0.6;
+        points_marker.scale.y = 0.6;
+        points_marker.scale.z = 0.6;
         points_marker.color.a = 1.0;
         points_marker.color.r = 255.0 / 255.0;
         points_marker.color.g = 215.0 / 255.0;
@@ -304,13 +315,13 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
         // 3. 进行曲线平滑后的结果
         line_marker.ns = "search_bspline_smooth_path";
         line_marker.id = 3;
-        line_marker.scale.x = 0.5;
-        line_marker.scale.y = 0.5;
-        line_marker.scale.z = 0.5;
-        line_marker.color.a = 1.0;
+        line_marker.scale.x = 0.3;
+        line_marker.scale.y = 0.3;
+        line_marker.scale.z = 0.3;
+        line_marker.color.a = 0.8;
         line_marker.color.r = 255.0 / 255.0;
-        line_marker.color.g = 228.0 / 255.0;
-        line_marker.color.b = 196.0 / 255.0;
+        line_marker.color.g = 165.0 / 255.0;
+        line_marker.color.b = 0.0 / 255.0;
         line_marker.points.clear();
         for (size_t i = 0; i < auxiliary_info[3].size(); i++)
         {
@@ -318,6 +329,113 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
             p.x = auxiliary_info[3][i].x;
             p.y = auxiliary_info[3][i].y;
             p.z = 3;
+            line_marker.points.push_back(std::move(p));
+        }
+        marker_array.markers.push_back(line_marker);
+
+
+        // 4. 平滑后曲线均匀采样点
+        points_marker.ns = "search_s_sample_points";
+        points_marker.id = 4;
+        points_marker.scale.x = 0.3;
+        points_marker.scale.y = 0.3;
+        points_marker.scale.z = 0.3;
+        points_marker.color.a = 1.0;
+        points_marker.color.r = 255.0 / 255.0;
+        points_marker.color.g = 255.0 / 255.0;
+        points_marker.color.b = 0.0 / 255.0;
+        points_marker.points.clear();
+        for (size_t i = 0; i < auxiliary_info[4].size(); i++)
+        {
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[4][i].x;
+            p.y = auxiliary_info[4][i].y;
+            p.z = 4;
+            points_marker.points.push_back(std::move(p));
+        }
+        marker_array.markers.push_back(points_marker);
+
+
+        // 5. 进行数值优化平滑后的结果
+        line_marker.ns = "search_optimized_path";
+        line_marker.id = 5;
+        line_marker.scale.x = 0.3;
+        line_marker.scale.y = 0.3;
+        line_marker.scale.z = 0.3;
+        line_marker.color.a = 0.8;
+        line_marker.color.r = 238.0 / 255.0;
+        line_marker.color.g = 44.0 / 255.0;
+        line_marker.color.b = 44.0 / 255.0;
+        line_marker.points.clear();
+        for (size_t i = 0; i < auxiliary_info[5].size(); i++)
+        {
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[5][i].x;
+            p.y = auxiliary_info[5][i].y;
+            p.z = 5;
+            line_marker.points.push_back(std::move(p));
+        }
+        marker_array.markers.push_back(line_marker);
+
+
+        // 6. dp后的路径和上下边界
+        // 6.1 dp路径
+        line_marker.ns = "sample_dp_path";
+        line_marker.id = 6;
+        line_marker.scale.x = 0.3;
+        line_marker.scale.y = 0.3;
+        line_marker.scale.z = 0.3;
+        line_marker.color.a = 0.8;
+        line_marker.color.r = 54.0 / 255.0;
+        line_marker.color.g = 54.0 / 255.0;
+        line_marker.color.b = 54.0 / 255.0;
+        line_marker.points.clear();
+        for (size_t i = 0; i < auxiliary_info[6].size(); i++)
+        {
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[6][i].x;
+            p.y = auxiliary_info[6][i].y;
+            p.z = 6;
+            line_marker.points.push_back(std::move(p));
+        }
+        marker_array.markers.push_back(line_marker);
+        // 6.2 dp得到的下边界
+        line_marker.ns = "sample_dp_lower_bound";
+        line_marker.id = 7;
+        line_marker.scale.x = 0.4;
+        line_marker.scale.y = 0.4;
+        line_marker.scale.z = 0.4;
+        line_marker.color.a = 0.9;
+        line_marker.color.r = 47.0 / 255.0;
+        line_marker.color.g = 79.0 / 255.0;
+        line_marker.color.b = 79.0 / 255.0;
+        line_marker.points.clear();
+        for (size_t i = 0; i < auxiliary_info[7].size(); i++)
+        {
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[7][i].x;
+            p.y = auxiliary_info[7][i].y;
+            p.z = 7;
+            line_marker.points.push_back(std::move(p));
+        }
+        marker_array.markers.push_back(line_marker);
+        // 6.3 dp得到的上边界
+        line_marker.ns = "sample_dp_upper_bound";
+        line_marker.id = 8;
+        line_marker.scale.x = 0.4;
+        line_marker.scale.y = 0.4;
+        line_marker.scale.z = 0.4;
+        line_marker.color.a = 0.9;
+        line_marker.color.r = 47.0 / 255.0;
+        line_marker.color.g = 79.0 / 255.0;
+        line_marker.color.b = 79.0 / 255.0;
+        line_marker.points.clear();
+        for (size_t i = 0; i < auxiliary_info[8].size(); i++)
+        {
+            geometry_msgs::Point p;
+            p.x = auxiliary_info[8][i].x;
+            p.y = auxiliary_info[8][i].y;
+            p.z = 7;
             line_marker.points.push_back(std::move(p));
         }
         marker_array.markers.push_back(line_marker);

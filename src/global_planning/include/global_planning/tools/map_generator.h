@@ -263,6 +263,9 @@ private:
         KETPOINT,           // 关键点
         KETPOINT2,          // 关键点2
         KETPOINT3,          // 关键点3
+        KETPOINT4,          // 关键点4
+        KETPOINT5,          // 关键点5
+        KETPOINT6,          // 关键点6
         START,              // 起点
         END,                // 终点
         PATH,               // 最终路径
@@ -324,6 +327,12 @@ private:
             return cv::Vec3b(0, 165, 255);
         case GridType::KETPOINT3:   // 黄色
             return cv::Vec3b(0, 255, 255);
+        case GridType::KETPOINT4:   // 砖红色
+            return cv::Vec3b(44, 44, 238);
+        case GridType::KETPOINT5:   // 灰色
+            return cv::Vec3b(54, 54, 54);
+        case GridType::KETPOINT6:   // 墨绿色
+            return cv::Vec3b(79, 79, 47);
         case GridType::START:       // 红色
             return cv::Vec3b(0, 0, 200);
         case GridType::END:         // 粉色
@@ -342,7 +351,7 @@ private:
     {
         if (dynamic_cast<TSHAstar *>(planner_))
         {
-            // 1. 绘制open集合
+            // .. 绘制open集合
             for (size_t i = 0; i < auxiliary_info[1].size(); i++)
             {
                 cv::Point2i p;
@@ -351,7 +360,7 @@ private:
                 set_show_image_color(p, get_grid_color(GridType::OPEN));
             }
 
-            // 2. 直接绘制原始路径
+            // 1. 直接绘制原始路径
             for (size_t i = 1; i < auxiliary_info[0].size() - 1; i++)
             {
                 cv::Point2i p;
@@ -360,7 +369,7 @@ private:
                 set_show_image_color(p, get_grid_color(GridType::CLOSE));
             }
 
-            // 3. 绘制去除冗余点后的关键点
+            // 5. 绘制去除冗余点后的关键点
             for (size_t i = 1; i < auxiliary_info[2].size() - 1; i++)
             {
                 cv::Point2i p;
@@ -369,21 +378,45 @@ private:
                 set_show_image_color(p, get_grid_color(GridType::KETPOINT));
             }
 
-            // 4. 曲线平滑后的路径
+            // 3. 曲线平滑后的路径
             for (size_t i = 0; i < auxiliary_info[3].size(); i++)
             {
                 const cv::Point2d & p = auxiliary_info[3][i];
                 set_show_image_color(p, get_grid_color(GridType::KETPOINT2));
             }
 
-            // 5. 曲线平滑后进行采样的的路径
+            // 4. 曲线平滑后进行采样的的路径
             for (size_t i = 0; i < auxiliary_info[4].size(); i++)
             {
                 const cv::Point2d & p = auxiliary_info[4][i];
                 set_show_image_color(p, get_grid_color(GridType::KETPOINT3));
             }
 
-            // 6. 绘制最终优化平滑后的路径
+            // 5. 曲线平滑后进行采样的的路径
+            for (size_t i = 0; i < auxiliary_info[5].size(); i++)
+            {
+                const cv::Point2d & p = auxiliary_info[5][i];
+                set_show_image_color(p, get_grid_color(GridType::KETPOINT4));
+            }
+
+            // 6. dp后的路径和上下边界
+            for (size_t i = 0; i < auxiliary_info[6].size(); i++)
+            {
+                const cv::Point2d & p = auxiliary_info[6][i];
+                set_show_image_color(p, get_grid_color(GridType::KETPOINT5));
+            }
+            for (size_t i = 0; i < auxiliary_info[7].size(); i++)
+            {
+                const cv::Point2d & p = auxiliary_info[7][i];
+                set_show_image_color(p, get_grid_color(GridType::KETPOINT6));
+            }
+            for (size_t i = 0; i < auxiliary_info[8].size(); i++)
+            {
+                const cv::Point2d & p = auxiliary_info[8][i];
+                set_show_image_color(p, get_grid_color(GridType::KETPOINT6));
+            }
+
+            // 7. 绘制最终优化平滑后的路径
             for (size_t i = 0; i < path.size(); i++)
             {
                 const cv::Point2d & p = path[i];
@@ -465,7 +498,8 @@ private:
             const cv::Point2i this_click_point(grid_x, grid_y);
             if (left_click_count % 2 == 0)
             {
-                if (obj->planner_->setStartPoint(x, y))
+                if (obj->planner_->setStartPoint(x, y) &&
+                    obj->planner_->setStartPointYaw(M_PI_4))
                 {
                     // obj->planner_->setStartPointYaw(M_PI_2);
 
@@ -482,7 +516,8 @@ private:
             }
             else
             {
-                if (obj->planner_->setEndPoint(x, y))
+                if (obj->planner_->setEndPoint(x, y) &&
+                    obj->planner_->setEndPointYaw(M_PI_4))
                 {
                     // 标记终点
                     obj->grid_map_property_.at<cv::Vec2b>(this_click_point)[1] = GridType::END;

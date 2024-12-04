@@ -37,3 +37,16 @@ TSHAstar:
       REF_BUFFER_DISTANCE: 3.0      # 参考线初步优化时原始点可在XY方向上最大偏移距离，单位为m。
 
   sample:
+    path_sample:
+      LONGITUDIAL_SAMPLE_SPACING: 0.5   # 在Frenet坐标系下纵向撒点的间隔，单位m
+      LATERAL_SAMPLE_SPACING: 0.5       # 在Frenet坐标系下横向撒点的间隔，单位m
+      LATERAL_SAMPLE_RANGE: 10.0        # 在Frenet坐标系下横向撒点的边界，单位m
+
+    path_dp:
+      COLLISION_DISTANCE: 0.5           # 在dp过程中检测障碍物时，与障碍物的距离小于该值则认为发生碰撞。单位m
+      WARNING_DISTANCE: 5.0             # 在dp过程中检测障碍物时，与障碍物的距离小于该值才计算障碍物带来的代价，否则不计算。单位m
+      BOUND_CHECK_INTERVAL: 0.3         # 在dp过程中确定边界时，再横向上步进的长度。间隔约小越精准，但更耗时。此处仅需要大致范围即可。单位m
+      WEIGHT_OFFSET: 1.0                # 在dp计算代价时的偏离权重，用于描述当前点与参考路径的偏离程度。
+      WEIGHT_OBSTACLE: 10.0             # 在dp计算代价时的障碍物权重，用于描述当前点与周围障碍物接近的程度。
+      WEIGHT_ANGLE_CHANGE: 2000.0       # 在dp计算代价时的角度变化权重，用于描述当前点与其上层节点发生角度变化的程度。
+      WEIGHT_ANGLE_DIFF: 1.0            # 在dp计算代价时的角度偏差权重，用于描述当前点与对应参考线上点角度偏差的程度。

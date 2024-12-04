@@ -44,6 +44,16 @@ int main(int argc, char * argv[])
         TSHAstar_params.search.path_optimization.REF_WEIGTH_LENGTH = 1.0;
         TSHAstar_params.search.path_optimization.REF_WEIGTH_DEVIATION = 10.0;
         TSHAstar_params.search.path_optimization.REF_BUFFER_DISTANCE = 3.0;
+        TSHAstar_params.sample.path_sample.LONGITUDIAL_SAMPLE_SPACING = 10.0;
+        TSHAstar_params.sample.path_sample.LATERAL_SAMPLE_SPACING = 10.0;
+        TSHAstar_params.sample.path_sample.LATERAL_SAMPLE_RANGE = 100.0;
+        TSHAstar_params.sample.path_dp.COLLISION_DISTANCE = 20;
+        TSHAstar_params.sample.path_dp.WARNING_DISTANCE = 80;
+        TSHAstar_params.sample.path_dp.BOUND_CHECK_INTERVAL = 5;
+        TSHAstar_params.sample.path_dp.WEIGHT_OFFSET = 1.0;
+        TSHAstar_params.sample.path_dp.WEIGHT_OBSTACLE = 10.0;
+        TSHAstar_params.sample.path_dp.WEIGHT_ANGLE_CHANGE = 2000.0;
+        TSHAstar_params.sample.path_dp.WEIGHT_ANGLE_DIFF = 1.0;
         planner = new TSHAstar;
         planner->initParams(TSHAstar_params);
     }

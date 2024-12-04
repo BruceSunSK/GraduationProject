@@ -9,9 +9,11 @@
 #include "global_planning/planners/global_planner_interface.h"
 #include "global_planning/tools/print_struct_and_enum.h"
 #include "global_planning/tools/math.h"
+#include "global_planning/map/distance_map.h"
 #include "global_planning/curve/bezier_curve.h"
 #include "global_planning/curve/bspline_curve.h"
 #include "global_planning/curve/cubic_spline_curve.h"
+#include "global_planning/path/utils.h"
 #include "global_planning/path/simplification.h"
 #include "global_planning/path/reference_path.h"
 #include "global_planning/smoothers/discrete_point_smoother.h"
@@ -81,6 +83,11 @@
 ///
 /// 【第二大步】：将第一大步的参考路径转换到Frenet坐标系下，在参考路径两侧进行撒点采样，然后使用DP快速确定满足车辆运动学的解空间，得到上下边界约束。
 ///             然后利用确定好的上下边界约束，再次对参考路径进行平滑，此时要考虑运动学约束，得到最终的全局路径。
+/// [7] 使用dp开辟凸空间
+///     1. 以[6]中曲线为参考线，建立Frenet坐标系。
+///     2. 在Frenet坐标系下进行横纵向均匀撒点
+///     3. 沿前进方向进行dp操作，代价值包括四种：偏离代价、障碍物代价、角度变化代价、角度偏差代价。
+///     4. 根据dp结果回溯，确定dp路径，进而得到dp路径对应的上下边界范围，即得到一个凸空间的粗解。
 class TSHAstar : public GlobalPlannerInterface
 {
 public:
@@ -215,10 +222,43 @@ public:
         // 采样过程相关参数，对应第三大步。
         struct 
         {
+            struct
+            {
+                double LONGITUDIAL_SAMPLE_SPACING = 0.5;    // 在Frenet坐标系下纵向撒点的间隔，单位m
+                double LATERAL_SAMPLE_SPACING = 0.5;        // 在Frenet坐标系下横向撒点的间隔，单位m
+                double LATERAL_SAMPLE_RANGE = 10.0;         // 在Frenet坐标系下横向撒点的边界，单位m
+
+                REGISTER_STRUCT(REGISTER_MEMBER(LONGITUDIAL_SAMPLE_SPACING),
+                                REGISTER_MEMBER(LATERAL_SAMPLE_SPACING),
+                                REGISTER_MEMBER(LATERAL_SAMPLE_RANGE))
+            } path_sample;
+
+            struct
+            {
+                double COLLISION_DISTANCE = 0.5;        // 在dp过程中检测障碍物时，与障碍物的距离小于该值则认为发生碰撞。单位m
+                double WARNING_DISTANCE = 5.0;          // 在dp过程中检测障碍物时，与障碍物的距离小于该值才计算障碍物带来的代价，否则不计算。单位m
+                double BOUND_CHECK_INTERVAL = 0.3;      // 在dp过程中确定边界时，再横向上步进的长度。间隔约小越精准，但更耗时。此处仅需要大致范围即可。单位m
+                double WEIGHT_OFFSET = 1.0;             // 在dp计算代价时的偏离权重，用于描述当前点与参考路径的偏离程度。
+                double WEIGHT_OBSTACLE = 10.0;          // 在dp计算代价时的障碍物权重，用于描述当前点与周围障碍物接近的程度。
+                double WEIGHT_ANGLE_CHANGE = 2000.0;    // 在dp计算代价时的角度变化权重，用于描述当前点与其上层节点发生角度变化的程度。
+                double WEIGHT_ANGLE_DIFF = 1.0;         // 在dp计算代价时的角度偏差权重，用于描述当前点与对应参考线上点角度偏差的程度。
+
+                REGISTER_STRUCT(REGISTER_MEMBER(COLLISION_DISTANCE),
+                                REGISTER_MEMBER(WARNING_DISTANCE),
+                                REGISTER_MEMBER(BOUND_CHECK_INTERVAL),
+                                REGISTER_MEMBER(WEIGHT_OFFSET),
+                                REGISTER_MEMBER(WEIGHT_OBSTACLE),
+                                REGISTER_MEMBER(WEIGHT_ANGLE_CHANGE),
+                                REGISTER_MEMBER(WEIGHT_ANGLE_DIFF))
+            } path_dp;
+
+            REGISTER_STRUCT(REGISTER_MEMBER(path_sample),
+                            REGISTER_MEMBER(path_dp))
         } sample;
         
         REGISTER_STRUCT(REGISTER_MEMBER(map),
-                        REGISTER_MEMBER(search));
+                        REGISTER_MEMBER(search),
+                        REGISTER_MEMBER(sample))
     };
 
     /// @brief 用于TSHAstar规划器使用的辅助类，实现数据记录和结果打印
@@ -292,6 +332,38 @@ public:
                             REGISTER_MEMBER(path_optimization))
         } search;
 
+        struct
+        {
+            struct
+            {
+                size_t lon_points_size = 0;
+                size_t lat_points_size = 0;
+                double cost_time = 0.0;
+
+                REGISTER_STRUCT(REGISTER_MEMBER(lon_points_size),
+                                REGISTER_MEMBER(lat_points_size),
+                                REGISTER_MEMBER(cost_time))
+            } path_sample;
+
+            struct
+            {
+                double dp_cost_time = 0.0;
+                double bound_cost_time = 0.0;
+                double total_cost_time = 0.0;
+
+                std::vector<cv::Point2d> dp_path;
+                std::vector<cv::Point2d> lower_bound;
+                std::vector<cv::Point2d> upper_bound;
+
+                REGISTER_STRUCT(REGISTER_MEMBER(dp_cost_time),
+                                REGISTER_MEMBER(bound_cost_time),
+                                REGISTER_MEMBER(total_cost_time))
+            } path_dp;
+
+            REGISTER_STRUCT(REGISTER_MEMBER(path_sample),
+                            REGISTER_MEMBER(path_dp))
+        } sample;
+
     public:
         /// @brief 清空当前记录的所有结果信息，便于下次记录
         void resetResultInfo() override
@@ -318,6 +390,17 @@ public:
             search.path_optimization.cost_time = 0.0;
             search.path_optimization.sample_path.clear();
             search.path_optimization.optimized_path.clear();
+
+            sample.path_sample.lon_points_size = 0;
+            sample.path_sample.lat_points_size = 0;
+            sample.path_sample.cost_time = 0.0;
+
+            sample.path_dp.dp_cost_time = 0.0;
+            sample.path_dp.bound_cost_time = 0.0;
+            sample.path_dp.total_cost_time = 0.0;
+            sample.path_dp.dp_path.clear();
+            sample.path_dp.lower_bound.clear();
+            sample.path_dp.upper_bound.clear();
         }
 
     private:
@@ -334,7 +417,7 @@ public:
 
 private:
     /// @brief 用于描述搜索过程中的单个栅格节点
-    struct Node
+    struct SearchNode
     {
         // 相关配置
         /// @brief 节点属性
@@ -370,16 +453,28 @@ private:
         double w = 1;       // 该点的权重值，为动态加权。
         double f = 0;       // 该点总共的代价值 f = g + w * h
         NodeType type = NodeType::UNKNOWN;  // 节点种类，标识是否已探索
-        Node * parent_node = nullptr;       // 该节点的父节点
+        SearchNode * parent_node = nullptr;       // 该节点的父节点
         Direction direction_to_parent = Direction::UNKNOWN;     // 该节点相对父节点的方位
 
 
         /// @brief 节点比较重载，用于优先队列
-        bool operator<(const Node & other) const { return f > other.f; }
+        bool operator<(const SearchNode & other) const { return f > other.f; }
         struct NodePointerCmp
         {
-            bool operator()(const Node * const l, const Node * const r) const { return l->f > r->f; }
+            bool operator()(const SearchNode * const l, const SearchNode * const r) const { return l->f > r->f; }
         };
+    };
+
+    struct SampleNode : public Path::PathNode
+    {
+        // 该点的状态信息，还包括 s l x y；theta和kappa用于描述该点对应参考点处的信息
+        double heading = 0.0;       // 采样点处的朝向
+        double dis_to_obs = 0.0;    // 该点距离最近障碍物的距离，此处单位是栅格
+        bool is_feasible = false;   // 该点是否可以通过
+
+        // 该点在dp过程更新的信息
+        double cost = std::numeric_limits<double>::max();
+        SampleNode * parent = nullptr;
     };
     
 public:
@@ -447,41 +542,44 @@ private:
     cv::Mat distance_map_;          // 在二值化地图中进行distanceTransform变换的结果，用于描述每个栅格到障碍物的距离
     cv::Point2d start_point_;       // 起点，真实地图上的起点落在栅格地图中的离散坐标
     cv::Point2d end_point_;         // 终点，真实地图上的终点落在栅格地图中的离散坐标
-    
+    double start_yaw_;              // 起点位置的朝向，弧度
+    double end_yaw_;                // 终点位置的朝向，弧度
+
     // 搜索过程
-    std::vector<std::vector<Node>> search_map_;     // 在搜索规划中实际使用地图
-    Node * start_node_ = nullptr;                   // 起点节点
-    Node * end_node_ = nullptr;                     // 终点节点
+    std::vector<std::vector<SearchNode>> search_map_;     // 在搜索规划中实际使用地图
+    SearchNode * start_node_ = nullptr;                   // 起点节点
+    SearchNode * end_node_ = nullptr;                     // 终点节点
 
     // 采样过程
-
+    Map::DistanceMap sample_map_;   // 在采样过程中使用到的地图，用于插值得到离散点处的distance_map_值
     
+
     /// @brief 根据配置参数，确定当前当前节点的相邻节点在Node::neightbor_offset_table中的索引值列表
     /// @param n 当前节点
-    /// @return Node::neightbor_offset_table中的索引值列表
-    std::vector<size_t> getNeighborsIndex(const Node * const n) const;
+    /// @return SearchNode::neightbor_offset_table中的索引值列表
+    std::vector<size_t> getNeighborsIndex(const SearchNode * const n) const;
     /// @brief 准确讲应为getGi，即返回节点n到其父节点的G综合代价值。即为带有可通行度代价和转向代价的综合距离代价值。
     /// @param n 待计算的节点，计算该节点到其父节点的综合距离代价值
     /// @param direction 待计算的节点相对父节点的方向
     /// @param par_direction 待计算的父节点相对其父节点的方向
     /// @return 综合距离代价值，用于进一步判断该该节点是否需要被更新。
-    double getG(const Node * const n, const Node::Direction direction, const Node::Direction par_direction) const;
+    double getG(const SearchNode * const n, const SearchNode::Direction direction, const SearchNode::Direction par_direction) const;
     /// @brief 根据启发类型，得到节点n到终点的启发值
     /// @param n 待计算的节点，计算该节点到终点的启发值
-    void getH(Node * const n) const;
+    void getH(SearchNode * const n) const;
     /// @brief 计算p点到终点的启发权重。【效果很差，暂不使用】
     /// @param p 待计算的点，计算该点到终点的启发权重
-    void getW(Node * const n) const;
+    void getW(SearchNode * const n) const;
     /// @brief 将当前地图中的参数全部初始化。一般在完成一次规划的所有步骤后进行。
     void resetSearchMap();
     /// @brief 通过代价地图计算得到的原始路径，未经过去除冗余点、平滑操作
     /// @param raw_nodes 输出规划的原始结果
     /// @return 规划是否成功。如果起点和终点不可达则规划失败
-    bool generateRawNodes(std::vector<Node *> & raw_nodes);
+    bool generateRawNodes(std::vector<SearchNode *> & raw_nodes);
     /// @brief 将节点Node数据类型转换成便于后续计算的Point数据类型，并将当前地图中的参数全部初始化
     /// @param nodes 输入的待转换节点
     /// @param path 输出的路径
-    void nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Point2i> & path);
+    void nodesToPath(const std::vector<SearchNode *> & nodes, std::vector<cv::Point2i> & path);
     /// @brief 根据路径节点之间的关系，去除中间的冗余点，只保留关键点，如：起始点、转向点
     /// @param raw_path 输入的待去除冗余点的路径
     /// @param reduced_path 输出的去除冗余点后的路径
@@ -497,6 +595,15 @@ private:
     /// @param reference_path 经过优化平滑的参考线路径
     /// @return 优化是否成功
     bool optimizePath(const std::vector<cv::Point2d> & smooth_path, Path::ReferencePath::Ptr & reference_path);
+    /// @brief 计算当前采样点处的总dp代价值，单个节点的代价值包括偏离代价、障碍物代价、角度变化代价、角度差异代价。并对节点朝向、父节点进行更新
+    /// @param sample_nodes 所有采样点
+    /// @param lon_idx 当前采样点的纵向索引
+    /// @param lat_idx 当前采样点的横向索引
+    void calCostInSampleNodes(std::vector<std::vector<SampleNode>> & sample_nodes, const size_t lon_idx, const size_t lat_idx);
+    /// @brief 将现有的参考线转换到frenet坐标系下，然后再两侧均匀撒点，利用动态规划dp找到符合运动学约束的路径，记录障碍物的上下边界。
+    /// @param reference_path 撒点参考的参考线
+    /// @return 是否成功
+    bool findPathTunnel(const Path::ReferencePath::Ptr & reference_path, std::vector<std::pair<double, double>> & tunnel_bounds);
 };
 
 using NeighborType = TSHAstar::NeighborType;

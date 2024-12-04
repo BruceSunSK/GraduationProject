@@ -33,14 +33,15 @@ std::string TSHAstar::TSHAstarHelper::resultInfo() const
     std::stringstream result_info;
     result_info << "[Result Info]:\n";
     PRINT_STRUCT(result_info, search);
+    PRINT_STRUCT(result_info, sample);
     return result_info.str();
 }
 // ========================= TSHAstar::TSHAstarHelper =========================
 
 
-// ========================= TSHAstar::Node =========================
+// ========================= TSHAstar::SearchNode =========================
 
-const int TSHAstar::Node::neighbor_offset_table[8][2] =
+const int TSHAstar::SearchNode::neighbor_offset_table[8][2] =
     {
         {-1,  0},
         { 1,  0},
@@ -52,7 +53,7 @@ const int TSHAstar::Node::neighbor_offset_table[8][2] =
         { 1,  1}
     };
 
-const TSHAstar::Node::Direction TSHAstar::Node::direction_table[8] =
+const TSHAstar::SearchNode::Direction TSHAstar::SearchNode::direction_table[8] =
     {
         Direction::N,
         Direction::S,
@@ -63,7 +64,7 @@ const TSHAstar::Node::Direction TSHAstar::Node::direction_table[8] =
         Direction::SW,
         Direction::SE
     };
-// ========================= TSHAstar::Node =========================
+// ========================= TSHAstar::SearchNode =========================
 
 
 // ========================= TSHAstar =========================
@@ -193,10 +194,10 @@ bool TSHAstar::setMap(const cv::Mat & map)
     search_map_.resize(rows_);
     for (int i = 0; i < rows_; i++)
     {
-        std::vector<Node> row(cols_);
+        std::vector<SearchNode> row(cols_);
         for (int j = 0; j < cols_; j++)
         {
-            Node node;
+            SearchNode node;
             node.point.x = j;
             node.point.y = i;
             if (out.at<uchar>(i, j) >= params_.map.COST_THRESHOLD)    // 过滤小代价值栅格
@@ -215,10 +216,13 @@ bool TSHAstar::setMap(const cv::Mat & map)
     }
     // 1. 离散代价值的障碍物地图，正常范围在[0, 100]，也包括255未探明的情况
     discrete_map_ = std::move(out);
-    // 2. 代价值二值化后的障碍物地图，未探明情况视为障碍物。即[0, OBSTACLE_THRESHOLD)值为0，[OBSTACLE_THRESHOLD, 255]值为255
-    cv::threshold(discrete_map_, binary_map_, params_.map.OBSTACLE_THRESHOLD - 1, 255, cv::ThresholdTypes::THRESH_BINARY);
+    // 2. 代价值二值化后的障碍物地图，未探明情况视为障碍物。即[0, OBSTACLE_THRESHOLD)值为255，白色，前景；[OBSTACLE_THRESHOLD, 255]值为0，黑色，背景。
+    cv::threshold(discrete_map_, binary_map_, params_.map.OBSTACLE_THRESHOLD - 1, 255, cv::ThresholdTypes::THRESH_BINARY_INV);
     // 3. 在二值化地图中进行distanceTransform变换的结果，用于描述每个栅格到障碍物的距离
-    cv::distanceTransform(binary_map_, distance_map_, cv::DIST_L2, cv::DIST_MASK_PRECISE);
+    cv::distanceTransform(binary_map_, distance_map_, cv::DIST_L2, cv::DIST_MASK_PRECISE, CV_32FC1);
+    // 4. 设置采样时所用的地图
+    sample_map_.SetMap(distance_map_);
+
 
     // printf("地图设置成功，大小 %d x %d\n", rows_, cols_);
     init_map_ = true;
@@ -274,38 +278,40 @@ bool TSHAstar::setStartPointYaw(const double yaw)
         return false;
     }
 
+    start_yaw_ = Math::NormalizeAngle(yaw);
+
     // 确定起点的朝向
-    if (yaw > -M_PI / 8 && yaw <= M_PI / 8)
+    if (start_yaw_ > -M_PI / 8 && start_yaw_ <= M_PI / 8)
     {
-        start_node_->direction_to_parent = Node::Direction::E;
+        start_node_->direction_to_parent = SearchNode::Direction::E;
     }
-    else if (yaw > M_PI / 8 && yaw <= 3 * M_PI / 8)
+    else if (start_yaw_ > M_PI / 8 && start_yaw_ <= 3 * M_PI / 8)
     {
-        start_node_->direction_to_parent = Node::Direction::SE;
+        start_node_->direction_to_parent = SearchNode::Direction::SE;
     }
-    else if (yaw > 3 * M_PI / 8 && yaw <= 5 * M_PI / 8)
+    else if (start_yaw_ > 3 * M_PI / 8 && start_yaw_ <= 5 * M_PI / 8)
     {
-        start_node_->direction_to_parent = Node::Direction::S;
+        start_node_->direction_to_parent = SearchNode::Direction::S;
     }
-    else if (yaw > 5 * M_PI / 8 && yaw <= 7 * M_PI / 8)
+    else if (start_yaw_ > 5 * M_PI / 8 && start_yaw_ <= 7 * M_PI / 8)
     {
-        start_node_->direction_to_parent = Node::Direction::SW;
+        start_node_->direction_to_parent = SearchNode::Direction::SW;
     }
-    else if (yaw > 7 * M_PI / 8 || yaw <= -7 * M_PI / 8)
+    else if (start_yaw_ > 7 * M_PI / 8 || start_yaw_ <= -7 * M_PI / 8)
     {
-        start_node_->direction_to_parent = Node::Direction::W;
+        start_node_->direction_to_parent = SearchNode::Direction::W;
     }
-    else if (yaw > -7 * M_PI / 8 && yaw <= -5 * M_PI / 8)
+    else if (start_yaw_ > -7 * M_PI / 8 && start_yaw_ <= -5 * M_PI / 8)
     {
-        start_node_->direction_to_parent = Node::Direction::NW;
+        start_node_->direction_to_parent = SearchNode::Direction::NW;
     }
-    else if (yaw > -5 * M_PI / 8 && yaw <= -3 * M_PI / 8)
+    else if (start_yaw_ > -5 * M_PI / 8 && start_yaw_ <= -3 * M_PI / 8)
     {
-        start_node_->direction_to_parent = Node::Direction::N;
+        start_node_->direction_to_parent = SearchNode::Direction::N;
     }
-    else if (yaw > -3 * M_PI / 8 && yaw <= -M_PI / 8)
+    else if (start_yaw_ > -3 * M_PI / 8 && start_yaw_ <= -M_PI / 8)
     {
-        start_node_->direction_to_parent = Node::Direction::NE;
+        start_node_->direction_to_parent = SearchNode::Direction::NE;
     }
     else
     {
@@ -358,6 +364,13 @@ bool TSHAstar::setEndPoint(const cv::Point2d & p)
 
 bool TSHAstar::setEndPointYaw(const double yaw)
 {
+    if (!init_end_point_)
+    {
+        std::cout << "设置终点朝向前必须先设置终点！\n";
+        return false;
+    }
+    end_yaw_ = Math::NormalizeAngle(yaw);
+    return true;
 }
 
 bool TSHAstar::getProcessedMap(cv::Mat & map) const
@@ -385,7 +398,7 @@ bool TSHAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<
 
     // 第一大步：搜索过程建立原始参考路径，并进行初步平滑
     // 1.搜索方法规划原始路径
-    std::vector<Node *> raw_nodes;
+    std::vector<SearchNode *> raw_nodes;
     if (!generateRawNodes(raw_nodes))
     {
         std::cout << "规划失败！目标点不可达！\n";
@@ -424,8 +437,16 @@ bool TSHAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<
 
     
     // 第二大步：使用采样开辟解空间，利用Frenet坐标系优化路径
+    // 6.使用dp动态规划开辟凸空间，找到粗解，确定可行域范围
+    std::vector<std::pair<double, double>> bounds;
+    if (!findPathTunnel(reference_path, bounds))
+    {
+        std::cout << "路径DP失败！\n";
+        // return false;
+    }
 
 
+    
     // 辅助信息赋值
     // 7.auxiliary_info赋值
     auxiliary_info.clear();
@@ -435,12 +456,15 @@ bool TSHAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<
     auxiliary_info.push_back(std::move(helper_.search.path_smooth.smooth_path));
     auxiliary_info.push_back(std::move(helper_.search.path_optimization.sample_path));
     auxiliary_info.push_back(std::move(helper_.search.path_optimization.optimized_path));
+    auxiliary_info.push_back(std::move(helper_.sample.path_dp.dp_path));
+    auxiliary_info.push_back(std::move(helper_.sample.path_dp.lower_bound));
+    auxiliary_info.push_back(std::move(helper_.sample.path_dp.upper_bound));
 
     return true;
 }
 
 
-std::vector<size_t> TSHAstar::getNeighborsIndex(const Node * const node) const
+std::vector<size_t> TSHAstar::getNeighborsIndex(const SearchNode * const node) const
 {
     std::vector<size_t> index_range;
     switch (params_.search.path_search.NEIGHBOR_TYPE)
@@ -451,28 +475,28 @@ std::vector<size_t> TSHAstar::getNeighborsIndex(const Node * const node) const
     case NeighborType::FiveConnected:
         switch (node->direction_to_parent)
         {
-        case Node::Direction::N:
+        case SearchNode::Direction::N:
             index_range = { 0, 2, 3, 4, 5 };
             break;
-        case Node::Direction::S:
+        case SearchNode::Direction::S:
             index_range = { 1, 2, 3, 6, 7 };
             break;
-        case Node::Direction::W:
+        case SearchNode::Direction::W:
             index_range = { 0, 1, 2, 4, 6 };
             break;
-        case Node::Direction::E:
+        case SearchNode::Direction::E:
             index_range = { 0, 1, 3, 5, 7 };
             break;
-        case Node::Direction::NW:
+        case SearchNode::Direction::NW:
             index_range = { 0, 2, 4, 5, 6 };
             break;
-        case Node::Direction::NE:
+        case SearchNode::Direction::NE:
             index_range = { 0, 3, 4, 5, 7 };
             break;
-        case Node::Direction::SW:
+        case SearchNode::Direction::SW:
             index_range = { 1, 2, 4, 6, 7 };
             break;
-        case Node::Direction::SE:
+        case SearchNode::Direction::SE:
             index_range = { 1, 3, 5, 6, 7 };
             break;
         default:    // UNKNOWN情形下，返回全部邻居
@@ -489,7 +513,9 @@ std::vector<size_t> TSHAstar::getNeighborsIndex(const Node * const node) const
     return index_range;
 }
 
-double TSHAstar::getG(const Node * const n, const Node::Direction direction, const Node::Direction par_direction) const
+double TSHAstar::getG(const SearchNode * const n,
+                      const SearchNode::Direction direction,
+                      const SearchNode::Direction par_direction) const
 {
     uint8_t dir = static_cast<uint8_t>(direction);
     uint8_t par_dir = static_cast<uint8_t>(par_direction);
@@ -518,7 +544,7 @@ double TSHAstar::getG(const Node * const n, const Node::Direction direction, con
     return trav_cost * turn_cost * dis_cost;
 }
 
-void TSHAstar::getH(Node * const n) const
+void TSHAstar::getH(SearchNode * const n) const
 {
     cv::Point2i & p = n->point;
     double h = 0;
@@ -549,7 +575,7 @@ void TSHAstar::getH(Node * const n) const
     n->h = h;
 }
 
-void TSHAstar::getW(Node * const n) const
+void TSHAstar::getW(SearchNode * const n) const
 {
     // n->w = 1;
     // return;
@@ -591,14 +617,14 @@ void TSHAstar::resetSearchMap()
             search_map_[i][j].h = 0;
             search_map_[i][j].w = 1;
             search_map_[i][j].f = 0;
-            search_map_[i][j].type = Node::NodeType::UNKNOWN;
+            search_map_[i][j].type = SearchNode::NodeType::UNKNOWN;
             search_map_[i][j].parent_node = nullptr;
-            search_map_[i][j].direction_to_parent = Node::Direction::UNKNOWN;
+            search_map_[i][j].direction_to_parent = SearchNode::Direction::UNKNOWN;
         }
     }
 }
 
-bool TSHAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
+bool TSHAstar::generateRawNodes(std::vector<SearchNode *> & raw_nodes)
 {
     // 初始节点
     auto start_time = std::chrono::steady_clock::now();
@@ -608,18 +634,18 @@ bool TSHAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
     // start_node_->f = start_node_->g + start_node_->w * start_node_->h;
     start_node_->f = start_node_->g + start_node_->h;
     start_node_->parent_node = nullptr;
-    std::priority_queue<Node *, std::vector<Node*>, Node::NodePointerCmp> queue;
+    std::priority_queue<SearchNode *, std::vector<SearchNode*>, SearchNode::NodePointerCmp> queue;
     queue.push(start_node_);
 
 
     // 循环遍历
     while (queue.empty() == false)  // 队列为空，一般意味着无法到达终点
     {
-        Node * const this_node = queue.top();
+        SearchNode * const this_node = queue.top();
         const cv::Point2i & this_point = this_node->point;
         queue.pop();
 
-        this_node->type = Node::NodeType::CLOSED;
+        this_node->type = SearchNode::NodeType::CLOSED;
         if (this_node == end_node_)  // 已经到达终点
             break;
         
@@ -627,39 +653,39 @@ bool TSHAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
         std::vector<size_t> index_range = getNeighborsIndex(this_node);
         for (size_t & index : index_range)
         {
-            const int & k = Node::neighbor_offset_table[index][0];
-            const int & l = Node::neighbor_offset_table[index][1];
+            const int & k = SearchNode::neighbor_offset_table[index][0];
+            const int & l = SearchNode::neighbor_offset_table[index][1];
             if (((this_point.y + k >= 0 && this_point.y + k < rows_) &&
                  (this_point.x + l >= 0 && this_point.x + l < cols_)) == false) // 保证当前索引不溢出
             {
                 continue;
             }
             
-            Node * const new_node = &search_map_[this_point.y + k][this_point.x + l];
+            SearchNode * const new_node = &search_map_[this_point.y + k][this_point.x + l];
             const cv::Point2i & new_point = new_node->point;
             if ((new_node->cost < params_.map.OBSTACLE_THRESHOLD &&         // 保证该节点是非障碍物节点，才能联通。代价地图[0, 100] 0可通过 100不可通过 
-                    new_node->type != Node::NodeType::CLOSED) == false)     // 不对已加入CLOSED的数据再次判断
+                 new_node->type != SearchNode::NodeType::CLOSED) == false)  // 不对已加入CLOSED的数据再次判断
             {
                 continue;
             }
 
-            const Node::Direction direction = Node::direction_table[index];
+            const SearchNode::Direction direction = SearchNode::direction_table[index];
             const double gi = getG(new_node, direction, this_node->direction_to_parent);
-            if (new_node->type == Node::NodeType::UNKNOWN)
+            if (new_node->type == SearchNode::NodeType::UNKNOWN)
             {
                 new_node->g = this_node->g + gi;
                 getH(new_node);
                 // getW(new_node);
                 // new_node->f = new_node->g + new_node->w * new_node->h;
                 new_node->f = new_node->g + new_node->h;
-                new_node->type = Node::NodeType::OPENED;
+                new_node->type = SearchNode::NodeType::OPENED;
                 new_node->parent_node = this_node;
                 new_node->direction_to_parent = direction;
                 queue.push(std::move(new_node));
 
                 // 按顺序记录访问到的节点
-                helper_.search.path_search.nodes.push_back(cv::Point2d((new_point.x + 0.5) * res_ + ori_x_,
-                                                                  (new_point.y + 0.5) * res_ + ori_y_));
+                helper_.search.path_search.nodes.emplace_back((new_point.x + 0.5) * res_ + ori_x_,
+                                                              (new_point.y + 0.5) * res_ + ori_y_);
 
             }
             else //new_node->type == NodeType::OPENED
@@ -681,30 +707,30 @@ bool TSHAstar::generateRawNodes(std::vector<Node *> & raw_nodes)
 
     // 保存结果路径
     raw_nodes.clear();
-    Node * path_node = end_node_;
+    SearchNode * path_node = end_node_;
     while (path_node != nullptr)
     {
         raw_nodes.push_back(path_node);
-        helper_.search.path_search.raw_path.push_back(cv::Point2d((path_node->point.x + 0.5) * res_ + ori_x_,
-                                                             (path_node->point.y + 0.5) * res_ + ori_y_));
+        helper_.search.path_search.raw_path.emplace_back((path_node->point.x + 0.5) * res_ + ori_x_,
+                                                         (path_node->point.y + 0.5) * res_ + ori_y_);
 
         path_node = path_node->parent_node;
     }
-    std::reverse(raw_nodes.begin(), raw_nodes.end());                                           // 翻转使得路径点从起点到终点排列
-    std::reverse(helper_.search.path_search.raw_path.begin(), helper_.search.path_search.raw_path.end()); // 翻转使得路径点从起点到终点排列
+    std::reverse(raw_nodes.begin(), raw_nodes.end());                                                       // 翻转使得路径点从起点到终点排列
+    std::reverse(helper_.search.path_search.raw_path.begin(), helper_.search.path_search.raw_path.end());   // 翻转使得路径点从起点到终点排列
 
     // 保存结果信息
     auto end_time = std::chrono::steady_clock::now();
-    helper_.search.path_search.raw_node_nums = helper_.search.path_search.nodes.size();       // 访问到的节点数
+    helper_.search.path_search.raw_node_nums = helper_.search.path_search.nodes.size();     // 访问到的节点数
     helper_.search.path_search.raw_path_size = helper_.search.path_search.raw_path.size();  // 路径长度
-    helper_.search.path_search.cost_time = (end_time - start_time).count() / 1000000.0;  // 算法耗时 ms
+    helper_.search.path_search.cost_time = (end_time - start_time).count() / 1000000.0;     // 算法耗时 ms
     return raw_nodes.size() > 1;
 }
 
-void TSHAstar::nodesToPath(const std::vector<Node *> & nodes, std::vector<cv::Point2i> & path)
+void TSHAstar::nodesToPath(const std::vector<SearchNode *> & nodes, std::vector<cv::Point2i> & path)
 {
     path.clear();
-    for (const Node * const n : nodes)
+    for (const SearchNode * const n : nodes)
     {
         path.push_back(n->point);
     }
@@ -767,8 +793,8 @@ void TSHAstar::removeRedundantPoints(const std::vector<cv::Point2i> & raw_path, 
     helper_.search.path_simplification.cost_time = (end_time - start_time).count() / 1000000.0;
     std::for_each(reduced_path.begin(), reduced_path.end(), [this](cv::Point2i & p)
         {
-            this->helper_.search.path_simplification.reduced_path.push_back(cv::Point2d((p.x + 0.5) * res_ + ori_x_,
-                                                                                        (p.y + 0.5) * res_ + ori_y_));
+            this->helper_.search.path_simplification.reduced_path.emplace_back((p.x + 0.5) * res_ + ori_x_,
+                                                                               (p.y + 0.5) * res_ + ori_y_);
         });
 }
 
@@ -813,8 +839,7 @@ bool TSHAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector
         {
             p.x += 0.5;
             p.y += 0.5;
-            this->helper_.search.path_smooth.smooth_path.push_back(cv::Point2d(p.x * res_ + ori_x_,
-                                                                               p.y * res_ + ori_y_));
+            this->helper_.search.path_smooth.smooth_path.emplace_back(p.x * res_ + ori_x_, p.y * res_ + ori_y_);
         });
     
     return true;
@@ -825,7 +850,8 @@ bool TSHAstar::optimizePath(const std::vector<cv::Point2d> & path, Path::Referen
     auto start_time = std::chrono::steady_clock::now();
 
     // 将原始离散点转换成参考线数据类型，并进行均匀采样
-    Path::ReferencePath::Ptr raw_reference_path(new Path::ReferencePath(path, params_.search.path_optimization.S_INTERVAL / res_));
+    Path::ReferencePath::Ptr raw_reference_path =
+        std::make_shared<Path::ReferencePath>(path, params_.search.path_optimization.S_INTERVAL / res_);
 
     // 使用离散点对参考线通过数值优化进行平滑。
     const std::array<double, 3> weights = { params_.search.path_optimization.REF_WEIGTH_SMOOTH,
@@ -838,6 +864,7 @@ bool TSHAstar::optimizePath(const std::vector<cv::Point2d> & path, Path::Referen
     }
     auto end_time = std::chrono::steady_clock::now();
 
+    // 保存辅助信息
     helper_.search.path_optimization.cost_time = (end_time - start_time).count() / 1000000.0;
     helper_.search.path_optimization.sample_path = raw_reference_path->GetPath();
     helper_.search.path_optimization.sample_path_size = helper_.search.path_optimization.sample_path.size();
@@ -862,4 +889,259 @@ bool TSHAstar::optimizePath(const std::vector<cv::Point2d> & path, Path::Referen
     
     return true;
 }
+
+void TSHAstar::calCostInSampleNodes(std::vector<std::vector<SampleNode>> & sample_nodes, const size_t lon_idx, const size_t lat_idx)
+{
+    if (lon_idx == 0 || !sample_nodes[lon_idx][lat_idx].is_feasible)
+    {
+        return;
+    }
+
+    const static double lateral_sample_range   = params_.sample.path_sample.LATERAL_SAMPLE_RANGE / res_;
+    const static double dp_warning_distance    = params_.sample.path_dp.COLLISION_DISTANCE / res_;
+    const static double dp_weight_offset       = params_.sample.path_dp.WEIGHT_OFFSET;
+    const static double dp_weight_obstacle     = params_.sample.path_dp.WEIGHT_OBSTACLE;
+    const static double dp_weight_angle_change = params_.sample.path_dp.WEIGHT_ANGLE_CHANGE;
+    const static double dp_weight_angle_diff   = params_.sample.path_dp.WEIGHT_ANGLE_DIFF;
+
+    SampleNode & curr_node = sample_nodes[lon_idx][lat_idx];
+    double self_cost = 0.0;
+
+    // 1. 偏离代价。根据当前点偏离对应参考点的程度算出。
+    self_cost += (dp_weight_offset * std::abs(curr_node.l) / lateral_sample_range);
+    // 2. 障碍物代价。根据当前点距离最近不可碰撞障碍物的距离算出。
+    if (curr_node.dis_to_obs < dp_warning_distance)     // 过近的碰撞范围已经在采样时设置为不可通过，此处只需要判断是否较近即可
+    {
+        self_cost += (dp_weight_obstacle * Math::Lerp(1.0, 0.0, curr_node.dis_to_obs / dp_warning_distance));
+    }
+    // 该采样点与上一层所有采样点依次连接比较，使用dp找出最优路径。
+    double min_cost = std::numeric_limits<double>::max();
+    for (SampleNode & prev_node : sample_nodes[lon_idx - 1])
+    {
+        if (!prev_node.is_feasible)     // 跳过上一个不可通过的点
+        {
+            continue;
+        }
+        if (std::abs(curr_node.l - prev_node.l) > 4 * (curr_node.s - prev_node.s))  // 角度变化过大，则跳过
+        {
+            continue;
+        }
+
+        // 前向欧拉法确定该采样点处的朝向角度
+        const double heading = std::atan2(curr_node.y - prev_node.y, curr_node.x - prev_node.x);
+        // 3. 角度变化代价。根据当前点与上一层采样点的角度差异算出。转换[0, 1]的系数再乘以权重。
+        const double angle_change_cost = (dp_weight_angle_change * std::abs(Math::NormalizeAngle(heading - prev_node.heading)) / M_PI_2);
+        // 4. 角度差异代价。根据当前点与参考点的角度差异算出。转换[0, 1]的系数再乘以权重。
+        const double angle_diff_cost = (dp_weight_angle_diff * std::abs(Math::NormalizeAngle(heading - curr_node.theta)) / M_PI_2);
+
+        // 使用dp判断代价
+        const double curr_cost = self_cost + angle_change_cost + angle_diff_cost;
+        const double total_cost = curr_cost + prev_node.cost;
+        if (total_cost < min_cost)
+        {
+            min_cost = total_cost;
+            curr_node.heading = heading;
+            curr_node.parent = &prev_node;
+        }
+    }
+    // 记录最小代价路径。
+    curr_node.cost = min_cost;
+}
+
+bool TSHAstar::findPathTunnel(const Path::ReferencePath::Ptr & reference_path, std::vector<std::pair<double, double>> & tunnel_bounds)
+{
+    // 此处转换后全部都是以栅格为单位，和之前的坐标也保持一致
+    const static double longitudial_sample_spacing = params_.sample.path_sample.LONGITUDIAL_SAMPLE_SPACING / res_;
+    const static double lateral_sample_spacing     = params_.sample.path_sample.LATERAL_SAMPLE_SPACING / res_;
+    const static double lateral_sample_range       = params_.sample.path_sample.LATERAL_SAMPLE_RANGE / res_;
+    const static double dp_collision_distance      = params_.sample.path_dp.BOUND_CHECK_INTERVAL / res_;
+    const static double dp_bound_check_interval    = params_.sample.path_dp.BOUND_CHECK_INTERVAL / res_;
+
+    
+    // 1. 沿参考系进行均匀纵向撒点，并记录撒点位置的状态信息
+    auto time_t1 = std::chrono::steady_clock::now();
+    std::vector<std::vector<SampleNode>> sample_nodes;
+    // 1.1 对路径点进行均匀纵向撒点
+    double accumulated_s = 0.0;
+    double prev_s = accumulated_s;
+    std::vector<double> s_list;
+    while (accumulated_s < reference_path->GetLength())
+    {
+        accumulated_s += longitudial_sample_spacing;
+        if (accumulated_s + longitudial_sample_spacing / 2.0 > reference_path->GetLength())     // 防止终点附近连续出现多个点
+        {
+            accumulated_s = reference_path->GetLength();
+        }
+        accumulated_s = std::min(accumulated_s, reference_path->GetLength());                   // 防止最后一个点超出参考线
+        s_list.emplace_back(accumulated_s);
+    }
+    // 1.2 车辆固定是参考线的起点，因此撒点第一列特殊处理
+    const Path::PathNode & start_path_node = reference_path->GetPathNode(0.0);
+    SampleNode start_node;
+    start_node.s = 0.0;
+    start_node.l = 0.0;
+    start_node.x = start_point_.x;
+    start_node.y = start_point_.y;
+    start_node.heading = start_yaw_;
+    start_node.theta = start_path_node.theta;
+    start_node.kappa = start_path_node.kappa;
+    start_node.dis_to_obs = sample_map_.GetDistance(start_node.x, start_node.y);
+    start_node.is_feasible = true;
+    start_node.cost = 0.0;
+    start_node.parent = nullptr;
+    sample_nodes.emplace_back();
+    sample_nodes.back().emplace_back(std::move(start_node));
+    // 1.3 对路径点进行均匀切向撒点，并根据障碍物距离信息、曲线几何信息给出可通行判断
+    // 外循环：获取纵向点
+    for (size_t i = 1; i < s_list.size(); i++)
+    {
+        sample_nodes.emplace_back();
+        const Path::PathNode ref_path_node = reference_path->GetPathNode(s_list[i]);
+
+        // 内循环，获取切向点
+        for (double accumulated_l = -lateral_sample_range;
+            accumulated_l < lateral_sample_range;
+            accumulated_l += lateral_sample_spacing)
+        {
+            SampleNode curr_node;
+            Path::PointXY curr_xy = Path::Utils::SLtoXY(
+                { ref_path_node.s, accumulated_l }, { ref_path_node.x, ref_path_node.y }, ref_path_node.theta);
+            curr_node.s = ref_path_node.s;
+            curr_node.l = accumulated_l;
+            curr_node.x = curr_xy.x;
+            curr_node.y = curr_xy.y;
+            curr_node.theta = ref_path_node.theta;
+            curr_node.kappa = ref_path_node.kappa;
+
+            curr_node.dis_to_obs = sample_map_.IsInside(curr_node.x, curr_node.y) ?
+                sample_map_.GetDistance(curr_node.x, curr_node.y) : -1.0;
+            const double ref_r = 1 / ref_path_node.kappa;
+            curr_node.is_feasible = !((curr_node.dis_to_obs < dp_collision_distance) ||         // 当前点离障碍物过近，则直接不可通过
+                                      (ref_path_node.kappa < 0 && accumulated_l < ref_r) ||     // 或者撒点位置已经超过了路径的曲率中心（意味着点可能会倒退），也不可通过
+                                      (ref_path_node.kappa > 0 && accumulated_l > ref_r));
+            sample_nodes.back().emplace_back(curr_node);
+        }
+    }
+    helper_.sample.path_sample.lon_points_size = sample_nodes.size();
+    helper_.sample.path_sample.lat_points_size = sample_nodes.back().size();
+
+    // 2. 使用动态规划在可通行的点之间寻找符合运动学约束的最小代价路径
+    auto time_t2 = std::chrono::steady_clock::now();
+    for (size_t lon_idx = 1; lon_idx < sample_nodes.size(); lon_idx++)
+    {
+        for (size_t lat_idx = 0; lat_idx < sample_nodes[lon_idx].size(); lat_idx++)
+        {
+            calCostInSampleNodes(sample_nodes, lon_idx, lat_idx);
+        }
+    }
+
+    // 3. 从最后一列寻找代价最低的点作为终点
+    SampleNode * end_node = nullptr;
+    double min_cost = std::numeric_limits<double>::max();
+    for (SampleNode & last_node : sample_nodes.back())
+    {
+        if (last_node.cost < min_cost)
+        {
+            min_cost = last_node.cost;
+            end_node = &last_node;
+        }
+    }
+    if (!end_node)
+    {
+        return false;
+    }
+
+    // 4. 回溯路径，从终点到起点，记录路径点确定的上下边界值
+    auto time_t3 = std::chrono::steady_clock::now();
+    tunnel_bounds.resize(sample_nodes.size());
+    tunnel_bounds.clear();
+    helper_.sample.path_dp.dp_path.resize(sample_nodes.size());
+    helper_.sample.path_dp.dp_path.clear();
+    helper_.sample.path_dp.lower_bound.resize(sample_nodes.size());
+    helper_.sample.path_dp.lower_bound.clear();
+    helper_.sample.path_dp.upper_bound.resize(sample_nodes.size());
+    helper_.sample.path_dp.upper_bound.clear();
+    while (end_node)
+    {
+        // 对应参考点
+        const Path::PathNode ref_node = reference_path->GetPathNode(end_node->s);
+
+        // 确定下边界
+        double lower_bound = end_node->l;
+        while (lower_bound > -lateral_sample_range)
+        {
+            lower_bound -= dp_bound_check_interval;
+            Path::PointSL sl(end_node->s, lower_bound);
+            Path::PointXY xy = Path::Utils::SLtoXY(sl, { ref_node.x, ref_node.y }, ref_node.theta);
+            if (!sample_map_.IsInside(xy.x, xy.y) ||                            // 此处点已经不在地图内部
+                sample_map_.GetDistance(xy.x, xy.y) < dp_collision_distance)    // 或者此处点发生了碰撞，则认为上次结果即为边界
+            {
+                lower_bound += dp_bound_check_interval;
+                break;
+            }
+        }
+
+        // 确定上边界
+        double upper_bound = end_node->l;
+        while (upper_bound < lateral_sample_range)
+        {
+            upper_bound += dp_bound_check_interval;
+            Path::PointSL sl(end_node->s, upper_bound);
+            Path::PointXY xy = Path::Utils::SLtoXY(sl, { ref_node.x, ref_node.y }, ref_node.theta);
+            if (!sample_map_.IsInside(xy.x, xy.y) ||                            // 此处点已经不在地图内部
+                sample_map_.GetDistance(xy.x, xy.y) < dp_collision_distance)    // 或者此处点发生了碰撞，则认为上次结果即为边界
+            {
+                upper_bound -= dp_bound_check_interval;
+                break;
+            }
+        }
+        
+        // 保存结果数据
+        tunnel_bounds.emplace_back(lower_bound, upper_bound);
+        helper_.sample.path_dp.dp_path.emplace_back(end_node->x, end_node->y);
+        Path::PointSL lower_sl(end_node->s, lower_bound);
+        Path::PointXY lower_xy = Path::Utils::SLtoXY(lower_sl, { ref_node.x, ref_node.y }, ref_node.theta);
+        helper_.sample.path_dp.lower_bound.emplace_back(lower_xy.x, lower_xy.y);
+        Path::PointSL upper_sl(end_node->s, upper_bound);
+        Path::PointXY upper_xy = Path::Utils::SLtoXY(upper_sl, { ref_node.x, ref_node.y }, ref_node.theta);
+        helper_.sample.path_dp.upper_bound.emplace_back(upper_xy.x, upper_xy.y);
+        end_node = end_node->parent;
+    }
+    std::reverse(tunnel_bounds.begin(), tunnel_bounds.end());
+    std::reverse(helper_.sample.path_dp.dp_path.begin(), helper_.sample.path_dp.dp_path.end());
+    std::reverse(helper_.sample.path_dp.lower_bound.begin(), helper_.sample.path_dp.lower_bound.end());
+    std::reverse(helper_.sample.path_dp.upper_bound.begin(), helper_.sample.path_dp.upper_bound.end());
+    for (size_t i = 0; i < helper_.sample.path_dp.dp_path.size(); ++i)
+    {
+        helper_.sample.path_dp.dp_path[i].x = helper_.sample.path_dp.dp_path[i].x * res_ + ori_x_;
+        helper_.sample.path_dp.dp_path[i].y = helper_.sample.path_dp.dp_path[i].y * res_ + ori_y_;
+
+        helper_.sample.path_dp.lower_bound[i].x = helper_.sample.path_dp.lower_bound[i].x * res_ + ori_x_;
+        helper_.sample.path_dp.lower_bound[i].y = helper_.sample.path_dp.lower_bound[i].y * res_ + ori_y_;
+
+        helper_.sample.path_dp.upper_bound[i].x = helper_.sample.path_dp.upper_bound[i].x * res_ + ori_x_;
+        helper_.sample.path_dp.upper_bound[i].y = helper_.sample.path_dp.upper_bound[i].y * res_ + ori_y_;
+    }
+    
+
+    auto time_t4 = std::chrono::steady_clock::now();
+    helper_.sample.path_sample.cost_time   = (time_t2 - time_t1).count() / 1000000.0;
+    helper_.sample.path_dp.dp_cost_time    = (time_t3 - time_t2).count() / 1000000.0;
+    helper_.sample.path_dp.bound_cost_time = (time_t4 - time_t3).count() / 1000000.0;
+    helper_.sample.path_dp.total_cost_time = (time_t4 - time_t2).count() / 1000000.0;
+    return true;
+}
 // ========================= TSHAstar =========================
+
+// ⣿⣿⣿⠟⠛⠛⠻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡟⢋⣩⣉⢻⣿⣿⣿⣿
+// ⣿⣿⣿⠀⣿⣶⣕⣈⠹⠿⠿⠿⠿⠟⠛⣛⢋⣰⠣⣿⣿⠀⣿⣿⣿⣿
+// ⣿⣿⣿⡀⣿⣿⣿⣧⢻⣿⣶⣷⣿⣿⣿⣿⣿⣿⠿⠶⡝⠀⣿⣿⣿⣿
+// ⣿⣿⣿⣷⠘⣿⣿⣿⢏⣿⣿⣋⣀⣈⣻⣿⣿⣷⣤⣤⣿⡐⢿⣿⣿⣿
+// ⣿⣿⣿⣿⣆⢩⣝⣫⣾⣿⣿⣿⣿⡟⠿⠿⠦⠀⠸⠿⣻⣿⡄⢻⣿⣿
+// ⣿⣿⣿⣿⣿⡄⢻⣿⣿⣿⣿⣿⣿⣿⣿⣶⣶⣾⣿⣿⣿⣿⠇⣼⣿⣿
+// ⣿⣿⣿⣿⣿⣿⡄⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡟⣰⣿⣿⣿
+// ⣿⣿⣿⣿⣿⣿⠇⣼⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⢀⣿⣿⣿⣿
+// ⣿⣿⣿⣿⣿⠏⢰⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⢸⣿⣿⣿⣿
+// ⣿⣿⣿⣿⠟⣰⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀⣿⣿⣿⣿
+// ⣿⣿⣿⠋⣴⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡄⣿⣿⣿⣿
+// ⣿⣿⠋⣼⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⢸⣿⣿⣿
