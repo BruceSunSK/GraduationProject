@@ -24,22 +24,22 @@ bool DiscretePointSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path,
 {
     // 0. 变量个数、约束个数
     const size_t point_num = raw_ref_path->GetSize();
-    const size_t variable_num = 2 * point_num;
-    const size_t constraint_num = 2 * point_num;
+    const size_t variable_num = 2 * point_num;              // 一个路点包含X、Y两个参数
+    const size_t constraint_num = 2 * point_num;            // 对X、Y方向有大范围内的硬约束
+    const double X = weights_[0];                           // 对应平滑代价权重
+    const double Y = weights_[1];                           // 对应长度代价权重
+    const double Z = weights_[2];                           // 对应偏离代价权重
 
     // 1. 设置求解器配置
     OsqpEigen::Solver solver;
     solver.settings()->setVerbosity(false);                 // 关闭输出
     solver.settings()->setWarmStart(true);                  // 开启warm start
     solver.settings()->setTimeLimit(3);                     // 3秒内求解完成，否则返回失败
-    solver.data()->setNumberOfVariables(variable_num);      // 一个路点包含X、Y两个参数
-    solver.data()->setNumberOfConstraints(constraint_num);  // 目前无约束，后续如果有约束的话，会对X、Y方向有大范围内的硬约束
+    solver.data()->setNumberOfVariables(variable_num);      
+    solver.data()->setNumberOfConstraints(constraint_num);  
     
     // 2. 设置Hessian矩阵 H/Q
     Eigen::SparseMatrix<double> hessian(variable_num, variable_num);
-    const double X = weights_[0];
-    const double Y = weights_[1];
-    const double Z = weights_[2];
     // 2.1 第一列系数
     for (size_t i = 0; i < 2; ++i)
     {
