@@ -7,24 +7,17 @@ namespace Smoother
 /// 代价函数由以下几部分组成：1.偏离代价(l要小)，2.平滑代价(l', l''，l'''要小)，3.居中代价(l要接近上下边界中央)，4.终点代价(l(n - 1)要接近终点)
 /// 约束条件：1.边界约束(包含起点约束)，2.连续性约束。
 bool PiecewiseJerkSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path, const std::vector<std::pair<double, double>> & bounds,
-                                  const std::array<double, 3> & init_state, const std::array<double, 3> & end_state_ref, Path::ReferencePath::Ptr & ref_path)
+                                  const std::array<double, 3> & init_state, const std::array<double, 3> & end_state_ref, std::vector<cv::Point2d> & optimized_path)
 {
-    assert(raw_ref_path->GetSize() == bounds.size());
-
     // 0. 变量个数、约束个数
-    const size_t point_num = raw_ref_path->GetSize();
+    const size_t point_num = bounds.size();
     const size_t variable_num = 3 * point_num;              // 一个路点包含l, l', l''三个参数（包含起点约束）
     const size_t constraint_num = 3 * point_num             // 3n个针对l, l', l''的边界约束，
                                 + 2 * (point_num - 1);      // 2(n-1)个针对l, l'的连续性约束
+    // 此处这样计算ds会导致每个参考路点和bound并不是完全对应的，会有误差，但因为bound本身就存在误差，此处认为这个误差可以忽略。
+    const double ds = raw_ref_path->GetLength() / (point_num - 1);
 
     // todo weight_center_变化数组
-    // const double weight_l_ = 1.0;
-    // const double weight_dl_ = 1.0;
-    // const double weight_ddl_ = 1.0;
-    // const double weight_dddl_ = 1.0;
-    // const std::array<double, 3> weight_end_state_ = { 1.0, 1.0, 1.0 };
-    // const double dl_limit_ = 2.0;
-    // const double vehicle_kappa_max_ = 0.5;
 
     // 1. 设置求解器配置
     OsqpEigen::Solver solver;
@@ -49,7 +42,6 @@ bool PiecewiseJerkSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path,
     }
     hessian.insert(2 * point_num - 1, 2 * point_num - 1) = weight_dl_ + weight_end_state_[1];
     // 2.3 l''部分系数
-    const double ds = raw_ref_path->GetSInterval();
     const double ds_square = ds * ds;
     const double ds_square_inv = 1.0 / ds_square;
     // 2.3.1 第一列对角线
@@ -64,8 +56,8 @@ bool PiecewiseJerkSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path,
     // 2.3.4 对角线上方元素
     for (size_t i = 2 * point_num; i < 3 * point_num - 1; ++i)
     {
-        // todo apollo在这里要*2？
-        hessian.insert(i, i + 1) = -2 * weight_dddl_ * ds_square_inv;
+        // todo apollo 在这里要*2？
+        hessian.insert(i, i + 1) = -weight_dddl_ * ds_square_inv;
     }
     hessian *= 2;
     if (!solver.data()->setHessianMatrix(hessian))
@@ -77,7 +69,16 @@ bool PiecewiseJerkSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path,
     for (size_t i = 0; i < point_num; ++i)
     {
         const double center_l = (bounds[i].first + bounds[i].second) * 0.5;
-        gradient(i) += -2.0 * weight_center_ * center_l;
+        if (std::abs(center_l) > 5 &&
+            (-bounds[i].first < 3 ||
+              bounds[i].second < 3))
+        {
+            gradient(i) += -2.0 * weight_center_ * center_l;
+        }
+        else
+        {
+            // gradient(i) += -2.0 * center_l;
+        }
     }
     // 3.2 终点代价带来的梯度
     gradient(point_num - 1) += -2.0 * weight_end_state_[0] * end_state_ref[0];
@@ -115,11 +116,12 @@ bool PiecewiseJerkSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path,
     linear_matrix.insert(2 * point_num, 2 * point_num) = 1.0;
     lower_bound(2 * point_num) = init_state[2];
     upper_bound(2 * point_num) = init_state[2];
-    for (size_t i = 2 * point_num + 1; i < variable_num; +i)
+    for (size_t i = 2 * point_num + 1; i < variable_num; ++i)
     {
         linear_matrix.insert(i, i) = 1.0;
-        lower_bound[i] = -vehicle_kappa_max_ - raw_ref_path->GetPathNodes()[i - 2 * point_num].kappa;
-        upper_bound[i] =  vehicle_kappa_max_ - raw_ref_path->GetPathNodes()[i - 2 * point_num].kappa;
+        const Path::PathNode ref_node = raw_ref_path->GetPathNode((i - 2 * point_num) * ds);
+        lower_bound[i] = -vehicle_kappa_max_ - ref_node.kappa;
+        upper_bound[i] =  vehicle_kappa_max_ - ref_node.kappa;
     }
     // 4.2 连续性约束
     const size_t vari_l = 0;
@@ -161,18 +163,16 @@ bool PiecewiseJerkSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path,
     if (solver.solveProblem() != OsqpEigen::ErrorExitFlag::NoError)
         return false;
 
-    // 7. 保存数据
+    // 6. 保存数据
     const Eigen::VectorXd & solution = solver.getSolution();
-    std::vector<cv::Point2d> result_points(point_num);
-    result_points.clear();
-    for (size_t i = 0; i < result_points.size(); ++i)
+    optimized_path.clear();
+    for (size_t i = 0; i < point_num; ++i)
     {
-        const Path::PathNode & ref_node = raw_ref_path->GetPathNodes()[i];
+        const Path::PathNode ref_node = raw_ref_path->GetPathNode(i * ds);
         const Path::PointSL sl(ref_node.s, solution(i));
         const Path::PointXY xy = Path::Utils::SLtoXY(sl, { ref_node.x, ref_node.y }, ref_node.theta);
-        result_points.emplace_back(xy.x, xy.y);
+        optimized_path.emplace_back(xy.x, xy.y);
     }
-    ref_path = std::make_shared<Path::ReferencePath>(result_points, raw_ref_path->GetSInterval());
     return true;
 }
 

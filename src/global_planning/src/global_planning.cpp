@@ -61,9 +61,9 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
         p.sample.path_dp.COLLISION_DISTANCE             = nh_.param<double>("TSHAstar/sample/path_dp/COLLISION_DISTANCE", 0.5); 
         p.sample.path_dp.WARNING_DISTANCE               = nh_.param<double>("TSHAstar/sample/path_dp/WARNING_DISTANCE", 5.0); 
         p.sample.path_dp.BOUND_CHECK_INTERVAL           = nh_.param<double>("TSHAstar/sample/path_dp/BOUND_CHECK_INTERVAL", 0.3); 
-        p.sample.path_dp.WEIGHT_OFFSET                  = nh_.param<double>("TSHAstar/sample/path_dp/WEIGHT_OFFSET", 1.0); 
-        p.sample.path_dp.WEIGHT_OBSTACLE                = nh_.param<double>("TSHAstar/sample/path_dp/WEIGHT_OBSTACLE", 10.0); 
-        p.sample.path_dp.WEIGHT_ANGLE_CHANGE            = nh_.param<double>("TSHAstar/sample/path_dp/WEIGHT_ANGLE_CHANGE", 2000.0); 
+        p.sample.path_dp.WEIGHT_OFFSET                  = nh_.param<double>("TSHAstar/sample/path_dp/WEIGHT_OFFSET", 50.0); 
+        p.sample.path_dp.WEIGHT_OBSTACLE                = nh_.param<double>("TSHAstar/sample/path_dp/WEIGHT_OBSTACLE", 100.0); 
+        p.sample.path_dp.WEIGHT_ANGLE_CHANGE            = nh_.param<double>("TSHAstar/sample/path_dp/WEIGHT_ANGLE_CHANGE", 1000.0); 
         p.sample.path_dp.WEIGHT_ANGLE_DIFF              = nh_.param<double>("TSHAstar/sample/path_dp/WEIGHT_ANGLE_DIFF", 1.0); 
         planner_ = new TSHAstar;
         planner_->initParams(p);

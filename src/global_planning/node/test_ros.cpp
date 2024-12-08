@@ -528,9 +528,9 @@ int main(int argc, char * argv[])
         TSHAstar_params.sample.path_dp.COLLISION_DISTANCE = 0.5;
         TSHAstar_params.sample.path_dp.WARNING_DISTANCE = 5.0;
         TSHAstar_params.sample.path_dp.BOUND_CHECK_INTERVAL = 0.3;
-        TSHAstar_params.sample.path_dp.WEIGHT_OFFSET = 1.0;
-        TSHAstar_params.sample.path_dp.WEIGHT_OBSTACLE = 10.0;
-        TSHAstar_params.sample.path_dp.WEIGHT_ANGLE_CHANGE = 2000.0;
+        TSHAstar_params.sample.path_dp.WEIGHT_OFFSET = 50.0;
+        TSHAstar_params.sample.path_dp.WEIGHT_OBSTACLE = 100.0;
+        TSHAstar_params.sample.path_dp.WEIGHT_ANGLE_CHANGE = 1000.0;
         TSHAstar_params.sample.path_dp.WEIGHT_ANGLE_DIFF = 1.0;
         planner = new TSHAstar;
         planner->initParams(TSHAstar_params);
@@ -581,8 +581,8 @@ int main(int argc, char * argv[])
     }
 
     // 可以选择手动加载地图，也可以选择订阅地图
-    // std::string map_path = ros::package::getPath("global_planning") + "/map/XG_map.png";
-    std::string map_path = ros::package::getPath("global_planning") + "/map/map2.png";
+    std::string map_path = ros::package::getPath("global_planning") + "/map/XG_map.png";
+    // std::string map_path = ros::package::getPath("global_planning") + "/map/map2.png";
     load_map(map_path, 0.4);
      
     ros::spin();

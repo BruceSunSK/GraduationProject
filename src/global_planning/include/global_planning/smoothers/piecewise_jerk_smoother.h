@@ -1,5 +1,8 @@
 #pragma once
 #include <vector>
+#include <array>
+
+#include <opencv2/core.hpp>
 
 #include <Eigen/Core>
 #include <Eigen/Sparse>
@@ -30,7 +33,7 @@ public:
     ~PiecewiseJerkSmoother() = default;
 
     bool Solve(const Path::ReferencePath::Ptr & raw_ref_path, const std::vector<std::pair<double, double>> & bounds,
-               const std::array<double, 3> & init_state, const std::array<double, 3> & end_state_ref, Path::ReferencePath::Ptr & ref_path);
+               const std::array<double, 3> & init_state, const std::array<double, 3> & end_state_ref, std::vector<cv::Point2d> & optimized_path);
 
 private:
     double weight_l_;

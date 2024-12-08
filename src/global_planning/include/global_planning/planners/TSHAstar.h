@@ -17,6 +17,7 @@
 #include "global_planning/path/simplification.h"
 #include "global_planning/path/reference_path.h"
 #include "global_planning/smoothers/discrete_point_smoother.h"
+#include "global_planning/smoothers/piecewise_jerk_smoother.h"
 
 
 /// @brief Two-Stage Hybird Astar (TSHAstar)，总共可以分为预处理、搜索、采样三个步骤
@@ -88,6 +89,10 @@
 ///     2. 在Frenet坐标系下进行横纵向均匀撒点
 ///     3. 沿前进方向进行dp操作，代价值包括四种：偏离代价、障碍物代价、角度变化代价、角度偏差代价。
 ///     4. 根据dp结果回溯，确定dp路径，进而得到dp路径对应的上下边界范围，即得到一个凸空间的粗解。
+/// [8] 使用分段加加速度平滑算法得到最终的全局路径。
+///     1. 仍然以[6]中曲线为参考线，建立Frenet坐标系。
+///     2. 以[7]中dp规划得到的上下边界作为凸空间的约束。
+///     3. 利用分段加加速度平滑算法，得到最终全局路径。
 class TSHAstar : public GlobalPlannerInterface
 {
 public:
@@ -238,9 +243,9 @@ public:
                 double COLLISION_DISTANCE = 0.5;        // 在dp过程中检测障碍物时，与障碍物的距离小于该值则认为发生碰撞。单位m
                 double WARNING_DISTANCE = 5.0;          // 在dp过程中检测障碍物时，与障碍物的距离小于该值才计算障碍物带来的代价，否则不计算。单位m
                 double BOUND_CHECK_INTERVAL = 0.3;      // 在dp过程中确定边界时，再横向上步进的长度。间隔约小越精准，但更耗时。此处仅需要大致范围即可。单位m
-                double WEIGHT_OFFSET = 1.0;             // 在dp计算代价时的偏离权重，用于描述当前点与参考路径的偏离程度。
-                double WEIGHT_OBSTACLE = 10.0;          // 在dp计算代价时的障碍物权重，用于描述当前点与周围障碍物接近的程度。
-                double WEIGHT_ANGLE_CHANGE = 2000.0;    // 在dp计算代价时的角度变化权重，用于描述当前点与其上层节点发生角度变化的程度。
+                double WEIGHT_OFFSET = 50.0;            // 在dp计算代价时的偏离权重，用于描述当前点与参考路径的偏离程度。
+                double WEIGHT_OBSTACLE = 100.0;         // 在dp计算代价时的障碍物权重，用于描述当前点与周围障碍物接近的程度。
+                double WEIGHT_ANGLE_CHANGE = 1000.0;    // 在dp计算代价时的角度变化权重，用于描述当前点与其上层节点发生角度变化的程度。
                 double WEIGHT_ANGLE_DIFF = 1.0;         // 在dp计算代价时的角度偏差权重，用于描述当前点与对应参考线上点角度偏差的程度。
 
                 REGISTER_STRUCT(REGISTER_MEMBER(COLLISION_DISTANCE),
@@ -594,7 +599,7 @@ private:
     /// @param smooth_path 平滑路径
     /// @param reference_path 经过优化平滑的参考线路径
     /// @return 优化是否成功
-    bool optimizePath(const std::vector<cv::Point2d> & smooth_path, Path::ReferencePath::Ptr & reference_path);
+    bool optimizeDiscretePointsPath(const std::vector<cv::Point2d> & smooth_path, Path::ReferencePath::Ptr & reference_path);
     /// @brief 计算当前采样点处的总dp代价值，单个节点的代价值包括偏离代价、障碍物代价、角度变化代价、角度差异代价。并对节点朝向、父节点进行更新
     /// @param sample_nodes 所有采样点
     /// @param lon_idx 当前采样点的纵向索引
@@ -604,6 +609,12 @@ private:
     /// @param reference_path 撒点参考的参考线
     /// @return 是否成功
     bool findPathTunnel(const Path::ReferencePath::Ptr & reference_path, std::vector<std::pair<double, double>> & tunnel_bounds);
+    /// @brief 使用加加速度平滑，完成路径平滑优化
+    /// @param reference_path 参考线
+    /// @param bounds 路径下边界和上边界
+    /// @param optimized_path 优化后的路径点
+    /// @return 是否优化成功
+    bool optimizePiecewiseJerkPath(const Path::ReferencePath::Ptr & reference_path, const std::vector<std::pair<double, double>> & bounds, std::vector<cv::Point2d> & optimized_path);
 };
 
 using NeighborType = TSHAstar::NeighborType;

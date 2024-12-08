@@ -420,12 +420,24 @@ bool TSHAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<
 
     // 5.转换成ReferencePath格式，并进行优化平滑
     Path::ReferencePath::Ptr reference_path;
-    if (!optimizePath(smooth_path, reference_path))
+    if (!optimizeDiscretePointsPath(smooth_path, reference_path))
     {
         std::cout << "路径优化平滑失败！\n";
         return false;
     }
 
+
+
+    path.clear();
+    path = reference_path->GetPath();
+    std::for_each(path.begin(), path.end(), [this](cv::Point2d & p)
+        {
+            p.x = p.x * res_ + ori_x_;
+            p.y = p.y * res_ + ori_y_;
+        });
+
+    
+    
 
     path.clear();
     path = reference_path->GetPath();
@@ -442,9 +454,15 @@ bool TSHAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<
     if (!findPathTunnel(reference_path, bounds))
     {
         std::cout << "路径DP失败！\n";
-        // return false;
+        return false;
     }
 
+    // 7. 使用分段加加速度进行平滑，得到最终路径
+    if (!optimizePiecewiseJerkPath(reference_path, bounds, path))
+    {
+        std::cout << "分段加加速度平滑失败！\n";
+        return false;
+    }
 
     
     // 辅助信息赋值
@@ -845,7 +863,7 @@ bool TSHAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector
     return true;
 }
 
-bool TSHAstar::optimizePath(const std::vector<cv::Point2d> & path, Path::ReferencePath::Ptr & reference_path)
+bool TSHAstar::optimizeDiscretePointsPath(const std::vector<cv::Point2d> & path, Path::ReferencePath::Ptr & reference_path)
 {
     auto start_time = std::chrono::steady_clock::now();
 
@@ -1129,6 +1147,34 @@ bool TSHAstar::findPathTunnel(const Path::ReferencePath::Ptr & reference_path, s
     helper_.sample.path_dp.dp_cost_time    = (time_t3 - time_t2).count() / 1000000.0;
     helper_.sample.path_dp.bound_cost_time = (time_t4 - time_t3).count() / 1000000.0;
     helper_.sample.path_dp.total_cost_time = (time_t4 - time_t2).count() / 1000000.0;
+    return true;
+}
+
+bool TSHAstar::optimizePiecewiseJerkPath(const Path::ReferencePath::Ptr & reference_path, const std::vector<std::pair<double, double>> & bounds, std::vector<cv::Point2d> & optimized_path)
+{
+    // 设置权重等参数
+    const static std::array<double, 4> lateral_weights = { 1.0, 100.0, 1000.0, 1000.0 };
+    const static double center_weight = 0.0;    //5.0
+    const static std::array<double, 3> end_state_weights = { 2.0, 2.0, 1.0 };
+    const static double dl_limit = 2.0;
+    const static double vehicle_kappa_max = 0.5;
+
+    Smoother::PiecewiseJerkSmoother smoother(lateral_weights, center_weight, end_state_weights, dl_limit, vehicle_kappa_max);
+
+    // 传入求解数据进行求解
+    optimized_path.clear();
+    if (!smoother.Solve(reference_path, bounds, { 0.0, 0.0, 0.0 }, { 0.0, 0.0, 0.0 }, optimized_path))
+    {
+        return false;
+    }
+
+    // 转换坐标
+    std::for_each(optimized_path.begin(), optimized_path.end(), [this](cv::Point2d & p)
+        {
+            p.x = p.x * res_ + ori_x_;
+            p.y = p.y * res_ + ori_y_;
+        });
+
     return true;
 }
 // ========================= TSHAstar =========================

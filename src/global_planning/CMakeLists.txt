@@ -140,7 +140,8 @@ add_library(curve               SHARED  src/curve/bezier_curve.cpp
 add_library(path                SHARED  src/path/utils.cpp
                                         src/path/reference_path.cpp
                                         src/path/simplification.cpp)
-add_library(smoothers           SHARED  src/smoothers/discrete_point_smoother.cpp)
+add_library(smoothers           SHARED  src/smoothers/discrete_point_smoother.cpp
+                                        src/smoothers/piecewise_jerk_smoother.cpp)
 add_library(planners            SHARED  src/planners/TSHAstar.cpp
                                         src/planners/astar.cpp
                                         src/planners/rrt.cpp
