@@ -20,7 +20,7 @@ namespace Smoother
 /// |0,     0,       0,       6X+2Y+Z, -4X-Y,   X    |
 /// |0,     0,       0,       0,       5X+2Y+Z, -2X-Y|
 /// |0,     0,       0,       0,       0,       X+Y+Z|
-bool DiscretePointSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path, Path::ReferencePath::Ptr & ref_path)
+bool DiscretePointSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path, Path::ReferencePath::Ptr & ref_path) const
 {
     // 0. 变量个数、约束个数
     const size_t point_num = raw_ref_path->GetSize();

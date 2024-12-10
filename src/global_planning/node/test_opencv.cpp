@@ -54,6 +54,19 @@ int main(int argc, char * argv[])
         TSHAstar_params.sample.path_dp.WEIGHT_OBSTACLE = 100.0;
         TSHAstar_params.sample.path_dp.WEIGHT_ANGLE_CHANGE = 1000.0;
         TSHAstar_params.sample.path_dp.WEIGHT_ANGLE_DIFF = 1.0;
+        TSHAstar_params.sample.path_qp.WEIGHT_L = 1.0;
+        TSHAstar_params.sample.path_qp.WEIGHT_DL = 100.0;
+        TSHAstar_params.sample.path_qp.WEIGHT_DDL = 1000.0;
+        TSHAstar_params.sample.path_qp.WEIGHT_DDDL = 7000.0;
+        TSHAstar_params.sample.path_qp.WEIGHT_CENTER = 0.6;
+        TSHAstar_params.sample.path_qp.WEIGHT_END_STATE_L = 10.0;
+        TSHAstar_params.sample.path_qp.WEIGHT_END_STATE_DL = 50.0;
+        TSHAstar_params.sample.path_qp.WEIGHT_END_STATE_DDL = 500.0;
+        TSHAstar_params.sample.path_qp.DL_LIMIT = 2.0;
+        TSHAstar_params.sample.path_qp.VEHICLE_KAPPA_MAX = 0.05;
+        TSHAstar_params.sample.path_qp.CENTER_DEVIATION_THRESHOLD = 22;
+        TSHAstar_params.sample.path_qp.CENTER_BOUNDS_THRESHOLD = 32;
+        TSHAstar_params.sample.path_qp.CENTER_OBS_COEFFICIENT = 10.0;
         planner = new TSHAstar;
         planner->initParams(TSHAstar_params);
     }

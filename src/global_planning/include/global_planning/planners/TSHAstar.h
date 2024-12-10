@@ -208,8 +208,8 @@ public:
                 double S_INTERVAL = 5.0;                // 曲线平滑后的路径进行均匀采样的间隔，单位为m。
                 double REF_WEIGTH_SMOOTH = 100.0;       // 参考线初步优化时的权重平滑系数，用于优化曲线时描述路径点折弯程度。
                 double REF_WEIGTH_LENGTH = 1.0;         // 参考线初步优化时的长度平滑系数，用于优化曲线时描述路径点总长度。
-                double REF_WEIGTH_DEVIATION = 10.0;     // 参考线初步优化时的偏差平滑系数，用于优化曲线时描述优化后路径点与原始路径点的偏差程度。
-                double REF_BUFFER_DISTANCE = 3.0;       // 参考线初步优化时原始点可在XY方向上最大偏移距离，单位为m。
+                double REF_WEIGTH_DEVIATION = 50.0;     // 参考线初步优化时的偏差平滑系数，用于优化曲线时描述优化后路径点与原始路径点的偏差程度。
+                double REF_BUFFER_DISTANCE = 1.0;       // 参考线初步优化时原始点可在XY方向上最大偏移距离，单位为m。
                 
                 REGISTER_STRUCT(REGISTER_MEMBER(S_INTERVAL),
                                 REGISTER_MEMBER(REF_WEIGTH_SMOOTH),
@@ -240,7 +240,7 @@ public:
 
             struct
             {
-                double COLLISION_DISTANCE = 0.5;        // 在dp过程中检测障碍物时，与障碍物的距离小于该值则认为发生碰撞。单位m
+                double COLLISION_DISTANCE = 1.2;        // 在dp过程中检测障碍物时，与障碍物的距离小于该值则认为发生碰撞。单位m
                 double WARNING_DISTANCE = 5.0;          // 在dp过程中检测障碍物时，与障碍物的距离小于该值才计算障碍物带来的代价，否则不计算。单位m
                 double BOUND_CHECK_INTERVAL = 0.3;      // 在dp过程中确定边界时，再横向上步进的长度。间隔约小越精准，但更耗时。此处仅需要大致范围即可。单位m
                 double WEIGHT_OFFSET = 50.0;            // 在dp计算代价时的偏离权重，用于描述当前点与参考路径的偏离程度。
@@ -257,8 +257,40 @@ public:
                                 REGISTER_MEMBER(WEIGHT_ANGLE_DIFF))
             } path_dp;
 
+            struct
+            {
+                double WEIGHT_L = 1.0;                      // 在qp过程中曲线优化时路径点在参考线上L项的权重。
+                double WEIGHT_DL = 100.0;                   // 在qp过程中曲线优化时路径点在参考线上L'项的权重。
+                double WEIGHT_DDL = 1000.0;                 // 在qp过程中曲线优化时路径点在参考线上L''项的权重。
+                double WEIGHT_DDDL = 7000.0;                // 在qp过程中曲线优化时路径点在参考线上L'''项的权重。
+                double WEIGHT_CENTER = 0.6;                 // 在qp过程中曲线优化时路径点靠近道路中心项的权重。越大越靠近中心
+                double WEIGHT_END_STATE_L = 10.0;           // 在qp过程中曲线优化时靠近给定终点L项的权重。
+                double WEIGHT_END_STATE_DL = 50.0;          // 在qp过程中曲线优化时靠近给定终点L'项的权重。
+                double WEIGHT_END_STATE_DDL = 500.0;        // 在qp过程中曲线优化时靠近给定终点L''项的权重。
+                double DL_LIMIT = 2.0;                      // qp过程中，l'绝对值的最大值约束。
+                double VEHICLE_KAPPA_MAX = 0.5;             // qp过程中，车辆的最大曲率，l''约束用到。单位1/m。
+                double CENTER_DEVIATION_THRESHOLD = 2.2;    // qp过程中，中心线(由dp确定的边界)与参考线偏离的绝对值超过该值后，才启用中心代价值。单位m。
+                double CENTER_BOUNDS_THRESHOLD = 3.2;       // qp过程中，参考线与任一边界距离小于该值后，才启用中心代价值。单位m。
+                double CENTER_OBS_COEFFICIENT = 10.0;       // qp过程中，如果发生参考线在边界外的情况时，会对中心代价的权重值赋予额外的倍数。
+
+                REGISTER_STRUCT(REGISTER_MEMBER(WEIGHT_L),
+                                REGISTER_MEMBER(WEIGHT_DL),
+                                REGISTER_MEMBER(WEIGHT_DDL),
+                                REGISTER_MEMBER(WEIGHT_DDDL),
+                                REGISTER_MEMBER(WEIGHT_CENTER),
+                                REGISTER_MEMBER(WEIGHT_END_STATE_L),
+                                REGISTER_MEMBER(WEIGHT_END_STATE_DL),
+                                REGISTER_MEMBER(WEIGHT_END_STATE_DDL),
+                                REGISTER_MEMBER(DL_LIMIT),
+                                REGISTER_MEMBER(VEHICLE_KAPPA_MAX),
+                                REGISTER_MEMBER(CENTER_DEVIATION_THRESHOLD),
+                                REGISTER_MEMBER(CENTER_BOUNDS_THRESHOLD),
+                                REGISTER_MEMBER(CENTER_OBS_COEFFICIENT))
+            } path_qp;
+
             REGISTER_STRUCT(REGISTER_MEMBER(path_sample),
-                            REGISTER_MEMBER(path_dp))
+                            REGISTER_MEMBER(path_dp),
+                            REGISTER_MEMBER(path_qp))
         } sample;
         
         REGISTER_STRUCT(REGISTER_MEMBER(map),

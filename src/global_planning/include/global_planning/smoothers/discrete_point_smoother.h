@@ -25,7 +25,7 @@ public:
     DiscretePointSmoother & operator=(DiscretePointSmoother && other) = delete;
     ~DiscretePointSmoother() = default;
 
-    bool Solve(const Path::ReferencePath::Ptr & raw_ref_path, Path::ReferencePath::Ptr & ref_path);
+    bool Solve(const Path::ReferencePath::Ptr & raw_ref_path, Path::ReferencePath::Ptr & ref_path) const;
 
 private:
     std::array<double, 3> weights_;     // 平滑代价权重、长度代价（均匀代价）权重、偏离代价权重
