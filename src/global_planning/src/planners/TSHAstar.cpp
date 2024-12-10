@@ -124,23 +124,26 @@ bool TSHAstar::setMap(const cv::Mat & map)
         return false;
     }
 
+    // 计算膨胀核
+    const int n = std::max<int>(params_.map.KERNEL_SIZE / 2 * 2 + 1, 3);
+    cv::Mat kernel = cv::Mat::zeros(n, n, CV_32FC1);
+    const int center = n / 2;
+    for (int i = 0; i < n; i++)
+    {
+        for (int j = 0; j < n; j++)
+        {
+            if (i == center && j == center)
+            {
+                kernel.at<float>(i, j) = 1.0;
+            }
+            else
+            {
+                kernel.at<float>(i, j) = 1.0 / (std::hypot(static_cast<float>(i - center), static_cast<float>(j - center)));
+            }
+        }
+    }
 
     // 地图预处理膨胀
-    static const cv::Mat kernel = (cv::Mat_<double>(15, 15) << 0.10102, 0.10847, 0.11625, 0.12403, 0.13131, 0.13736, 0.14142, 0.14286, 0.14142, 0.13736, 0.13131, 0.12403, 0.11625, 0.10847, 0.10102, 
-                                                               0.10847, 0.11785, 0.12804, 0.13868, 0.14907, 0.15811, 0.16440, 0.16667, 0.16440, 0.15811, 0.14907, 0.13868, 0.12804, 0.11785, 0.10847, 
-                                                               0.11625, 0.12804, 0.14142, 0.15617, 0.17150, 0.18570, 0.19612, 0.20000, 0.19612, 0.18570, 0.17150, 0.15617, 0.14142, 0.12804, 0.11625, 
-                                                               0.12403, 0.13868, 0.15617, 0.17678, 0.20000, 0.22361, 0.24254, 0.25000, 0.24254, 0.22361, 0.20000, 0.17678, 0.15617, 0.13868, 0.12403, 
-                                                               0.13131, 0.14907, 0.17150, 0.20000, 0.23570, 0.27735, 0.31623, 0.33333, 0.31623, 0.27735, 0.23570, 0.20000, 0.17150, 0.14907, 0.13131, 
-                                                               0.13736, 0.15811, 0.18570, 0.22361, 0.27735, 0.35355, 0.44721, 0.50000, 0.44721, 0.35355, 0.27735, 0.22361, 0.18570, 0.15811, 0.13736, 
-                                                               0.14142, 0.16440, 0.19612, 0.24254, 0.31623, 0.44721, 0.70711, 1.00000, 0.70711, 0.44721, 0.31623, 0.24254, 0.19612, 0.16440, 0.14142, 
-                                                               0.14286, 0.16667, 0.20000, 0.25000, 0.33333, 0.50000, 1.00000, 1.00000, 1.00000, 0.50000, 0.33333, 0.25000, 0.20000, 0.16667, 0.14286, 
-                                                               0.14142, 0.16440, 0.19612, 0.24254, 0.31623, 0.44721, 0.70711, 1.00000, 0.70711, 0.44721, 0.31623, 0.24254, 0.19612, 0.16440, 0.14142, 
-                                                               0.13736, 0.15811, 0.18570, 0.22361, 0.27735, 0.35355, 0.44721, 0.50000, 0.44721, 0.35355, 0.27735, 0.22361, 0.18570, 0.15811, 0.13736, 
-                                                               0.13131, 0.14907, 0.17150, 0.20000, 0.23570, 0.27735, 0.31623, 0.33333, 0.31623, 0.27735, 0.23570, 0.20000, 0.17150, 0.14907, 0.13131, 
-                                                               0.12403, 0.13868, 0.15617, 0.17678, 0.20000, 0.22361, 0.24254, 0.25000, 0.24254, 0.22361, 0.20000, 0.17678, 0.15617, 0.13868, 0.12403, 
-                                                               0.11625, 0.12804, 0.14142, 0.15617, 0.17150, 0.18570, 0.19612, 0.20000, 0.19612, 0.18570, 0.17150, 0.15617, 0.14142, 0.12804, 0.11625, 
-                                                               0.10847, 0.11785, 0.12804, 0.13868, 0.14907, 0.15811, 0.16440, 0.16667, 0.16440, 0.15811, 0.14907, 0.13868, 0.12804, 0.11785, 0.10847, 
-                                                               0.10102, 0.10847, 0.11625, 0.12403, 0.13131, 0.13736, 0.14142, 0.14286, 0.14142, 0.13736, 0.13131, 0.12403, 0.11625, 0.10847, 0.10102);
     const cv::Mat & src = map;
     cv::Mat out = map.clone();
     const int kernel_half_width = kernel.cols / 2;
@@ -174,7 +177,7 @@ bool TSHAstar::setMap(const cv::Mat & map)
                             break;
                         }
                         
-                        uchar new_cost = static_cast<uchar>(kernel.at<double>(m + kernel_half_width, n + kernel_half_width) 
+                        uchar new_cost = static_cast<uchar>(kernel.at<float>(m + kernel_half_width, n + kernel_half_width) 
                                                             * cost * params_.map.EXPANDED_K);
                         new_cost = std::min<uchar>(new_cost, 100);  // 防止超过100范围               
                         if (out.at<uchar>(i + m, j + n) < new_cost)
@@ -401,7 +404,7 @@ bool TSHAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<
     std::vector<SearchNode *> raw_nodes;
     if (!generateRawNodes(raw_nodes))
     {
-        std::cout << "规划失败！目标点不可达！\n";
+        std::cout << "搜索规划失败！目标点不可达！\n";
         resetSearchMap();
         return false;
     }
@@ -422,32 +425,10 @@ bool TSHAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<
     Path::ReferencePath::Ptr reference_path;
     if (!optimizeDiscretePointsPath(smooth_path, reference_path))
     {
-        std::cout << "路径优化平滑失败！\n";
+        std::cout << "参考路径优化平滑失败！\n";
         return false;
     }
 
-
-
-    path.clear();
-    path = reference_path->GetPath();
-    std::for_each(path.begin(), path.end(), [this](cv::Point2d & p)
-        {
-            p.x = p.x * res_ + ori_x_;
-            p.y = p.y * res_ + ori_y_;
-        });
-
-    
-    
-
-    path.clear();
-    path = reference_path->GetPath();
-    std::for_each(path.begin(), path.end(), [this](cv::Point2d & p)
-        {
-            p.x = p.x * res_ + ori_x_;
-            p.y = p.y * res_ + ori_y_;
-        });
-
-    
     // 第二大步：使用采样开辟解空间，利用Frenet坐标系优化路径
     // 6.使用dp动态规划开辟凸空间，找到粗解，确定可行域范围
     std::vector<std::pair<double, double>> bounds;
@@ -460,13 +441,12 @@ bool TSHAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<
     // 7. 使用分段加加速度进行平滑，得到最终路径
     if (!optimizePiecewiseJerkPath(reference_path, bounds, path))
     {
-        std::cout << "分段加加速度平滑失败！\n";
+        std::cout << "路径QP失败！\n";
         return false;
     }
 
-    
     // 辅助信息赋值
-    // 7.auxiliary_info赋值
+    // 8.auxiliary_info赋值
     auxiliary_info.clear();
     auxiliary_info.push_back(std::move(helper_.search.path_search.raw_path));
     auxiliary_info.push_back(std::move(helper_.search.path_search.nodes));
@@ -1174,11 +1154,13 @@ bool TSHAstar::optimizePiecewiseJerkPath(const Path::ReferencePath::Ptr & refere
                                              center_deviation_thres, center_bounds_thres, center_obs_coeff);
 
     // 传入求解数据进行求解
+    auto start_time = std::chrono::steady_clock::now();
     optimized_path.clear();
     if (!smoother.Solve(reference_path, bounds, { 0.0, 0.0, 0.0 }, { 0.0, 0.0, 0.0 }, optimized_path))
     {
         return false;
     }
+    auto end_time = std::chrono::steady_clock::now();
 
     // 转换坐标
     std::for_each(optimized_path.begin(), optimized_path.end(), [this](cv::Point2d & p)
@@ -1187,6 +1169,8 @@ bool TSHAstar::optimizePiecewiseJerkPath(const Path::ReferencePath::Ptr & refere
             p.y = p.y * res_ + ori_y_;
         });
 
+    helper_.sample.path_qp.path_size = optimized_path.size();
+    helper_.sample.path_qp.cost_time = (end_time - start_time).count() / 1000000.0;
     return true;
 }
 // ========================= TSHAstar =========================

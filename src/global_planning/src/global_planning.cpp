@@ -26,6 +26,7 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
     if (planner_name_ == "TSHAstar")
     {
         TSHAstar::TSHAstarParams p;
+        p.map.KERNEL_SIZE                               = nh_.param<int>("TSHAstar/map/KERNEL_SIZE", 15);
         p.map.EXPANDED_K                                = nh_.param<double>("TSHAstar/map/EXPANDED_K", 1.3);
         p.map.EXPANDED_MIN_THRESHOLD                    = nh_.param<int>("TSHAstar/map/EXPANDED_MIN_THRESHOLD", 0);
         p.map.EXPANDED_MAX_THRESHOLD                    = nh_.param<int>("TSHAstar/map/EXPANDED_MAX_THRESHOLD", 100);

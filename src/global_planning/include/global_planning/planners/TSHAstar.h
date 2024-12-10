@@ -93,6 +93,9 @@
 ///     1. 仍然以[6]中曲线为参考线，建立Frenet坐标系。
 ///     2. 以[7]中dp规划得到的上下边界作为凸空间的约束。
 ///     3. 利用分段加加速度平滑算法，得到最终全局路径。
+///        起点硬约束，终点软约束。基本和apollo一致，只是在连续性约束中取消了对l''的连续性约束；将起点约束合并到边界约束中
+///        代价函数由以下几部分组成：1.偏离代价(l要小)，2.平滑代价(l', l''，l'''要小)，3.居中代价(l要接近上下边界中央)，4.终点代价(l(n - 1)要接近终点)
+///        约束条件：1.边界约束(包含起点约束)，2.连续性约束。
 class TSHAstar : public GlobalPlannerInterface
 {
 public:
@@ -138,13 +141,15 @@ public:
         // 地图相关参数，对应第一大步，uint16_t类型原本为uint8_t类型，但cout输出uint8_t类型时按照ASCII码输出字符，而非整数。
         struct 
         {
+            size_t KERNEL_SIZE = 15;                // 地图膨胀kernel的大小，需要为奇数
             double EXPANDED_K = 1.3;                // 地图膨胀时，膨胀系数
             uint16_t EXPANDED_MIN_THRESHOLD = 0;    // 原始地图栅格代价值大于等于(>=)该值的栅格，才进行膨胀
             uint16_t EXPANDED_MAX_THRESHOLD = 100;  // 原始地图栅格代价值小于等于(<=)该值的栅格，才进行膨胀
             uint16_t COST_THRESHOLD = 10;           // 膨胀地图中栅格代价值大于等于(>=)该值的栅格，会被视为有代价值的栅格，否则代价值为0
             uint16_t OBSTACLE_THRESHOLD = 100;      // 膨胀地图中栅格代价值大于等于(>=)该值的栅格，会被视为障碍物，搜索过程中将直接跳过该栅格
 
-            REGISTER_STRUCT(REGISTER_MEMBER(EXPANDED_K),
+            REGISTER_STRUCT(REGISTER_MEMBER(KERNEL_SIZE),
+                            REGISTER_MEMBER(EXPANDED_K),
                             REGISTER_MEMBER(EXPANDED_MIN_THRESHOLD),
                             REGISTER_MEMBER(EXPANDED_MAX_THRESHOLD),
                             REGISTER_MEMBER(COST_THRESHOLD),
@@ -397,8 +402,18 @@ public:
                                 REGISTER_MEMBER(total_cost_time))
             } path_dp;
 
+            struct
+            {
+                size_t path_size = 0;
+                double cost_time = 0.0;
+
+                REGISTER_STRUCT(REGISTER_MEMBER(path_size),
+                                REGISTER_MEMBER(cost_time))
+            } path_qp;
+
             REGISTER_STRUCT(REGISTER_MEMBER(path_sample),
-                            REGISTER_MEMBER(path_dp))
+                            REGISTER_MEMBER(path_dp),
+                            REGISTER_MEMBER(path_qp))
         } sample;
 
     public:
@@ -438,6 +453,9 @@ public:
             sample.path_dp.dp_path.clear();
             sample.path_dp.lower_bound.clear();
             sample.path_dp.upper_bound.clear();
+
+            sample.path_qp.path_size = 0;
+            sample.path_qp.cost_time = 0.0;
         }
 
     private:

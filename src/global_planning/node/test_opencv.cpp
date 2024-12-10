@@ -19,6 +19,7 @@ int main(int argc, char * argv[])
     {
         // TSHAstar规划器
         TSHAstar::TSHAstarParams TSHAstar_params;
+        TSHAstar_params.map.KERNEL_SIZE = 15;
         TSHAstar_params.map.EXPANDED_K = 1.3;
         TSHAstar_params.map.EXPANDED_MIN_THRESHOLD = 0;
         TSHAstar_params.map.EXPANDED_MAX_THRESHOLD = 100;

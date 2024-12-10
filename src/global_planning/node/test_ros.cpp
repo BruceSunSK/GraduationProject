@@ -33,9 +33,6 @@ bool map_flag = false;
 void load_map(const std::string & map_path, const double resulution)
 {
     cv::Mat map = cv::imread(map_path, cv::IMREAD_GRAYSCALE);
-
- 
-    
     int rows = map.rows;
     int cols = map.cols;
     res = resulution;
@@ -497,6 +494,7 @@ int main(int argc, char * argv[])
     if (planner_name == "TSHAstar")
     {
         TSHAstar::TSHAstarParams TSHAstar_params;
+        TSHAstar_params.map.KERNEL_SIZE = 15;
         TSHAstar_params.map.EXPANDED_K = 1.3;
         TSHAstar_params.map.EXPANDED_MIN_THRESHOLD = 0;
         TSHAstar_params.map.EXPANDED_MAX_THRESHOLD = 100;
@@ -594,8 +592,8 @@ int main(int argc, char * argv[])
     }
 
     // 可以选择手动加载地图，也可以选择订阅地图
-    std::string map_path = ros::package::getPath("global_planning") + "/map/XG_map.png";
-    // std::string map_path = ros::package::getPath("global_planning") + "/map/map2.png";
+    // std::string map_path = ros::package::getPath("global_planning") + "/map/XG_map.png";
+    std::string map_path = ros::package::getPath("global_planning") + "/map/map2.png";
     load_map(map_path, 0.4);
      
     ros::spin();
