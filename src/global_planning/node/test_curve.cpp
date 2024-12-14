@@ -7,9 +7,9 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
-#include "global_planning/curve/bezier_curve.h"
-#include "global_planning/curve/bspline_curve.h"
-#include "global_planning/curve/cubic_spline_curve.h"
+#include "global_planning/curve/bezier.h"
+#include "global_planning/curve/bspline.h"
+#include "global_planning/curve/cubic_spline.h"
 #include "global_planning/curve/polynomial.h"
 
 
@@ -25,7 +25,7 @@ int main(int argc, char * argv[])
 
     // 1. 使用Bezier曲线平滑路径
     auto t1 = std::chrono::steady_clock::now();
-    Curve::BezierCurve::SmoothCurve(input, output, 0.005);
+    Curve::Bezier::SmoothCurve(input, output, 0.005);
     std::cout << "Bezier fit time: " << (std::chrono::steady_clock::now() - t1).count() / 1e6 << " ms" << std::endl;
     for (auto && p : output)
     {
@@ -34,7 +34,7 @@ int main(int argc, char * argv[])
 
     // 2. 使用B样条曲线平滑路径
     auto t2 = std::chrono::steady_clock::now();
-    Curve::BSplineCurve::SmoothCurve(input, output, 4, 0.0025);
+    Curve::BSpline::SmoothCurve(input, output, 4, 0.0025);
     std::cout << "B-spline fit time: " << (std::chrono::steady_clock::now() - t2).count() / 1e6 << " ms" << std::endl;
     for (auto && p : output)
     {
@@ -54,10 +54,10 @@ int main(int argc, char * argv[])
         X_S.emplace_back(s, input[i].x);
         Y_S.emplace_back(s, input[i].y);
     }
-    Curve::CubicSplineCurve X_S_curve(std::move(X_S), Curve::CubicSplineCurve::BoundaryCondition::Second_Derive, 0.0,
-                                                      Curve::CubicSplineCurve::BoundaryCondition::Second_Derive, 0.0);
-    Curve::CubicSplineCurve Y_S_curve(std::move(Y_S), Curve::CubicSplineCurve::BoundaryCondition::Second_Derive, 0.0,
-                                                      Curve::CubicSplineCurve::BoundaryCondition::Second_Derive, 0.0);
+    Curve::CubicSpline X_S_curve(std::move(X_S), Curve::CubicSpline::BoundaryCondition::Second_Derive, 0.0,
+                                                      Curve::CubicSpline::BoundaryCondition::Second_Derive, 0.0);
+    Curve::CubicSpline Y_S_curve(std::move(Y_S), Curve::CubicSpline::BoundaryCondition::Second_Derive, 0.0,
+                                                      Curve::CubicSpline::BoundaryCondition::Second_Derive, 0.0);
     output.clear();
     for (double s_temp = -20; s_temp < s + 20 ; s_temp += 0.5)
     {

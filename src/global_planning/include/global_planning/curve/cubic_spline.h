@@ -11,10 +11,10 @@
 
 namespace Curve
 {
-class CubicSplineCurve
+class CubicSpline
 {
 public:
-    using Ptr = std::shared_ptr<CubicSplineCurve>;
+    using Ptr = std::shared_ptr<CubicSpline>;
     
     enum class BoundaryCondition
     {
@@ -23,32 +23,32 @@ public:
     };
 
 public:
-    CubicSplineCurve() : left_bc_(BoundaryCondition::Second_Derive), right_bc_(BoundaryCondition::Second_Derive), left_value_(0.0), right_value_(0.0) {}
+    CubicSpline() : left_bc_(BoundaryCondition::Second_Derive), right_bc_(BoundaryCondition::Second_Derive), left_value_(0.0), right_value_(0.0) {}
     /// @brief 根据边界条件，利用给定的点集生成三次样条曲线。调用后直接生成曲线结果，后续使用时直接调用operator()即可。
     /// @param points 给定的点集，需要保证x值递增
     /// @param left_bc 左边界条件
     /// @param left_value 左边界值
     /// @param right_bc 右边界条件
     /// @param right_value 右边界值
-    CubicSplineCurve(const std::vector<cv::Point2d> & points,
+    CubicSpline(const std::vector<cv::Point2d> & points,
                      const BoundaryCondition left_bc = BoundaryCondition::Second_Derive, const double left_value = 0.0,
                      const BoundaryCondition right_bc = BoundaryCondition::Second_Derive, const double right_value = 0.0)
                      : points_(points), left_bc_(left_bc), right_bc_(right_bc), left_value_(left_value), right_value_(right_value)
     {
         CalculateCoefficients();
     }
-    CubicSplineCurve(std::vector<cv::Point2d> && points,
+    CubicSpline(std::vector<cv::Point2d> && points,
                      const BoundaryCondition left_bc = BoundaryCondition::Second_Derive, const double left_value = 0.0,
                      const BoundaryCondition right_bc = BoundaryCondition::Second_Derive, const double right_value = 0.0)
                      : points_(std::move(points)), left_bc_(left_bc), right_bc_(right_bc), left_value_(left_value), right_value_(right_value)
     {
         CalculateCoefficients();
     }
-    CubicSplineCurve(const CubicSplineCurve & other) = delete;
-    CubicSplineCurve(CubicSplineCurve && other) = delete;
-    CubicSplineCurve & operator=(const CubicSplineCurve & other) = delete;
-    CubicSplineCurve & operator=(CubicSplineCurve && other) = delete;
-    ~CubicSplineCurve() = default;
+    CubicSpline(const CubicSpline & other) = delete;
+    CubicSpline(CubicSpline && other) = delete;
+    CubicSpline & operator=(const CubicSpline & other) = delete;
+    CubicSpline & operator=(CubicSpline && other) = delete;
+    ~CubicSpline() = default;
 
 
     /// @brief 重新指定边界条件和边界值，之后在SetPoints前调用。

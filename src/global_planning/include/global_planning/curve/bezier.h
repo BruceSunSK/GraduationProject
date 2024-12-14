@@ -7,15 +7,15 @@
 namespace Curve
 {
 /// @brief 贝塞尔曲线。可以用所有控制点生成一段曲线，也可以用分段的三阶贝塞尔曲线进行平滑拟合。
-class BezierCurve
+class Bezier
 {
 public:
-    BezierCurve() = delete;
-    BezierCurve(const BezierCurve & other) = delete;
-    BezierCurve(BezierCurve && other) = delete;
-    BezierCurve & operator=(const BezierCurve & other) = delete;
-    BezierCurve & operator=(BezierCurve && other) = delete;
-    ~BezierCurve() = default;
+    Bezier() = delete;
+    Bezier(const Bezier & other) = delete;
+    Bezier(Bezier && other) = delete;
+    Bezier & operator=(const Bezier & other) = delete;
+    Bezier & operator=(Bezier && other) = delete;
+    ~Bezier() = default;
 
     /// @brief 根据控制点进行贝塞尔平滑。用t_step控制生成点的数目
     /// @tparam PointType 支持OpenCV格式的整型和浮点型数据点

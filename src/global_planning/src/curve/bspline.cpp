@@ -1,12 +1,12 @@
-#include "global_planning/curve/bspline_curve.h"
+#include "global_planning/curve/bspline.h"
 
 
 namespace Curve
 {
-std::vector<double> BSplineCurve::knots_ = {};
-std::vector<std::vector<double>> BSplineCurve::b_matrix_ = {};
+std::vector<double> BSpline::knots_ = {};
+std::vector<std::vector<double>> BSpline::b_matrix_ = {};
 
-void BSplineCurve::GenerateKnots(const size_t k, const size_t n, const double min, const double max)
+void BSpline::GenerateKnots(const size_t k, const size_t n, const double min, const double max)
 {
     knots_.clear();
     knots_.resize(n + k + 1);
@@ -19,7 +19,7 @@ void BSplineCurve::GenerateKnots(const size_t k, const size_t n, const double mi
     std::fill(knots_.rbegin(), knots_.rbegin() + k, max);
 }
 
-void BSplineCurve::Bik_u(const double u, const size_t k, const size_t n)
+void BSpline::Bik_u(const double u, const size_t k, const size_t n)
 {
     b_matrix_.clear();
     const size_t k_1 = k - 1;

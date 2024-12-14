@@ -813,7 +813,7 @@ bool TSHAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector
     //         2. 曲线会更倾向于中间，而非控制点。在两个控制点间隔较远时会更加明显，效果更差。
     //         3. 速度比B样条慢。毕竟B样条我狠狠优化过，贝塞尔貌似只能搞dp计算组合数打表。
     case PathSmoothType::Bezier:
-        Curve::BezierCurve::PiecewiseSmoothCurve(raw_path, smooth_path, params_.search.path_smooth.T_STEP);
+        Curve::Bezier::PiecewiseSmoothCurve(raw_path, smooth_path, params_.search.path_smooth.T_STEP);
         break;
 
     // 使用B样条曲线进行平滑
@@ -821,7 +821,7 @@ bool TSHAstar::smoothPath(const std::vector<cv::Point2i> & raw_path, std::vector
     //         1. 效果很好，曲线平滑，作用在全局，控制点均匀分布。
     //         2. 速度快。
     case PathSmoothType::BSpline:
-        Curve::BSplineCurve::SmoothCurve(raw_path, smooth_path, 4, params_.search.path_smooth.T_STEP);
+        Curve::BSpline::SmoothCurve(raw_path, smooth_path, 4, params_.search.path_smooth.T_STEP);
         break;
 
     default:

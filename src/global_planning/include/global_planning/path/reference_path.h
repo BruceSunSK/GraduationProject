@@ -5,7 +5,7 @@
 #include <opencv2/core.hpp>
 
 #include "global_planning/tools/math.h"
-#include "global_planning/curve/cubic_spline_curve.h"
+#include "global_planning/curve/cubic_spline.h"
 #include "global_planning/path/data_type.h"
 
 
@@ -41,8 +41,8 @@ public:
 private:
     std::vector<PathNode> path_;
     double s_interval_;
-    Curve::CubicSplineCurve X_S_;   // 自然边界曲线
-    Curve::CubicSplineCurve Y_S_;
+    Curve::CubicSpline X_S_;   // 自然边界曲线
+    Curve::CubicSpline Y_S_;
 };
 
 

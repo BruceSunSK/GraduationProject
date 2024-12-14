@@ -133,9 +133,10 @@ include_directories(
 ## Declare a C++ library
 add_library(tools               SHARED  src/tools/math.cpp)
 add_library(map                 SHARED  src/map/distance_map.cpp)
-add_library(curve               SHARED  src/curve/bezier_curve.cpp
-                                        src/curve/bspline_curve.cpp
-                                        src/curve/cubic_spline_curve.cpp
+add_library(curve               SHARED  src/curve/bezier.cpp
+                                        src/curve/bspline.cpp
+                                        src/curve/cubic_spline.cpp
+                                        src/curve/dubins.cpp
                                         src/curve/polynomial.cpp)
 add_library(path                SHARED  src/path/utils.cpp
                                         src/path/reference_path.cpp

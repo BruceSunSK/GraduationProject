@@ -7,15 +7,15 @@
 namespace Curve
 {
 /// @brief B样条曲线。控制点个数为n+1，阶数为k，函数次数为k-1。
-class BSplineCurve
+class BSpline
 {
 public:
-    BSplineCurve() = delete;
-    BSplineCurve(const BSplineCurve & other) = delete;
-    BSplineCurve(BSplineCurve && other) = delete;
-    BSplineCurve & operator=(const BSplineCurve & other) = delete;
-    BSplineCurve & operator=(BSplineCurve && other) = delete;
-    ~BSplineCurve() = default;
+    BSpline() = delete;
+    BSpline(const BSpline & other) = delete;
+    BSpline(BSpline && other) = delete;
+    BSpline & operator=(const BSpline & other) = delete;
+    BSpline & operator=(BSpline && other) = delete;
+    ~BSpline() = default;
 
     /// @brief 使用控制点生成B样条曲线。
     /// @tparam PointType 支持OpenCV格式的整型和浮点型数据点
