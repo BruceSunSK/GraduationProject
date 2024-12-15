@@ -515,10 +515,13 @@ int main(int argc, char * argv[])
         TSHAstar_params.search.path_simplification.MAX_INTAVAL = 8.0;
         TSHAstar_params.search.path_smooth.PATH_SMOOTH_TYPE = TSHAstar::PathSmoothType::BSpline;
         TSHAstar_params.search.path_smooth.T_STEP = 0.0005;
-        TSHAstar_params.search.path_optimization.S_INTERVAL = 5.0;
-        TSHAstar_params.search.path_optimization.REF_WEIGTH_SMOOTH = 100.0;
+        TSHAstar_params.search.path_optimization.S_INTERVAL = 4.0;
+        TSHAstar_params.search.path_optimization.DUBINS_RADIUS = 2.5;
+        TSHAstar_params.search.path_optimization.DUBINS_INTERVAL = 1.5;
+        TSHAstar_params.search.path_optimization.DUBINS_LENGTH = 8.0;
+        TSHAstar_params.search.path_optimization.REF_WEIGTH_SMOOTH = 300.0;
         TSHAstar_params.search.path_optimization.REF_WEIGTH_LENGTH = 1.0;
-        TSHAstar_params.search.path_optimization.REF_WEIGTH_DEVIATION = 50.0;
+        TSHAstar_params.search.path_optimization.REF_WEIGTH_DEVIATION = 10.0;
         TSHAstar_params.search.path_optimization.REF_BUFFER_DISTANCE = 1.0;
         TSHAstar_params.sample.path_sample.LONGITUDIAL_SAMPLE_SPACING = 0.5;
         TSHAstar_params.sample.path_sample.LATERAL_SAMPLE_SPACING = 0.5;
@@ -592,8 +595,8 @@ int main(int argc, char * argv[])
     }
 
     // 可以选择手动加载地图，也可以选择订阅地图
-    // std::string map_path = ros::package::getPath("global_planning") + "/map/XG_map.png";
-    std::string map_path = ros::package::getPath("global_planning") + "/map/map2.png";
+    std::string map_path = ros::package::getPath("global_planning") + "/map/XG_map.png";
+    // std::string map_path = ros::package::getPath("global_planning") + "/map/map2.png";
     load_map(map_path, 0.4);
      
     ros::spin();

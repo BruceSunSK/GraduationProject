@@ -13,6 +13,7 @@
 #include "global_planning/curve/bezier.h"
 #include "global_planning/curve/bspline.h"
 #include "global_planning/curve/cubic_spline.h"
+#include "global_planning/curve/dubins.h"
 #include "global_planning/path/utils.h"
 #include "global_planning/path/simplification.h"
 #include "global_planning/path/reference_path.h"
@@ -210,7 +211,10 @@ public:
             // 数值优化平滑相关参数
             struct
             {
-                double S_INTERVAL = 5.0;                // 曲线平滑后的路径进行均匀采样的间隔，单位为m。
+                double S_INTERVAL = 4.0;                // 曲线平滑后的路径进行均匀采样的间隔，单位为m。
+                double DUBINS_RADIUS = 2.5;             // 使用dubins曲线对起点和终点进行拼接时的转向半径。单位m
+                double DUBINS_INTERVAL = 1.5;           // 使用dubins曲线对起点和终点进行拼接时的在参考路径上的采样间隔。单位m
+                double DUBINS_LENGTH = 8.0;             // 使用dubins曲线对起点和终点进行拼接时的在参考路径上的采样长度。单位m
                 double REF_WEIGTH_SMOOTH = 100.0;       // 参考线初步优化时的权重平滑系数，用于优化曲线时描述路径点折弯程度。
                 double REF_WEIGTH_LENGTH = 1.0;         // 参考线初步优化时的长度平滑系数，用于优化曲线时描述路径点总长度。
                 double REF_WEIGTH_DEVIATION = 50.0;     // 参考线初步优化时的偏差平滑系数，用于优化曲线时描述优化后路径点与原始路径点的偏差程度。

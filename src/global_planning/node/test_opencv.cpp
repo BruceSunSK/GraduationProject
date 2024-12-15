@@ -40,7 +40,10 @@ int main(int argc, char * argv[])
         TSHAstar_params.search.path_simplification.MAX_INTAVAL = 120.0;
         TSHAstar_params.search.path_smooth.PATH_SMOOTH_TYPE = TSHAstar::PathSmoothType::BSpline;
         TSHAstar_params.search.path_smooth.T_STEP = 0.0005;
-        TSHAstar_params.search.path_optimization.S_INTERVAL = 5.0;
+        TSHAstar_params.search.path_optimization.S_INTERVAL = 4.0;
+        TSHAstar_params.search.path_optimization.DUBINS_RADIUS = 2.5;
+        TSHAstar_params.search.path_optimization.DUBINS_INTERVAL = 1.5;
+        TSHAstar_params.search.path_optimization.DUBINS_LENGTH = 8.0;
         TSHAstar_params.search.path_optimization.REF_WEIGTH_SMOOTH = 100.0;
         TSHAstar_params.search.path_optimization.REF_WEIGTH_LENGTH = 1.0;
         TSHAstar_params.search.path_optimization.REF_WEIGTH_DEVIATION = 10.0;

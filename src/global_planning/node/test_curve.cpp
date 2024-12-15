@@ -93,6 +93,7 @@ int main(int argc, char * argv[])
     auto t4 = std::chrono::steady_clock::now();
     cv::Point2d end(50, 50);
     double end_yaw = -90 * M_PI / 180;
+    std::array<double, 3> end_pos = { end.x, end.y, end_yaw };
     
     Curve::Dubins dubins(10, 0.5);
     for (size_t i = 0; i < 11; i++)
@@ -101,9 +102,11 @@ int main(int argc, char * argv[])
         start.x = 50 + 40 * std::cos(2 * M_PI * i / 11);
         start.y = 50 + 40 * std::sin(2 * M_PI * i / 11);
         double start_yaw = 2 * M_PI * i / 11;
+        std::array<double, 3> start_pos = { start.x, start.y, start_yaw };
 
-        auto dubins_path = dubins.Path({ start.x, start.y, start_yaw }, { end.x, end.y, end_yaw });
-        for (auto && p : dubins_path)
+        Curve::Dubins::DubinsPath dubins_path = dubins.Path(start_pos, end_pos);
+        auto dubins_points = dubins.SegmentPath(dubins_path, start_pos);
+        for (auto && p : dubins_points)
         {
             img.at<cv::Vec3b>(p[1] + 0.5, p[0] + 0.5) = cv::Vec3b( i / 11.0 * 255.0,
                                                                    i / 11.0 * 255.0,

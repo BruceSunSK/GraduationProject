@@ -51,9 +51,12 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
         p.search.path_smooth.PATH_SMOOTH_TYPE           = static_cast<TSHAstar::PathSmoothType>(
                                                           nh_.param<int>("TSHAstar/search/path_smooth/PATH_SMOOTH_TYPE", 1));
         p.search.path_smooth.T_STEP                     = nh_.param<double>("TSHAstar/search/path_smooth/T_STEP", 0.0005);
-        p.search.path_optimization.S_INTERVAL           = nh_.param<double>("TSHAstar/search/path_optimization/S_INTERVAL", 5.0);
-        p.search.path_optimization.REF_WEIGTH_SMOOTH    = nh_.param<double>("TSHAstar/search/path_optimization/REF_WEIGTH_SMOOTH", 100.0);   
-        p.search.path_optimization.REF_WEIGTH_LENGTH    = nh_.param<double>("TSHAstar/search/path_optimization/REF_WEIGTH_LENGTH", 1.0);   
+        p.search.path_optimization.S_INTERVAL           = nh_.param<double>("TSHAstar/search/path_optimization/S_INTERVAL", 4.0);
+        p.search.path_optimization.DUBINS_RADIUS        = nh_.param<double>("TSHAstar/search/path_optimization/DUBINS_RADIUS", 2.5);
+        p.search.path_optimization.DUBINS_INTERVAL      = nh_.param<double>("TSHAstar/search/path_optimization/DUBINS_INTERVAL", 1.5);
+        p.search.path_optimization.DUBINS_LENGTH        = nh_.param<double>("TSHAstar/search/path_optimization/DUBINS_LENGTH", 8.0);
+        p.search.path_optimization.REF_WEIGTH_SMOOTH    = nh_.param<double>("TSHAstar/search/path_optimization/REF_WEIGTH_SMOOTH", 100.0);
+        p.search.path_optimization.REF_WEIGTH_LENGTH    = nh_.param<double>("TSHAstar/search/path_optimization/REF_WEIGTH_LENGTH", 1.0);
         p.search.path_optimization.REF_WEIGTH_DEVIATION = nh_.param<double>("TSHAstar/search/path_optimization/REF_WEIGTH_DEVIATION", 50.0);
         p.search.path_optimization.REF_BUFFER_DISTANCE  = nh_.param<double>("TSHAstar/search/path_optimization/REF_BUFFER_DISTANCE", 1.0);
         p.sample.path_sample.LONGITUDIAL_SAMPLE_SPACING = nh_.param<double>("TSHAstar/sample/path_sample/LONGITUDIAL_SAMPLE_SPACING", 0.5); 

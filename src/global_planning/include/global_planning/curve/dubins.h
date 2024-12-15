@@ -10,7 +10,7 @@ namespace Curve
 {
 class Dubins
 {
-private:
+public:
     enum class DubinsSegmentType : uint8_t
     {
         UNKNOWN,
@@ -21,16 +21,26 @@ private:
 
     struct DubinsPath
     {
+        double r;
         std::array<double, 3> l;
         std::array<DubinsSegmentType, 3> type;
 
-        DubinsPath() : l({ 0.0, 0.0, 0.0 }), type({ DubinsSegmentType::UNKNOWN, DubinsSegmentType::UNKNOWN, DubinsSegmentType::UNKNOWN }) {}
-        DubinsPath(const double t, const double p, const double q, const std::array<DubinsSegmentType, 3> type)
-                  : l({ t, p, q }), type { type[0], type[1], type[2] } {}
+        DubinsPath() : r(0.0), l({ 0.0, 0.0, 0.0 }), type({ DubinsSegmentType::UNKNOWN, DubinsSegmentType::UNKNOWN, DubinsSegmentType::UNKNOWN }) {}
+        DubinsPath(const double t, const double p, const double q, const std::array<DubinsSegmentType, 3> type, double r)
+                  : l({ t, p, q }), type { type[0], type[1], type[2] }, r(r) {}
 
-        double length() const
+        /// @brief 归一化后的路径长度
+        /// @return 路径长度
+        double Length() const
         {
             return l[0] + l[1] + l[2];
+        }
+
+        /// @brief 真实路径长度
+        /// @return 路径长度 
+        double RealLength() const
+        {
+            return r * Length();
         }
     };
       
@@ -44,11 +54,17 @@ public:
     ~Dubins() = default;
 
     /// @brief 计算Dubins曲线路径
-    /// @param start 起点x, y, yaw
-    /// @param end 终点x, y, yaw
-    /// @return 路径点集，每个点为x, y, yaw, s
-    std::vector<std::array<double, 4>> Path(const std::array<double, 3> & start, const std::array<double, 3> & end);
+    /// @param start 起点x, y, yaw。单位m m rad
+    /// @param end 终点x, y, yaw。单位m m rad
+    /// @return dubins路径
+    DubinsPath Path(const std::array<double, 3> & start, const std::array<double, 3> & end);
 
+    /// @brief 将现有的dubins路径进行离散化，得到离散点
+    /// @param path dubins路径
+    /// @param start 与给定dubins路径匹配的起点x, y, yaw。单位m m rad
+    /// @return 离散后的点集，x, y, yaw。单位m m rad
+    std::vector<std::array<double, 3>> SegmentPath(const DubinsPath & path, const std::array<double, 3> & start) const;
+    
 private:
     double Mod2Pi(const double angle) const 
     {
@@ -75,8 +91,8 @@ private:
     /// @param path 待离散化的Dubins路径
     /// @param start 原始起点位置
     /// @param s 归一化后的长度s
-    /// @return 离散点，x, y, yaw, s
-    std::array<double, 4> Interpolate(const DubinsPath & path, const std::array<double, 3> & start, const double s) const;
+    /// @return 离散点，x, y, yaw
+    std::array<double, 3> Interpolate(const DubinsPath & path, const std::array<double, 3> & start, const double s) const;
 
     const double EPS = 1e-6;
     const double INF = std::numeric_limits<double>::infinity();
