@@ -516,6 +516,7 @@ int main(int argc, char * argv[])
         TSHAstar_params.search.path_smooth.PATH_SMOOTH_TYPE = TSHAstar::PathSmoothType::BSpline;
         TSHAstar_params.search.path_smooth.T_STEP = 0.0005;
         TSHAstar_params.search.path_optimization.S_INTERVAL = 4.0;
+        TSHAstar_params.search.path_optimization.USE_DUBINS = false;
         TSHAstar_params.search.path_optimization.DUBINS_RADIUS = 2.5;
         TSHAstar_params.search.path_optimization.DUBINS_INTERVAL = 1.5;
         TSHAstar_params.search.path_optimization.DUBINS_LENGTH = 8.0;

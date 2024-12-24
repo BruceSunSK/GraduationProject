@@ -850,97 +850,107 @@ bool TSHAstar::optimizeDiscretePointsPath(const std::vector<cv::Point2d> & path,
     // 将原始离散点转换成参考线数据类型，并进行均匀采样
     Path::ReferencePath::Ptr raw_reference_path =
         std::make_shared<Path::ReferencePath>(path, params_.search.path_optimization.S_INTERVAL / res_);
+    Path::ReferencePath::Ptr raw_reference_path2;
     
     // 插入起点和终点部分的Dubins曲线，特殊处理，使得参考线更加符合运动学约束
-    const double dubins_sample_spacing = params_.search.path_optimization.DUBINS_INTERVAL / res_;
-    const double dubins_sample_length = std::min(params_.search.path_optimization.DUBINS_LENGTH / res_, raw_reference_path->GetLength() * 0.5);
-    const size_t dubins_sample_size = std::ceil(dubins_sample_length / dubins_sample_spacing);
-    Curve::Dubins dubins(params_.search.path_optimization.DUBINS_RADIUS / res_, 1.0 / res_);
-
-    Path::ReferencePath::Ptr concat_reference_path;
-    if (raw_reference_path->GetLength() > params_.search.path_optimization.DUBINS_RADIUS / res_ * 2.5)
+    if (params_.search.path_optimization.USE_DUBINS)
     {
-        // 起点部分使用dubins
-        const std::array<double, 3> start = { start_point_.x, start_point_.y, start_yaw_ };
-        double min_length_start = std::numeric_limits<double>::max();
-        double min_s_start = 0;
-        Curve::Dubins::DubinsPath min_length_path_start;
-        for (size_t i = 1; i < dubins_sample_size; ++i)
-        {
-            const double s = i * dubins_sample_spacing;
-            const Path::PathNode s_node = raw_reference_path->GetPathNode(s);
-            const std::array<double, 3> s_end = { s_node.x, s_node.y, s_node.theta };
+        const double dubins_sample_spacing = params_.search.path_optimization.DUBINS_INTERVAL / res_;
+        const double dubins_sample_length = std::min(params_.search.path_optimization.DUBINS_LENGTH / res_, raw_reference_path->GetLength() * 0.5);
+        const size_t dubins_sample_size = std::ceil(dubins_sample_length / dubins_sample_spacing);
+        Curve::Dubins dubins(params_.search.path_optimization.DUBINS_RADIUS / res_, 1.0 / res_);
 
-            const Curve::Dubins::DubinsPath temp_path = dubins.Path(start, s_end);
-            const double total_length = temp_path.RealLength() + raw_reference_path->GetLength() - s;
-            if (total_length < min_length_start)
+        Path::ReferencePath::Ptr concat_reference_path;
+        if (raw_reference_path->GetLength() > params_.search.path_optimization.DUBINS_RADIUS / res_ * 2.5)
+        {
+            // 起点部分使用dubins
+            const std::array<double, 3> start = { start_point_.x, start_point_.y, start_yaw_ };
+            double min_length_start = std::numeric_limits<double>::max();
+            double min_s_start = 0;
+            Curve::Dubins::DubinsPath min_length_path_start;
+            for (size_t i = 1; i < dubins_sample_size; ++i)
             {
-                min_length_start = total_length;
-                min_length_path_start = temp_path;
-                min_s_start = s;
-            }
-        }
-        // 终点部分使用dubins
-        // 这部分使用反向dubins，从终点end出发，到路中间点。因此需要将“起点”和“终点”的yaw分别加上pi，再进行dubins。
-        const std::array<double, 3> end = { end_point_.x,   end_point_.y,   end_yaw_ + M_PI };
-        double min_length_end = std::numeric_limits<double>::max();
-        double min_s_end = 0;
-        Curve::Dubins::DubinsPath min_length_path_end;
-        for (size_t i = 1; i < dubins_sample_size; ++i)
-        {
-            const double s = raw_reference_path->GetLength() - i * dubins_sample_spacing;
-            const Path::PathNode s_node = raw_reference_path->GetPathNode(s);
-            const std::array<double, 3> s_start = { s_node.x, s_node.y, s_node.theta + M_PI };
+                const double s = i * dubins_sample_spacing;
+                const Path::PathNode s_node = raw_reference_path->GetPathNode(s);
+                const std::array<double, 3> s_end = { s_node.x, s_node.y, s_node.theta };
 
-            const Curve::Dubins::DubinsPath temp_path = dubins.Path(end, s_start);
-            const double total_length = temp_path.RealLength() + s;
-            if (total_length < min_length_end)
+                const Curve::Dubins::DubinsPath temp_path = dubins.Path(start, s_end);
+                const double total_length = temp_path.RealLength() + raw_reference_path->GetLength() - s;
+                if (total_length < min_length_start)
+                {
+                    min_length_start = total_length;
+                    min_length_path_start = temp_path;
+                    min_s_start = s;
+                }
+            }
+            // 终点部分使用dubins
+            // 这部分使用反向dubins，从终点end出发，到路中间点。因此需要将“起点”和“终点”的yaw分别加上pi，再进行dubins。
+            const std::array<double, 3> end = { end_point_.x,   end_point_.y,   end_yaw_ + M_PI };
+            double min_length_end = std::numeric_limits<double>::max();
+            double min_s_end = 0;
+            Curve::Dubins::DubinsPath min_length_path_end;
+            for (size_t i = 1; i < dubins_sample_size; ++i)
             {
-                min_length_end = total_length;
-                min_length_path_end = temp_path;
-                min_s_end = s;
+                const double s = raw_reference_path->GetLength() - i * dubins_sample_spacing;
+                const Path::PathNode s_node = raw_reference_path->GetPathNode(s);
+                const std::array<double, 3> s_start = { s_node.x, s_node.y, s_node.theta + M_PI };
+
+                const Curve::Dubins::DubinsPath temp_path = dubins.Path(end, s_start);
+                const double total_length = temp_path.RealLength() + s;
+                if (total_length < min_length_end)
+                {
+                    min_length_end = total_length;
+                    min_length_path_end = temp_path;
+                    min_s_end = s;
+                }
             }
-        }
 
-        // 路径拼接
-        const std::vector<std::array<double, 3>> start_concat_path = dubins.SegmentPath(min_length_path_start, start);
-        const std::vector<std::array<double, 3>> end_concat_path = dubins.SegmentPath(min_length_path_end, end);
-        std::vector<cv::Point2d> concat_path;
-        concat_path.reserve(start_concat_path.size() + end_concat_path.size() + raw_reference_path->GetPathNodes().size());
-        for (auto it = start_concat_path.begin(); it < start_concat_path.end(); ++it)
-        {
-            const std::array<double, 3> & p = *it;
-            concat_path.emplace_back(p[0], p[1]);
-        }
-        for (double s_temp = min_s_start; s_temp < min_s_end - 0.05; s_temp += raw_reference_path->GetSInterval())
-        {
-            Path::PathNode n = raw_reference_path->GetPathNode(s_temp);
-            concat_path.emplace_back(n.x, n.y);
-        }
-        for (auto it = end_concat_path.rbegin(); it < end_concat_path.rend(); ++it)
-        {
-            const std::array<double, 3> & p = *it;
-            concat_path.emplace_back(p[0], p[1]);
-        }
+            // 路径拼接
+            const std::vector<std::array<double, 3>> start_concat_path = dubins.SegmentPath(min_length_path_start, start);
+            const std::vector<std::array<double, 3>> end_concat_path = dubins.SegmentPath(min_length_path_end, end);
+            std::vector<cv::Point2d> concat_path;
+            concat_path.reserve(start_concat_path.size() + end_concat_path.size() + raw_reference_path->GetPathNodes().size());
+            for (auto it = start_concat_path.begin(); it < start_concat_path.end(); ++it)
+            {
+                const std::array<double, 3> & p = *it;
+                concat_path.emplace_back(p[0], p[1]);
+            }
+            for (double s_temp = min_s_start; s_temp < min_s_end - 0.05; s_temp += raw_reference_path->GetSInterval())
+            {
+                Path::PathNode n = raw_reference_path->GetPathNode(s_temp);
+                concat_path.emplace_back(n.x, n.y);
+            }
+            for (auto it = end_concat_path.rbegin(); it < end_concat_path.rend(); ++it)
+            {
+                const std::array<double, 3> & p = *it;
+                concat_path.emplace_back(p[0], p[1]);
+            }
 
-        // 生成新的参考路径
-        concat_reference_path = std::make_shared<Path::ReferencePath>(concat_path, params_.search.path_optimization.S_INTERVAL / res_);
+            // 生成新的参考路径
+            concat_reference_path = std::make_shared<Path::ReferencePath>(concat_path, params_.search.path_optimization.S_INTERVAL / res_);
+            raw_reference_path2 = concat_reference_path;
+        }
+        else
+        {
+            const std::array<double, 3> start = { start_point_.x, start_point_.y, start_yaw_ };
+            const std::array<double, 3> end = { end_point_.x,   end_point_.y,   end_yaw_ };
+            const Curve::Dubins::DubinsPath dubins_path = dubins.Path(start, end);
+            const std::vector<std::array<double, 3>> dubins_points = dubins.SegmentPath(dubins_path, start);
+
+            std::vector<cv::Point2d> path;
+            path.reserve(dubins_points.size() + 1);
+            for (const std::array<double, 3> &p : dubins_points)
+            {
+                path.emplace_back(p[0], p[1]);
+            }
+            path.emplace_back(end[0], end[1]);
+            concat_reference_path = std::make_shared<Path::ReferencePath>(path, params_.search.path_optimization.S_INTERVAL / res_ * 0.5);
+            raw_reference_path2 = concat_reference_path;
+        }
     }
     else
     {
-        const std::array<double, 3> start = { start_point_.x, start_point_.y, start_yaw_ };
-        const std::array<double, 3> end   = { end_point_.x,   end_point_.y,   end_yaw_ };
-        const Curve::Dubins::DubinsPath dubins_path = dubins.Path(start, end);
-        const std::vector<std::array<double, 3>> dubins_points = dubins.SegmentPath(dubins_path, start);
-        
-        std::vector<cv::Point2d> path;
-        path.reserve(dubins_points.size() + 1);
-        for (const std::array<double, 3> & p : dubins_points)
-        {
-            path.emplace_back(p[0], p[1]);
-        }
-        path.emplace_back(end[0], end[1]);
-        concat_reference_path = std::make_shared<Path::ReferencePath>(path, params_.search.path_optimization.S_INTERVAL / res_ * 0.5);
+        raw_reference_path2 = raw_reference_path;
     }
 
     // 使用离散点对参考线通过数值优化进行平滑。
@@ -948,7 +958,7 @@ bool TSHAstar::optimizeDiscretePointsPath(const std::vector<cv::Point2d> & path,
                                             params_.search.path_optimization.REF_WEIGTH_LENGTH,
                                             params_.search.path_optimization.REF_WEIGTH_DEVIATION};
     Smoother::DiscretePointSmoother smoother(weights, params_.search.path_optimization.REF_BUFFER_DISTANCE / res_);
-    if (!smoother.Solve(concat_reference_path, reference_path))
+    if (!smoother.Solve(raw_reference_path2, reference_path))
     {
         return false;
     }
@@ -956,7 +966,7 @@ bool TSHAstar::optimizeDiscretePointsPath(const std::vector<cv::Point2d> & path,
 
     // 保存辅助信息
     helper_.search.path_optimization.cost_time = (end_time - start_time).count() / 1000000.0;
-    helper_.search.path_optimization.sample_path = concat_reference_path->GetPath();
+    helper_.search.path_optimization.sample_path = raw_reference_path2->GetPath();
     helper_.search.path_optimization.sample_path_size = helper_.search.path_optimization.sample_path.size();
     helper_.search.path_optimization.sample_path_length = raw_reference_path->GetLength();
     helper_.search.path_optimization.optimized_path = reference_path->GetPath();

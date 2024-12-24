@@ -31,6 +31,7 @@ TSHAstar:
 
     path_optimization:
       S_INTERVAL: 4.0               # 曲线平滑后的路径进行均匀采样的间隔，单位为m。
+      USE_DUBINS: false             # 是否使用dubins曲线对起点和终点进行拟合
       DUBINS_RADIUS: 2.5            # 使用dubins曲线对起点和终点进行拼接时的转向半径。单位m
       DUBINS_INTERVAL: 1.5          # 使用dubins曲线对起点和终点进行拼接时的在参考路径上的采样间隔。单位m
       DUBINS_LENGTH: 8.0            # 使用dubins曲线对起点和终点进行拼接时的在参考路径上的采样长度。单位m

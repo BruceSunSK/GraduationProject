@@ -212,6 +212,7 @@ public:
             struct
             {
                 double S_INTERVAL = 4.0;                // 曲线平滑后的路径进行均匀采样的间隔，单位为m。
+                bool USE_DUBINS = false;                // 是否使用dubins曲线对起点和终点进行拟合
                 double DUBINS_RADIUS = 2.5;             // 使用dubins曲线对起点和终点进行拼接时的转向半径。单位m
                 double DUBINS_INTERVAL = 1.5;           // 使用dubins曲线对起点和终点进行拼接时的在参考路径上的采样间隔。单位m
                 double DUBINS_LENGTH = 8.0;             // 使用dubins曲线对起点和终点进行拼接时的在参考路径上的采样长度。单位m
@@ -221,6 +222,7 @@ public:
                 double REF_BUFFER_DISTANCE = 1.0;       // 参考线初步优化时原始点可在XY方向上最大偏移距离，单位为m。
                 
                 REGISTER_STRUCT(REGISTER_MEMBER(S_INTERVAL),
+                                REGISTER_MEMBER(USE_DUBINS),
                                 REGISTER_MEMBER(REF_WEIGTH_SMOOTH),
                                 REGISTER_MEMBER(REF_WEIGTH_LENGTH),
                                 REGISTER_MEMBER(REF_WEIGTH_DEVIATION),

@@ -18,7 +18,12 @@
 class GlobalPlanning
 {
 public:
-    GlobalPlanning(ros::NodeHandle & nh);
+    GlobalPlanning() = delete;
+    GlobalPlanning(const ros::NodeHandle & nh);
+    GlobalPlanning(const GlobalPlanning & other) = delete;
+    GlobalPlanning(GlobalPlanning && other) = delete;
+    GlobalPlanning & operator=(const GlobalPlanning & other) = delete;
+    GlobalPlanning & operator=(GlobalPlanning && other) = delete;
     ~GlobalPlanning();
 
 private:

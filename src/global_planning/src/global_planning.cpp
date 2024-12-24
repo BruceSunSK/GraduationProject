@@ -3,13 +3,13 @@
 
 /// @brief 完成全局规划的初始化。设定ros相关的话题内容；设定选用的规划器以及对应的参数
 /// @param nh ros节点句柄
-GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer_)
+GlobalPlanning::GlobalPlanning(const ros::NodeHandle & nh) : nh_(nh), listener_(buffer_)
 {
     // 话题参数初始化
     nh_.param<std::string>("input_map_topic",  input_map_topic_,  "/grid_cost_map/global_occupancy_grid_map");
     nh_.param<std::string>("input_goal_topic", input_goal_topic_, "/move_base_simple/goal");
-    nh_.param<std::string>("output_processed_map_topic",  output_processed_map_topic_, "processed_map");
-    nh_.param<std::string>("output_path_topic",           output_path_topic_,          "path");
+    nh_.param<std::string>("output_processed_map_topic",  output_processed_map_topic_,  "processed_map");
+    nh_.param<std::string>("output_path_topic",           output_path_topic_,           "path");
     nh_.param<std::string>("output_auxiliary_info_topic", output_auxiliary_info_topic_, "auxiliary_info");
     nh_.param<bool>("info_flag", info_flag_, true);
     nh_.param<bool>("save_flag", save_flag_, false);
@@ -17,9 +17,9 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
 
     sub_map_  = nh_.subscribe(input_map_topic_ , 1, &GlobalPlanning::set_map, this);
     sub_goal_ = nh_.subscribe(input_goal_topic_, 1, &GlobalPlanning::set_goal, this);
-    pub_processed_map_ = nh.advertise<nav_msgs::OccupancyGrid>(output_processed_map_topic_, 1, true);
-    pub_path_          = nh.advertise<nav_msgs::Path>(output_path_topic_, 10);
-    pub_auxiliary_     = nh.advertise<visualization_msgs::MarkerArray>(output_auxiliary_info_topic_, 1, true);
+    pub_processed_map_ = nh_.advertise<nav_msgs::OccupancyGrid>(output_processed_map_topic_, 1, true);
+    pub_path_          = nh_.advertise<nav_msgs::Path>(output_path_topic_, 10);
+    pub_auxiliary_     = nh_.advertise<visualization_msgs::MarkerArray>(output_auxiliary_info_topic_, 1, true);
 
     // 规划器初始化
     planner_name_ = nh_.param<std::string>("planner_name", "TSHAstar");
@@ -52,6 +52,7 @@ GlobalPlanning::GlobalPlanning(ros::NodeHandle & nh) : nh_(nh), listener_(buffer
                                                           nh_.param<int>("TSHAstar/search/path_smooth/PATH_SMOOTH_TYPE", 1));
         p.search.path_smooth.T_STEP                     = nh_.param<double>("TSHAstar/search/path_smooth/T_STEP", 0.0005);
         p.search.path_optimization.S_INTERVAL           = nh_.param<double>("TSHAstar/search/path_optimization/S_INTERVAL", 4.0);
+        p.search.path_optimization.USE_DUBINS           = nh_.param<bool>("TSHAstar/search/path_optimization/USE_DUBINS", false);
         p.search.path_optimization.DUBINS_RADIUS        = nh_.param<double>("TSHAstar/search/path_optimization/DUBINS_RADIUS", 2.5);
         p.search.path_optimization.DUBINS_INTERVAL      = nh_.param<double>("TSHAstar/search/path_optimization/DUBINS_INTERVAL", 1.5);
         p.search.path_optimization.DUBINS_LENGTH        = nh_.param<double>("TSHAstar/search/path_optimization/DUBINS_LENGTH", 8.0);
