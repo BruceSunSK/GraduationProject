@@ -6,6 +6,6 @@
     </node>
 
     <!-- [2] 启动 rviz -->
-    <node pkg="rviz" name="rviz" type="rviz" args="-d $(find global_planning)/rviz/test_ros.rviz" />
+    <node pkg="rviz" name="rviz" type="rviz" args="-d $(find global_planning)/rviz/test_ros_for_tests.rviz" />
 
 </launch>

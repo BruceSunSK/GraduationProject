@@ -448,15 +448,15 @@ bool TSHAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<
     // 辅助信息赋值
     // 8.auxiliary_info赋值
     auxiliary_info.clear();
-    auxiliary_info.push_back(std::move(helper_.search.path_search.raw_path));
-    auxiliary_info.push_back(std::move(helper_.search.path_search.nodes));
-    auxiliary_info.push_back(std::move(helper_.search.path_simplification.reduced_path));
-    auxiliary_info.push_back(std::move(helper_.search.path_smooth.smooth_path));
-    auxiliary_info.push_back(std::move(helper_.search.path_optimization.sample_path));
-    auxiliary_info.push_back(std::move(helper_.search.path_optimization.optimized_path));
-    auxiliary_info.push_back(std::move(helper_.sample.path_dp.dp_path));
-    auxiliary_info.push_back(std::move(helper_.sample.path_dp.lower_bound));
-    auxiliary_info.push_back(std::move(helper_.sample.path_dp.upper_bound));
+    auxiliary_info.push_back(helper_.search.path_search.raw_path);
+    auxiliary_info.push_back(helper_.search.path_search.nodes);
+    auxiliary_info.push_back(helper_.search.path_simplification.reduced_path);
+    auxiliary_info.push_back(helper_.search.path_smooth.smooth_path);
+    auxiliary_info.push_back(helper_.search.path_optimization.sample_path);
+    auxiliary_info.push_back(helper_.search.path_optimization.optimized_path);
+    auxiliary_info.push_back(helper_.sample.path_dp.dp_path);
+    auxiliary_info.push_back(helper_.sample.path_dp.lower_bound);
+    auxiliary_info.push_back(helper_.sample.path_dp.upper_bound);
 
     return true;
 }

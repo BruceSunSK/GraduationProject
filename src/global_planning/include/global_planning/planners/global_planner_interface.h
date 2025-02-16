@@ -206,6 +206,10 @@ public:
     /// @param save 是否保存到本地
     /// @param save_dir_path 保存的路径
     virtual void showAllInfo(const bool save = false, const std::string & save_dir_path = "") const = 0;
+    /// @brief 获取所有信息的helper，用于记录规划耗时等信息。
+    /// @note 该函数返回的是一个指针，存储的数据将会随着规划而刷新数据。
+    /// @return 所有信息的helper
+    virtual const GlobalPlannerHelper * getAllInfo() const = 0;
     
 protected:
     // 规划器名称
