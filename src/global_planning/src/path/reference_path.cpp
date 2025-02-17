@@ -53,8 +53,11 @@ void ReferencePath::SetPath(const std::vector<cv::Point2d> & path, const double 
         const double dy = Y_S_(s, 1);
         const double ddx = X_S_(s, 2);
         const double ddy = Y_S_(s, 2);
+        const double dddx = X_S_(s, 3);
+        const double dddy = Y_S_(s, 3);
         node.theta = Math::Heading(dx, dy);
         node.kappa = Math::Curvature(dx, dy, ddx, ddy);
+        node.dkappa = Math::CurvatureRate(dx, dy, ddx, ddy, dddx, dddy);
         path_.push_back(std::move(node));
     }
 }
@@ -80,8 +83,11 @@ PathNode ReferencePath::GetPathNode(const double s) const
     const double dy = Y_S_(s, 1);
     const double ddx = X_S_(s, 2);
     const double ddy = Y_S_(s, 2);
+    const double dddx = X_S_(s, 3);
+    const double dddy = Y_S_(s, 3);
     node.theta = Math::Heading(dx, dy);
     node.kappa = Math::Curvature(dx, dy, ddx, ddy);
+    node.dkappa = Math::CurvatureRate(dx, dy, ddx, ddy, dddx, dddy);
     return node;
 }
 

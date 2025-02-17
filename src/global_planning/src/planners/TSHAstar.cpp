@@ -447,16 +447,17 @@ bool TSHAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<
 
     // 辅助信息赋值
     // 8.auxiliary_info赋值
+    // 此处不用move，保证原有的helper_对象也有数据
     auxiliary_info.clear();
-    auxiliary_info.push_back(std::move(helper_.search.path_search.raw_path));
-    auxiliary_info.push_back(std::move(helper_.search.path_search.nodes));
-    auxiliary_info.push_back(std::move(helper_.search.path_simplification.reduced_path));
-    auxiliary_info.push_back(std::move(helper_.search.path_smooth.smooth_path));
-    auxiliary_info.push_back(std::move(helper_.search.path_optimization.sample_path));
-    auxiliary_info.push_back(std::move(helper_.search.path_optimization.optimized_path));
-    auxiliary_info.push_back(std::move(helper_.sample.path_dp.dp_path));
-    auxiliary_info.push_back(std::move(helper_.sample.path_dp.lower_bound));
-    auxiliary_info.push_back(std::move(helper_.sample.path_dp.upper_bound));
+    auxiliary_info.push_back(helper_.search.path_search.raw_path);
+    auxiliary_info.push_back(helper_.search.path_search.nodes);
+    auxiliary_info.push_back(helper_.search.path_simplification.reduced_path);
+    auxiliary_info.push_back(helper_.search.path_smooth.smooth_path);
+    auxiliary_info.push_back(helper_.search.path_optimization.sample_path);
+    auxiliary_info.push_back(helper_.search.path_optimization.optimized_path);
+    auxiliary_info.push_back(helper_.sample.path_dp.dp_path);
+    auxiliary_info.push_back(helper_.sample.path_dp.lower_bound);
+    auxiliary_info.push_back(helper_.sample.path_dp.upper_bound);
 
     return true;
 }
@@ -1255,10 +1256,22 @@ bool TSHAstar::optimizePiecewiseJerkPath(const Path::ReferencePath::Ptr & refere
                                              lateral_sample_range, dl_limit, vehicle_kappa_max,
                                              center_deviation_thres, center_bounds_thres, center_obs_coeff);
 
+    // 起点和终点sl位姿
+    const Path::PathNode & start_node = reference_path->GetPathNodes().front();
+    const Path::PointSLWithDerivatives start_point_sl = Path::Utils::XYtoSL(
+        { start_point_.x, start_point_.y }, start_yaw_, 0.0,
+        { start_node.x, start_node.y }, start_node.s, start_node.theta, start_node.kappa, start_node.dkappa);
+    const Path::PathNode & end_node = reference_path->GetPathNodes().back();
+    const Path::PointSLWithDerivatives end_point_sl = Path::Utils::XYtoSL(
+        { end_point_.x, end_point_.y }, end_yaw_, 0.0,
+        { end_node.x, end_node.y }, end_node.s, end_node.theta, end_node.kappa, end_node.dkappa);
+
     // 传入求解数据进行求解
     auto start_time = std::chrono::steady_clock::now();
     optimized_path.clear();
-    if (!smoother.Solve(reference_path, bounds, { 0.0, 0.0, 0.0 }, { 0.0, 0.0, 0.0 }, optimized_path))
+    if (!smoother.Solve(reference_path, bounds,
+                        { start_point_sl.l, start_point_sl.l_prime, start_point_sl.l_double_prime },
+                        { end_point_sl.l, end_point_sl.l_prime, end_point_sl.l_double_prime }, optimized_path))
     {
         return false;
     }

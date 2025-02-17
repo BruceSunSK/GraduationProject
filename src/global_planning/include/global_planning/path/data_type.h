@@ -21,15 +21,28 @@ struct PointSL
     double l;
 };
 
+struct PointSLWithDerivatives : public PointSL
+{
+    PointSLWithDerivatives() : PointSL(), l_prime(0), l_double_prime(0) {}
+    PointSLWithDerivatives(const double s, const double l, const double l_prime, const double l_double_prime)
+        : PointSL(s, l), l_prime(l_prime), l_double_prime(l_double_prime) {}
+    PointSLWithDerivatives(const PointSL & point, const double l_prime, const double l_double_prime)
+        : PointSL(point), l_prime(l_prime), l_double_prime(l_double_prime){}
+
+    double l_prime;
+    double l_double_prime;
+};
+
 struct PathNode : public PointXY, public PointSL
 {
     PathNode() : PointXY(), PointSL() {}
     PathNode(const double x, const double y, const double s, const double l) : PointXY(x, y), PointSL(s, l) {}
-    PathNode(const double x, const double y, const double s, const double l, const double theta, const double kappa)
-        : PointXY(x, y), PointSL(s, l), theta(theta), kappa(kappa) {}
+    PathNode(const double x, const double y, const double s, const double l, const double theta, const double kappa, double dkappa)
+        : PointXY(x, y), PointSL(s, l), theta(theta), kappa(kappa), dkappa(dkappa) {}
 
     double theta;
     double kappa;
+    double dkappa;
 };
 
 } // namespace Path
