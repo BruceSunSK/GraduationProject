@@ -1235,30 +1235,42 @@ bool TSHAstar::findPathTunnel(const Path::ReferencePath::Ptr & reference_path, s
 bool TSHAstar::optimizePiecewiseJerkPath(const Path::ReferencePath::Ptr & reference_path, const std::vector<std::pair<double, double>> & bounds, std::vector<cv::Point2d> & optimized_path)
 {
     // 设置权重等参数
-    const static std::array<double, 4> lateral_weights   = { params_.sample.path_qp.WEIGHT_L,
+    const static std::array<double, 4> lateral_weights = { params_.sample.path_qp.WEIGHT_L,
                                                              params_.sample.path_qp.WEIGHT_DL,
                                                              params_.sample.path_qp.WEIGHT_DDL,
                                                              params_.sample.path_qp.WEIGHT_DDDL };
-    const static double center_weight                    =   params_.sample.path_qp.WEIGHT_CENTER;
+    const static double center_weight = params_.sample.path_qp.WEIGHT_CENTER;
     const static std::array<double, 3> end_state_weights = { params_.sample.path_qp.WEIGHT_END_STATE_L,
                                                              params_.sample.path_qp.WEIGHT_END_STATE_DL,
                                                              params_.sample.path_qp.WEIGHT_END_STATE_DDL };
 
-    const static double lateral_sample_range   = params_.sample.path_sample.LATERAL_SAMPLE_RANGE / res_;
-    const static double dl_limit               = params_.sample.path_qp.DL_LIMIT;
-    const static double vehicle_kappa_max      = params_.sample.path_qp.VEHICLE_KAPPA_MAX * res_;
+    const static double lateral_sample_range = params_.sample.path_sample.LATERAL_SAMPLE_RANGE / res_;
+    const static double dl_limit = params_.sample.path_qp.DL_LIMIT;
+    const static double vehicle_kappa_max = params_.sample.path_qp.VEHICLE_KAPPA_MAX * res_;
     const static double center_deviation_thres = params_.sample.path_qp.CENTER_DEVIATION_THRESHOLD / res_;
-    const static double center_bounds_thres    = params_.sample.path_qp.CENTER_BOUNDS_THRESHOLD / res_;
-    const static double center_obs_coeff       = params_.sample.path_qp.CENTER_OBS_COEFFICIENT;
+    const static double center_bounds_thres = params_.sample.path_qp.CENTER_BOUNDS_THRESHOLD / res_;
+    const static double center_obs_coeff = params_.sample.path_qp.CENTER_OBS_COEFFICIENT;
 
     Smoother::PiecewiseJerkSmoother smoother(lateral_weights, center_weight, end_state_weights,
-                                             lateral_sample_range, dl_limit, vehicle_kappa_max,
-                                             center_deviation_thres, center_bounds_thres, center_obs_coeff);
+        lateral_sample_range, dl_limit, vehicle_kappa_max,
+        center_deviation_thres, center_bounds_thres, center_obs_coeff);
+
+    // 起点和终点sl位姿
+    const Path::PathNode & start_node = reference_path->GetPathNodes().front();
+    const Path::PointSLWithDerivatives start_point_sl = Path::Utils::XYtoSL(
+        { start_point_.x, start_point_.y }, start_yaw_, 0.0,
+        { start_node.x, start_node.y }, start_node.s, start_node.theta, start_node.kappa, start_node.dkappa);
+    const Path::PathNode & end_node = reference_path->GetPathNodes().back();
+    const Path::PointSLWithDerivatives end_point_sl = Path::Utils::XYtoSL(
+        { end_point_.x, end_point_.y }, end_yaw_, 0.0,
+        { end_node.x, end_node.y }, end_node.s, end_node.theta, end_node.kappa, end_node.dkappa);
 
     // 传入求解数据进行求解
     auto start_time = std::chrono::steady_clock::now();
     optimized_path.clear();
-    if (!smoother.Solve(reference_path, bounds, { 0.0, 0.0, 0.0 }, { 0.0, 0.0, 0.0 }, optimized_path))
+    if (!smoother.Solve(reference_path, bounds,
+                        { start_point_sl.l, start_point_sl.l_prime, start_point_sl.l_double_prime },
+                        { end_point_sl.l, end_point_sl.l_prime, end_point_sl.l_double_prime }, optimized_path))
     {
         return false;
     }

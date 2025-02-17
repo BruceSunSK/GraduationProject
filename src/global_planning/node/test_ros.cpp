@@ -10,6 +10,8 @@
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 
+#include <Eigen/Core>
+
 #include "global_planning/planners/TSHAstar.h"
 #include "global_planning/planners/astar.h"
 #include "global_planning/planners/rrt.h"
@@ -48,6 +50,70 @@ bool end_point_flag = false;
 bool map_flag = false;
 Map::DistanceMap collision_check_map_;
 
+
+// 使用最小二乘法拟合二次曲线 y = ax² + bx + c
+void fitQuadraticCurve(const std::vector<cv::Point2d> & points,
+    double & a, double & b, double & c)
+{
+    const int n = points.size();
+    Eigen::MatrixXd X(n, 3);
+    Eigen::VectorXd Y(n);
+
+    for (int i = 0; i < n; ++i)
+    {
+        const double xi = points[i].x;
+        X(i, 0) = xi * xi;
+        X(i, 1) = xi;
+        X(i, 2) = 1;
+        Y(i) = points[i].y;
+    }
+
+    Eigen::Vector3d coeff = X.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(Y);
+    a = coeff[0];
+    b = coeff[1];
+    c = coeff[2];
+}
+
+// 计算曲率 κ = |y''| / (1 + y'²)^(3/2)
+double calculateCurvature(double x, double a, double b)
+{
+    const double y_prime = 2 * a * x + b;       // 一阶导数 dy/dx
+    const double y_double_prime = 2 * a;      // 二阶导数 d²y/dx²
+    return std::abs(y_double_prime) / std::pow(1 + y_prime * y_prime, 1.5);
+}
+
+// 主计算函数（滑动窗口处理）
+std::vector<double> computeCurvatures(const std::vector<cv::Point2d> & path, int window_size = 5)
+{
+    std::vector<double> curvatures;
+    const int n = path.size();
+
+    for (int i = 0; i < n; ++i)
+    {
+        // 确定滑动窗口范围
+        int start = std::max(0, i - window_size / 2);
+        int end = std::min(n - 1, i + window_size / 2);
+        if (end - start + 1 < 3)
+        { // 边界处理
+            curvatures.push_back(0);
+            continue;
+        }
+
+        // 提取局部点集
+        std::vector<cv::Point2d> local_points;
+        for (int j = start; j <= end; ++j)
+        {
+            local_points.push_back(path[j]);
+        }
+
+        // 曲线拟合与曲率计算
+        double a, b, c;
+        fitQuadraticCurve(local_points, a, b, c);
+        curvatures.push_back(calculateCurvature(path[i].x, a, b));
+    }
+
+    return curvatures;
+}
 
 PlannerMetrics calc_metrics(const std::string & planner_name, const GlobalPlannerInterface * const planner,
                             const std::vector<cv::Point2d> & path)
@@ -158,7 +224,8 @@ PlannerMetrics calc_metrics(const std::string & planner_name, const GlobalPlanne
     {
         const cv::Point2d & point = real_path[i];
         const cv::Point2d point_grid((point.x - ori_x) / res, (point.y - ori_y) / res);
-        const double dis = collision_check_map_.GetDistance(point_grid) * res;
+        const double dis = collision_check_map_.IsInside(point_grid) ?
+            collision_check_map_.GetDistance(point_grid) * res : 0.0;
         collision_distance_list[i] = dis;
         metrics.min_collision_distance = std::min(metrics.min_collision_distance, dis);
     }
@@ -196,6 +263,17 @@ PlannerMetrics calc_metrics(const std::string & planner_name, const GlobalPlanne
     curvature_list[real_path.size() - 1] = curvature_list[real_path.size() - 2];
     metrics.average_curvature = total_curvature / (real_path.size() - 2);
     metrics.curvature_list = std::move(curvature_list);
+
+    // metrics.curvature_list = computeCurvatures(real_path);
+    // double total_curv = 0.0;
+    // double max_curv = 0.0;
+    // for (size_t i = 0; i < metrics.curvature_list.size(); i++)
+    // {
+    //     total_curv += metrics.curvature_list[i];
+    //     max_curv = std::max(max_curv, metrics.curvature_list[i]);
+    // }
+    // metrics.average_curvature = total_curv / metrics.curvature_list.size();
+    // metrics.max_curvature = max_curv;
 
     return metrics;
 }
@@ -395,46 +473,25 @@ void pub_path()
 
 
             // 2. 去除冗余点后的关键节点
-            // points_marker.ns = "search_key_nodes";
-            // points_marker.id = 2;
-            // points_marker.scale.x = 0.6;
-            // points_marker.scale.y = 0.6;
-            // points_marker.scale.z = 0.6;
-            // points_marker.color.a = 1.0;
-            // points_marker.color.r = 255.0 / 255.0;
-            // points_marker.color.g = 215.0 / 255.0;
-            // points_marker.color.b = 0.0 / 255.0;
-            // points_marker.points.clear();
-            // for (size_t i = 0; i < auxiliary_info[2].size(); i++)
-            // {
-            //     geometry_msgs::Point p;
-            //     p.x = auxiliary_info[2][i].x;
-            //     p.y = auxiliary_info[2][i].y;
-            //     p.z = 2;
-            //     points_marker.points.push_back(std::move(p));
-            // }
-            // marker_array.markers.push_back(points_marker);
-            // 2. 去除冗余点后的关键节点(使用直线连接)
-            // 为了实验一而更改
-            line_marker.ns = "search_rrp";
-            line_marker.id = 2;
-            line_marker.scale.x = 0.3;
-            line_marker.scale.y = 0.3;
-            line_marker.scale.z = 0.3;
-            line_marker.color.a = 0.8;
-            line_marker.color.r = 255.0 / 255.0;
-            line_marker.color.g = 215.0 / 255.0;
-            line_marker.color.b = 0.0 / 255.0;
-            line_marker.points.clear();
+            points_marker.ns = "search_key_nodes";
+            points_marker.id = 2;
+            points_marker.scale.x = 0.6;
+            points_marker.scale.y = 0.6;
+            points_marker.scale.z = 0.6;
+            points_marker.color.a = 1.0;
+            points_marker.color.r = 255.0 / 255.0;
+            points_marker.color.g = 215.0 / 255.0;
+            points_marker.color.b = 0.0 / 255.0;
+            points_marker.points.clear();
             for (size_t i = 0; i < auxiliary_info[2].size(); i++)
             {
                 geometry_msgs::Point p;
                 p.x = auxiliary_info[2][i].x;
                 p.y = auxiliary_info[2][i].y;
                 p.z = 2;
-                line_marker.points.push_back(std::move(p));
+                points_marker.points.push_back(std::move(p));
             }
-            marker_array.markers.push_back(line_marker);
+            marker_array.markers.push_back(points_marker);
 
             // 3. 进行曲线平滑后的结果
             line_marker.ns = "search_bspline_smooth_path";
@@ -443,13 +500,9 @@ void pub_path()
             line_marker.scale.y = 0.3;
             line_marker.scale.z = 0.3;
             line_marker.color.a = 0.8;
-            // 为了实验一而更改
-            // line_marker.color.r = 255.0 / 255.0;
-            // line_marker.color.g = 165.0 / 255.0;
-            // line_marker.color.b = 0.0 / 255.0;
-            line_marker.color.r = 204.0 / 255.0;
-            line_marker.color.g = 41.0 / 255.0;
-            line_marker.color.b = 204.0 / 255.0;
+            line_marker.color.r = 255.0 / 255.0;
+            line_marker.color.g = 165.0 / 255.0;
+            line_marker.color.b = 0.0 / 255.0;
             line_marker.points.clear();
             for (size_t i = 0; i < auxiliary_info[3].size(); i++)
             {
@@ -491,13 +544,9 @@ void pub_path()
             line_marker.scale.y = 0.3;
             line_marker.scale.z = 0.3;
             line_marker.color.a = 0.8;
-            // line_marker.color.r = 238.0 / 255.0;
-            // line_marker.color.g = 44.0 / 255.0;
-            // line_marker.color.b = 44.0 / 255.0;
-            // 为了实验一而更改
-            line_marker.color.r = 25.0 / 255.0;
-            line_marker.color.g = 255.0 / 255.0;
-            line_marker.color.b = 0.0 / 255.0;
+            line_marker.color.r = 238.0 / 255.0;
+            line_marker.color.g = 44.0 / 255.0;
+            line_marker.color.b = 44.0 / 255.0;
             line_marker.points.clear();
             for (size_t i = 0; i < auxiliary_info[5].size(); i++)
             {
@@ -763,10 +812,6 @@ int main(int argc, char * argv[])
 {
     // 1. 确定规划器类别
     planners_names.clear();
-    planners_names.push_back("Astar");
-    planners_names.push_back("RRTstar");
-    planners_names.push_back("TSHAstar_RRP");   // TSHAstar的截止去除冗余点(remove redundant points)部分的效果
-    planners_names.push_back("TSHAstar_BS");    // TSHAstar的截止B样条部分的效果
     planners_names.push_back("TSHAstar_OP");    // TSHAstar的截止第一个优化的效果（基本参考线）
     planners_names.push_back("TSHAstar");
 
@@ -824,28 +869,28 @@ int main(int argc, char * argv[])
             TSHAstar_params.search.path_optimization.REF_WEIGTH_DEVIATION = 50.0;
             TSHAstar_params.search.path_optimization.REF_BUFFER_DISTANCE = 1.0;
             TSHAstar_params.sample.path_sample.LONGITUDIAL_SAMPLE_SPACING = 0.5;
-            TSHAstar_params.sample.path_sample.LATERAL_SAMPLE_SPACING = 0.5;
+            TSHAstar_params.sample.path_sample.LATERAL_SAMPLE_SPACING = 1.0;
             TSHAstar_params.sample.path_sample.LATERAL_SAMPLE_RANGE = 10.0;
             TSHAstar_params.sample.path_dp.COLLISION_DISTANCE = 1.2;
-            TSHAstar_params.sample.path_dp.WARNING_DISTANCE = 5.0;
-            TSHAstar_params.sample.path_dp.BOUND_CHECK_INTERVAL = 0.3;
+            TSHAstar_params.sample.path_dp.WARNING_DISTANCE = 7.0;
+            TSHAstar_params.sample.path_dp.BOUND_CHECK_INTERVAL = 0.5;
             TSHAstar_params.sample.path_dp.WEIGHT_OFFSET = 50.0;
             TSHAstar_params.sample.path_dp.WEIGHT_OBSTACLE = 100.0;
             TSHAstar_params.sample.path_dp.WEIGHT_ANGLE_CHANGE = 1000.0;
             TSHAstar_params.sample.path_dp.WEIGHT_ANGLE_DIFF = 1.0;
-            TSHAstar_params.sample.path_qp.WEIGHT_L = 1.0;
-            TSHAstar_params.sample.path_qp.WEIGHT_DL = 100.0;
-            TSHAstar_params.sample.path_qp.WEIGHT_DDL = 1000.0;
-            TSHAstar_params.sample.path_qp.WEIGHT_DDDL = 7000.0;
-            TSHAstar_params.sample.path_qp.WEIGHT_CENTER = 0.6;
-            TSHAstar_params.sample.path_qp.WEIGHT_END_STATE_L = 10.0;
-            TSHAstar_params.sample.path_qp.WEIGHT_END_STATE_DL = 50.0;
-            TSHAstar_params.sample.path_qp.WEIGHT_END_STATE_DDL = 500.0;
-            TSHAstar_params.sample.path_qp.DL_LIMIT = 2.0;
-            TSHAstar_params.sample.path_qp.VEHICLE_KAPPA_MAX = 0.5;
+            TSHAstar_params.sample.path_qp.WEIGHT_L = 0.01;
+            TSHAstar_params.sample.path_qp.WEIGHT_DL = 1.0;
+            TSHAstar_params.sample.path_qp.WEIGHT_DDL = 2000.0;
+            TSHAstar_params.sample.path_qp.WEIGHT_DDDL = 4000.0;
+            TSHAstar_params.sample.path_qp.WEIGHT_CENTER = 0.0;
+            TSHAstar_params.sample.path_qp.WEIGHT_END_STATE_L = 20.0;
+            TSHAstar_params.sample.path_qp.WEIGHT_END_STATE_DL = 20.0;
+            TSHAstar_params.sample.path_qp.WEIGHT_END_STATE_DDL = 1.0;
+            TSHAstar_params.sample.path_qp.DL_LIMIT = 1.0;
+            TSHAstar_params.sample.path_qp.VEHICLE_KAPPA_MAX = 0.3;
             TSHAstar_params.sample.path_qp.CENTER_DEVIATION_THRESHOLD = 2.2;
             TSHAstar_params.sample.path_qp.CENTER_BOUNDS_THRESHOLD = 3.2;
-            TSHAstar_params.sample.path_qp.CENTER_OBS_COEFFICIENT = 10.0;
+            TSHAstar_params.sample.path_qp.CENTER_OBS_COEFFICIENT = 3.0;
             GlobalPlannerInterface * planner = new TSHAstar;
             planner->initParams(TSHAstar_params);
             planners.push_back(planner);
@@ -916,7 +961,7 @@ int main(int argc, char * argv[])
     start_point.pose.pose.orientation.y = 0.0;
     start_point.pose.pose.orientation.z = 0.0;
     start_point.pose.pose.orientation.w = 1.0;
-    start_point_callback(start_point);
+    // start_point_callback(start_point);
     geometry_msgs::PoseStamped end_point;
     end_point.header.frame_id = "/map";
     end_point.header.stamp = ros::Time::now();
