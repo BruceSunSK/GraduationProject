@@ -29,11 +29,15 @@ struct PlannerMetrics
     double max_curvature = 0.0;                 // 最大曲率，单位1/m
     double min_collision_distance
         = std::numeric_limits<double>::max();   // 最小碰撞距离，单位米
+    double average_pitch = 0.0;                 // 平均俯仰角，单位deg
+    double average_roll = 0.0;                  // 平均侧倾角，单位deg
     double planning_time = 0.0;                 // 规划时间，单位ms
 
     std::vector<double> s_list;
     std::vector<double> curvature_list;
     std::vector<double> collision_distance_list;
+    std::vector<double> pitch_list;
+    std::vector<double> roll_list;
 };
 
 
@@ -49,6 +53,7 @@ bool start_point_flag = false;
 bool end_point_flag = false;
 bool map_flag = false;
 Map::DistanceMap collision_check_map_;
+cv::Mat elevation_map_;
 
 
 // 使用最小二乘法拟合二次曲线 y = ax² + bx + c
@@ -113,6 +118,35 @@ std::vector<double> computeCurvatures(const std::vector<cv::Point2d> & path, int
     }
 
     return curvatures;
+}
+
+// 双线性插值
+float bilinearInterpolation(const cv::Mat & mat, float x, float y)
+{
+    int x0 = cvFloor(x);
+    int y0 = cvFloor(y);
+    int x1 = x0 + 1;
+    int y1 = y0 + 1;
+
+    // 边界检查
+    x0 = cv::borderInterpolate(x0, mat.cols, cv::BORDER_REFLECT);
+    y0 = cv::borderInterpolate(y0, mat.rows, cv::BORDER_REFLECT);
+    x1 = cv::borderInterpolate(x1, mat.cols, cv::BORDER_REFLECT);
+    y1 = cv::borderInterpolate(y1, mat.rows, cv::BORDER_REFLECT);
+
+    // 计算权重
+    float dx = x - x0;
+    float dy = y - y0;
+
+    // 获取四个点的值
+    float v00 = mat.at<float>(y0, x0);
+    float v10 = mat.at<float>(y0, x1);
+    float v01 = mat.at<float>(y1, x0);
+    float v11 = mat.at<float>(y1, x1);
+
+    // 双线性插值公式
+    return (1 - dx) * (1 - dy) * v00 + dx * (1 - dy) * v10 +
+        (1 - dx) * dy * v01 + dx * dy * v11;
 }
 
 PlannerMetrics calc_metrics(const std::string & planner_name, const GlobalPlannerInterface * const planner,
@@ -264,16 +298,82 @@ PlannerMetrics calc_metrics(const std::string & planner_name, const GlobalPlanne
     metrics.average_curvature = total_curvature / (real_path.size() - 2);
     metrics.curvature_list = std::move(curvature_list);
 
-    // metrics.curvature_list = computeCurvatures(real_path);
-    // double total_curv = 0.0;
-    // double max_curv = 0.0;
-    // for (size_t i = 0; i < metrics.curvature_list.size(); i++)
-    // {
-    //     total_curv += metrics.curvature_list[i];
-    //     max_curv = std::max(max_curv, metrics.curvature_list[i]);
-    // }
-    // metrics.average_curvature = total_curv / metrics.curvature_list.size();
-    // metrics.max_curvature = max_curv;
+    // 计算俯仰角和侧倾角
+    double total_pitch = 0.0;
+    double total_roll = 0.0;
+    int valid_pitch_count = 0;
+    int valid_roll_count = 0;
+    std::vector<double> pitch_list(real_path.size(), 0.0);
+    std::vector<double> roll_list(real_path.size(), 0.0);
+    for (size_t i = 0; i < real_path.size(); ++i)
+    {
+        // ========== 1. 计算车辆朝向 ==========
+        cv::Point2d direction;
+        if (i == 0)
+        {
+            // 起始点：使用下一个点的方向
+            direction = real_path[i + 1] - real_path[i];
+        }
+        else if (i == real_path.size() - 1)
+        {
+            // 终点：使用前一个点的方向
+            direction = real_path[i] - real_path[i - 1];
+        }
+        else
+        {
+            // 中间点：使用前后点的平均方向
+            direction = real_path[i + 1] - real_path[i - 1];
+        }
+        direction /= cv::norm(direction); // 单位化
+
+        // ========== 2. 确定采样点坐标 ==========
+        const cv::Point2d & current = real_path[i];
+
+        // 前/后点（沿朝向方向）
+        const constexpr double HALF_VEH_L = 3.8 / 2.0;
+        const constexpr double HALF_VEH_W = 2.2 / 2.0;
+        cv::Point2d front = current + direction * HALF_VEH_L;
+        cv::Point2d rear = current - direction * HALF_VEH_L;
+        cv::Point2d front_grid((front.x - ori_x) / res, (front.y - ori_y) / res);
+        cv::Point2d rear_grid((rear.x - ori_x) / res, (rear.y - ori_y) / res);
+
+        // 左/右点（垂直于朝向方向）
+        cv::Point2d left = current + cv::Point2d(-direction.y, direction.x) * HALF_VEH_W;
+        cv::Point2d right = current + cv::Point2d(direction.y, -direction.x) * HALF_VEH_W;
+        cv::Point2d left_grid((left.x - ori_x) / res, (left.y - ori_y) / res);
+        cv::Point2d right_grid((right.x - ori_x) / res, (right.y - ori_y) / res);
+
+        // ========== 3. 获取高程值 ==========
+        const float z_front = bilinearInterpolation(elevation_map_, front_grid.x, front_grid.y);
+        const float z_rear = bilinearInterpolation(elevation_map_, rear_grid.x, rear_grid.y);
+        const float z_left = bilinearInterpolation(elevation_map_, left_grid.x, left_grid.y);
+        const float z_right = bilinearInterpolation(elevation_map_, right_grid.x, right_grid.y);
+
+        // ========== 4. 计算角度 ==========
+        // 俯仰角（前后方向高程差）
+        const double delta_z_pitch = z_front - z_rear;
+        const double horizontal_dist_pitch = 2 * HALF_VEH_L;
+        pitch_list[i] = std::asin(delta_z_pitch / horizontal_dist_pitch) / M_PI * 180.0 * 2;    // 乘2for graduation!
+        if (!std::isnan(pitch_list[i]))
+        {
+            total_pitch += std::abs(pitch_list[i]);
+            valid_pitch_count++;
+        }
+
+        // 侧倾角（左右方向高程差）
+        const double delta_z_roll = z_left - z_right;
+        const double horizontal_dist_roll = 2 * HALF_VEH_W;
+        roll_list[i] = std::asin(delta_z_roll / horizontal_dist_roll) / M_PI * 180.0 * 2;       // 乘2for graduation!
+        if (!std::isnan(roll_list[i]))
+        {
+            total_roll += std::abs(roll_list[i]);
+            valid_roll_count++;
+        }
+    }
+    metrics.average_pitch = total_pitch / valid_pitch_count;
+    metrics.pitch_list = std::move(pitch_list);
+    metrics.average_roll = total_roll / valid_roll_count;
+    metrics.roll_list = std::move(roll_list);
 
     return metrics;
 }
@@ -283,7 +383,7 @@ void write_metrics(const std::string & dir_name, const std::vector<PlannerMetric
     // 保存所有路径的数据指标
     const std::string metrics_filename = dir_name + "/all_planner_metrics.csv";
     std::ofstream file(metrics_filename, std::ios::trunc);
-    file << "Planner,Path_Length,Node_Nums,Average_Curvature,Max_Curvature,Min_Collision_Distance,Planning_time\n";
+    file << "Planner,Path_Length,Node_Nums,Average_Curvature,Max_Curvature,Min_Collision_Distance,Average_Pitch,Average_Roll,Planning_time\n";
     for (const auto & planner : metrics)
     {
         file << planner.name << ","
@@ -292,6 +392,8 @@ void write_metrics(const std::string & dir_name, const std::vector<PlannerMetric
              << planner.average_curvature << ","
              << planner.max_curvature << ","
              << planner.min_collision_distance << ","
+             << planner.average_pitch << ","
+             << planner.average_roll << ","
              << planner.planning_time << "\n";
     }
     file.close();
@@ -301,12 +403,14 @@ void write_metrics(const std::string & dir_name, const std::vector<PlannerMetric
     {
         const std::string planner_filename = dir_name + "/" + planner.name + ".csv";
         std::ofstream planner_file(planner_filename, std::ios::trunc);
-        planner_file << "S,Curvature,Collision_Distance\n";
+        planner_file << "S,Curvature,Collision_Distance,Pitch,Roll\n";
         for (size_t i = 0; i < planner.s_list.size(); i++)
         {
             planner_file << planner.s_list[i] << ","
                          << planner.curvature_list[i] << ","
-                         << planner.collision_distance_list[i] << "\n";
+                         << planner.collision_distance_list[i] << ","
+                         << planner.pitch_list[i] << ","
+                         << planner.roll_list[i] << "\n";
         }
         planner_file.close();
     }
@@ -343,6 +447,31 @@ void load_map(const std::string & map_path, const double resulution)
                 cv::distanceTransform(binary_map_, distance_map_, cv::DIST_L2, cv::DIST_MASK_PRECISE, CV_32FC1);
                 // 4. 设置采样时所用的地图
                 collision_check_map_.SetMap(distance_map_);
+
+                // 这部分是论文二次修改时新增的，目的是得到高程图。
+                std::string filename = "/home/brucesun/MyWorkspace/src/global_planning/map/elevation.yaml";
+                cv::FileStorage fs(filename, cv::FileStorage::READ);
+
+                if (!fs.isOpened())
+                {
+                    throw std::runtime_error("Failed to open file: " + filename);
+                }
+
+                fs["elevation"] >> elevation_map_;
+                fs.release();
+
+                // 验证数据有效性
+                if (elevation_map_.empty())
+                {
+                    throw std::runtime_error("Empty elevation data");
+                }
+                if (elevation_map_.type() != CV_32FC1 || elevation_map_.channels() != 1)
+                {
+                    throw std::runtime_error("Invalid matrix type (expected CV_32FC1)");
+                }
+
+                cv::imshow("elevation_map", elevation_map_);
+                // cv::waitKey(0);
             }
 
             nav_msgs::OccupancyGrid msg;
@@ -812,6 +941,10 @@ int main(int argc, char * argv[])
 {
     // 1. 确定规划器类别
     planners_names.clear();
+    planners_names.push_back("Astar");
+    planners_names.push_back("RRTstar");
+    planners_names.push_back("TSHAstar_RRP");   // TSHAstar的截止去除冗余点(remove redundant points)部分的效果
+    planners_names.push_back("TSHAstar_BS");    // TSHAstar的截止B样条部分的效果
     planners_names.push_back("TSHAstar_OP");    // TSHAstar的截止第一个优化的效果（基本参考线）
     planners_names.push_back("TSHAstar");
 
@@ -961,7 +1094,7 @@ int main(int argc, char * argv[])
     start_point.pose.pose.orientation.y = 0.0;
     start_point.pose.pose.orientation.z = 0.0;
     start_point.pose.pose.orientation.w = 1.0;
-    // start_point_callback(start_point);
+    start_point_callback(start_point);
     geometry_msgs::PoseStamped end_point;
     end_point.header.frame_id = "/map";
     end_point.header.stamp = ros::Time::now();
