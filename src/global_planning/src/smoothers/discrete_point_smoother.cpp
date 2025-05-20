@@ -139,5 +139,151 @@ bool DiscretePointSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path,
     return true;
 }
 
+bool DiscretePointSmoother::Solve(const std::vector<cv::Point2d> & raw_path, std::vector<cv::Point2d> & path,
+                                  const int start_index, const int end_index, const int nb) const
+{
+    path.resize(raw_path.size());
+
+    int back_index = start_index - nb;
+    if (back_index < 0)
+    {
+        back_index = 0;
+    }
+    const bool is_begin = start_index == 0;
+    const bool is_final = raw_path.size() - 1 == end_index;
+
+    // 0. 变量个数、约束个数
+    const size_t point_num = end_index - back_index + 1;
+    const size_t variable_num = 2 * point_num;              // 一个路点包含X、Y两个参数
+    const size_t constraint_num = 2 * point_num;            // 对X、Y方向有大范围内的硬约束
+    const double X = weights_[0];                           // 对应平滑代价权重
+    const double Y = weights_[1];                           // 对应长度代价权重
+    const double Z = weights_[2];                           // 对应偏离代价权重
+
+    // 1. 设置求解器配置
+    OsqpEigen::Solver solver;
+    solver.settings()->setVerbosity(false);                 // 关闭输出
+    solver.settings()->setWarmStart(true);                  // 开启warm start
+    solver.settings()->setTimeLimit(3);                     // 3秒内求解完成，否则返回失败
+    solver.data()->setNumberOfVariables(variable_num);
+    solver.data()->setNumberOfConstraints(constraint_num);
+
+    // 2. 设置Hessian矩阵 H/Q
+    Eigen::SparseMatrix<double> hessian(variable_num, variable_num);
+    // 2.1 第一列系数
+    for (size_t i = 0; i < 2; ++i)
+    {
+        hessian.insert(i, i) = X + Y + Z;
+    }
+    // 2.2 第二列系数
+    for (size_t i = 2; i < 4; ++i)
+    {
+        hessian.insert(i - 2, i) = -2 * X - Y;
+        hessian.insert(i, i) = 5 * X + 2 * Y + Z;
+    }
+    // 2.3 倒数第一列系数
+    for (size_t i = variable_num - 2; i < variable_num; ++i)
+    {
+        hessian.insert(i - 4, i) = X;
+        hessian.insert(i - 2, i) = -2 * X - Y;
+        hessian.insert(i, i) = X + Y + Z;
+    }
+    // 2.4 倒数第二列系数
+    for (size_t i = variable_num - 4; i < variable_num - 2; ++i)
+    {
+        hessian.insert(i - 4, i) = X;
+        hessian.insert(i - 2, i) = -4 * X - Y;
+        hessian.insert(i, i) = 5 * X + 2 * Y + Z;
+    }
+    // 2.5 中间列系数
+    for (size_t i = 4; i < variable_num - 4; ++i)
+    {
+        hessian.insert(i - 4, i) = X;
+        hessian.insert(i - 2, i) = -4 * X - Y;
+        hessian.insert(i, i) = 6 * X + 2 * Y + Z;
+    }
+    hessian *= 2;
+    if (!solver.data()->setHessianMatrix(hessian))
+        return false;
+
+    // 3.设置梯度向量 f/q
+    Eigen::VectorXd gradient = Eigen::VectorXd::Zero(variable_num);
+    for (size_t i = 0; i < variable_num; i += 2)
+    {
+        gradient(i)     = -2.0 * Z * raw_path[i >> 1].x;
+        gradient(i + 1) = -2.0 * Z * raw_path[i >> 1].y;
+    }
+    if (!solver.data()->setGradient(gradient))
+        return false;
+
+    // 4. 设置约束矩阵 A
+    Eigen::SparseMatrix<double> linear_matrix(constraint_num, variable_num);
+    // 目前只有对各个点的X、Y方向有硬约束，起点和终点完全与原始路径一致
+    for (size_t i = 0; i < constraint_num; i++)
+    {
+        linear_matrix.insert(i, i) = 1.0;
+    }
+    if (!solver.data()->setLinearConstraintsMatrix(linear_matrix))
+        return false;
+
+    // 5. 设置上下线性边界 lb, ub
+    Eigen::VectorXd lower_bound = Eigen::VectorXd::Zero(constraint_num);
+    Eigen::VectorXd upper_bound = Eigen::VectorXd::Zero(constraint_num);
+    // 5.1 back_node的硬约束
+    for (int i = 0; i < start_index - back_index; i++)
+    {
+        lower_bound(i * 2)     = path[i + back_index].x;
+        upper_bound(i * 2)     = path[i + back_index].x;
+        lower_bound(i * 2 + 1) = path[i + back_index].y;
+        upper_bound(i * 2 + 1) = path[i + back_index].y;
+    }
+    // 5.2 针对整条路径起点和终点的硬约束
+    if (is_begin)
+    {
+        lower_bound(0) = raw_path.front().x;
+        upper_bound(0) = raw_path.front().x;
+        lower_bound(1) = raw_path.front().y;
+        upper_bound(1) = raw_path.front().y;
+    }
+    if (is_final)
+    {
+        lower_bound(constraint_num - 2) = raw_path.back().x;
+        upper_bound(constraint_num - 2) = raw_path.back().x;
+        lower_bound(constraint_num - 1) = raw_path.back().y;
+        upper_bound(constraint_num - 1) = raw_path.back().y;
+    }
+    // 5.3 正常平滑路径点的硬约束
+    for (int i = 0; i <= end_index - start_index; i++)
+    {
+        int idx = start_index - back_index + i;
+        if (idx == 0)   // 就是is_begin的情形，已经考虑过了
+        {
+            continue;
+        }
+        lower_bound(idx * 2)     = raw_path[i + start_index].x - buffer_;
+        upper_bound(idx * 2)     = raw_path[i + start_index].x + buffer_;
+        lower_bound(idx * 2 + 1) = raw_path[i + start_index].y - buffer_;
+        upper_bound(idx * 2 + 1) = raw_path[i + start_index].y + buffer_;
+    }
+    if (!solver.data()->setLowerBound(lower_bound))
+        return false;
+    if (!solver.data()->setUpperBound(upper_bound))
+        return false;
+
+    // 6. 求解
+    if (!solver.initSolver())
+        return false;
+    if (solver.solveProblem() != OsqpEigen::ErrorExitFlag::NoError)
+        return false;
+
+    // 7. 保存数据
+    const Eigen::VectorXd & solution = solver.getSolution();
+    for (int i = 0; i < point_num; i++)
+    {
+        path[i + back_index].x = solution(i * 2);
+        path[i + back_index].y = solution(i * 2 + 1);
+    }
+    return true;
+}
 
 } // namespace Smoother

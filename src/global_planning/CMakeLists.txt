@@ -144,6 +144,7 @@ add_library(path                SHARED  src/path/utils.cpp
 add_library(smoothers           SHARED  src/smoothers/discrete_point_smoother.cpp
                                         src/smoothers/piecewise_jerk_smoother.cpp)
 add_library(planners            SHARED  src/planners/TSHAstar.cpp
+                                        src/planners/QHAstar.cpp
                                         src/planners/astar.cpp
                                         src/planners/rrt.cpp
                                         src/planners/rrtstar.cpp
