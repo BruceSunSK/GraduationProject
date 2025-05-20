@@ -13,6 +13,7 @@
 #include <Eigen/Core>
 
 #include "global_planning/planners/TSHAstar.h"
+#include "global_planning/planners/QHAstar.h"
 #include "global_planning/planners/astar.h"
 #include "global_planning/planners/rrt.h"
 #include "global_planning/planners/rrtstar.h"
@@ -205,6 +206,17 @@ PlannerMetrics calc_metrics(const std::string & planner_name, const GlobalPlanne
             + tsha_helper->sample.path_sample.cost_time
             + tsha_helper->sample.path_dp.total_cost_time
             + tsha_helper->sample.path_qp.cost_time;
+    }
+    else if (planner_name == "QHAstar")
+    {
+        const QHAstar::QHAstarHelper * qha_helper =
+            dynamic_cast<const QHAstar::QHAstarHelper *>(planner->getAllInfo());
+        real_path = path;
+
+        metrics.name = planner_name;
+        metrics.node_nums = 0;  // 只在实验二中出现，直接懒得考虑了
+        metrics.planning_time = qha_helper->path_planning.cost_time
+            + qha_helper->path_smoothing.cost_time;
     }
     else if (planner_name == "Astar")
     {
@@ -436,7 +448,21 @@ void load_map(const std::string & map_path, const double resulution)
             cv::Mat processed_map;
             planner->getProcessedMap(processed_map);
             // 以下这部分代码是从TSHAstar中复制过来的，目的是为了得到distanceTransform之后的图，用以给所有不同的planner的离散点确定最近碰撞距离。
-            if (i == 0)
+            // 事后补充注释：
+            // 1. 当初应该是想用Astar二值化后的地图进行碰撞距离判定。这样可以让传统算法碰撞距离很近，但我的算法碰撞距离较远。
+            //    因此偷懒直接写了i == 0，也就是用Astar的地图。
+            // 2. 但是！ 出问题了。
+            //   2.1 在实验一中，我用的是Astar，没有问题
+            //   2.2 在实验二中，通过查git记录发现我好像把Astar注释了，也就是说，地图用的是我的地图，然后再二值化啥的用来距离判断。
+            // 3. 导致的问题：
+            //   3.1 理论上讲，实验二中当初两个planner对比时数据是有问题的，和实验一其实是不一致的。
+            //   3.2 那咋办呢？貌似也没啥办法了。只能将错就错了。
+            // 4. 后续解决方案：
+            //   4.1 我把论文中的实验一保留，所有数据都不动他，修改稿也不添加/修改任何实验一的数据，内容
+            //   4.2 实验二全部重新做，改回用Astar生成距离地图，（起始只影响碰撞距离一个指标）
+            //   4.3 实验二中还要添加QHAstarPlanner，正好以此数据全部重新更新，表格和图正好全部重画。
+            //   4.4 在相关位置紧急添加全关注释，提醒自己这块的坑！！！。
+            if (i == 0) // 必须使用Astar生成的图！！！这样数据统一！！！
             {
                 // 1. 离散代价值的障碍物地图，正常范围在[0, 100]，也包括255未探明的情况
                 // 2. 代价值二值化后的障碍物地图，未探明情况视为障碍物。即[0, OBSTACLE_THRESHOLD)值为255，白色，前景；[OBSTACLE_THRESHOLD, 255]值为0，黑色，背景。
@@ -941,12 +967,13 @@ int main(int argc, char * argv[])
 {
     // 1. 确定规划器类别
     planners_names.clear();
-    planners_names.push_back("Astar");
-    planners_names.push_back("RRTstar");
-    planners_names.push_back("TSHAstar_RRP");   // TSHAstar的截止去除冗余点(remove redundant points)部分的效果
-    planners_names.push_back("TSHAstar_BS");    // TSHAstar的截止B样条部分的效果
+    planners_names.push_back("Astar");          // 不管实验一还是实验二，都要保留Astar，用于生成实验数据的地图！！！！！
+    // planners_names.push_back("RRTstar");
+    // planners_names.push_back("TSHAstar_RRP");   // TSHAstar的截止去除冗余点(remove redundant points)部分的效果
+    // planners_names.push_back("TSHAstar_BS");    // TSHAstar的截止B样条部分的效果
     planners_names.push_back("TSHAstar_OP");    // TSHAstar的截止第一个优化的效果（基本参考线）
     planners_names.push_back("TSHAstar");
+    planners_names.push_back("QHAstar");        // 在IEEE IV上找到的清华的一个论文，用于复现对比实验
 
     // 2. 初始化ros，根据规划器类别创建相应的规划器对象和ros对象
     ros::init(argc, argv, "test_ros");
@@ -1026,6 +1053,16 @@ int main(int argc, char * argv[])
             TSHAstar_params.sample.path_qp.CENTER_OBS_COEFFICIENT = 3.0;
             GlobalPlannerInterface * planner = new TSHAstar;
             planner->initParams(TSHAstar_params);
+            planners.push_back(planner);
+        }
+        else if (planner_name == "QHAstar")
+        {
+            QHAstar::QHAstarParams QHAstar_params;
+            QHAstar_params.smoothing.WEIGTH_SMOOTH = 2.0;
+            QHAstar_params.smoothing.WEIGTH_LENGTH = 1.0;
+            QHAstar_params.smoothing.WEIGTH_DEVIATION = 1.0;
+            GlobalPlannerInterface * planner = new QHAstar;
+            planner->initParams(QHAstar_params);
             planners.push_back(planner);
         }
         else if (planner_name == "Astar")
