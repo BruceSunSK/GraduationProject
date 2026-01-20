@@ -1,0 +1,20 @@
+<launch>
+
+    <arg name="global_laser_cloud_topic" default="/global_laser_cloud_map"/>
+    <arg name="local_laser_cloud_topic"  default="/all_lidars_preprocessed_ros"/>
+    <arg name="global_map_res_"   default="0.4"/>
+    <arg name="local_map_res_"    default="0.3"/>
+    <arg name="local_map_length_" default="30"/>
+
+
+    <node pkg="grid_cost_map" type="build_cost_map" name="grid_cost_map" output="screen">
+        <param name="global_laser_cloud_topic" type="str" value="$(arg global_laser_cloud_topic)"/>
+        <param name="local_laser_cloud_topic"  type="str" value="$(arg local_laser_cloud_topic)"/>
+        <param name="global_map_res_"   type="double" value="$(arg global_map_res_)"/>
+        <param name="local_map_res_"    type="double" value="$(arg local_map_res_)"/>
+        <param name="local_map_length_" type="double" value="$(arg local_map_length_)"/>
+        <rosparam command="load" file="$(find grid_cost_map)/config/global_map_filter_chain.yaml" />
+        <rosparam command="load" file="$(find grid_cost_map)/config/local_map_filter_chain.yaml" />
+    </node>
+
+</launch>
