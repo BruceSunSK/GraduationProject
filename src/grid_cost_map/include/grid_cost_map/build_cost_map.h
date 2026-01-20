@@ -14,6 +14,9 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_eigen/tf2_eigen.h>
 
+#include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
+
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/common/common.h>
@@ -29,6 +32,7 @@ private:
     ros::NodeHandle nh_;
     std::string global_laser_cloud_topic_;
     std::string local_laser_cloud_topic_;
+    std::string global_map_load_path_;      // 如果不为空，则预先从该路径加载预先计算好的png全局代价地图
     double global_map_res_;
     double local_map_res_;
     double local_map_length_;
@@ -40,20 +44,19 @@ private:
 
     ros::Publisher pubGlobalGridMap;
     ros::Publisher pubGlobalOccupancyGridMap;
-    grid_map::GridMap global_map;
+    pcl::PointCloud<PointType>::Ptr global_map_laser_cloud;
     filters::FilterChain<grid_map::GridMap> globalMapFilterChain; //滤波器
-    filters::FilterChain<grid_map::GridMap> localMapFilterChain; //滤波器
+    grid_map::GridMap global_map;
     bool global_map_finished;
 
     ros::Publisher pubLocalGridMap;
     ros::Publisher pubLocalOccupancyGridMap;
+    pcl::PointCloud<PointType>::Ptr loacl_map_laser_cloud;
+    filters::FilterChain<grid_map::GridMap> localMapFilterChain; //滤波器
     grid_map::GridMap local_map;
     grid_map::GridMap local_map_out;
     tf2_ros::Buffer buffer_;
     tf2_ros::TransformListener listener_;
-
-    pcl::PointCloud<PointType>::Ptr global_map_laser_cloud;
-    pcl::PointCloud<PointType>::Ptr loacl_map_laser_cloud;
 
 public:
     BuildCostMap(ros::NodeHandle & nh, bool & success);

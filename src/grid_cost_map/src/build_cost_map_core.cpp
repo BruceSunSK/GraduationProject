@@ -1,15 +1,16 @@
 #include "grid_cost_map/build_cost_map.h"
-#include <grid_map_cv/GridMapCvConverter.hpp>
+
 
 BuildCostMap::BuildCostMap(ros::NodeHandle & nh, bool & success)
 : nh_(nh), globalMapFilterChain("grid_map::GridMap"), localMapFilterChain("grid_map::GridMap"), listener_(buffer_)
 {   
     // 配置ros参数
     global_laser_cloud_topic_ = nh_.param("global_laser_cloud_topic", std::string("/global_laser_cloud_map"));
-    local_laser_cloud_topic_ = nh_.param("local_laser_cloud_topic", std::string("/all_lidars_preprocessed_ros"));
+    local_laser_cloud_topic_  = nh_.param("local_laser_cloud_topic", std::string("/all_lidars_preprocessed_ros"));
+    global_map_load_path_     = nh_.param("global_map_load_path", std::string(""));
 
-    global_map_res_ = nh_.param("global_map_res_", 0.2);
-    local_map_res_ = nh_.param("local_map_res_", 0.2);
+    global_map_res_   = nh_.param("global_map_res_", 0.2);
+    local_map_res_    = nh_.param("local_map_res_", 0.2);
     local_map_length_ = nh_.param("local_map_length_", 20);
 
 
@@ -33,14 +34,42 @@ BuildCostMap::BuildCostMap(ros::NodeHandle & nh, bool & success)
     local_map.add("traversability");
     local_map.add("traversability_inflated");
 
-    // 配置滤波器
+
+    // 加载预先生成好的png作为全局代价地图
+    if (!global_map_load_path_.empty())
+    {
+        cv::Mat map = cv::imread(global_map_load_path_, cv::IMREAD_GRAYSCALE);
+        int rows = map.rows;
+        int cols = map.cols;
+
+        nav_msgs::OccupancyGrid msg;
+        msg.header.frame_id = "/map";
+        msg.header.stamp = ros::Time::now();
+        msg.info.height = rows;
+        msg.info.width = cols;
+        msg.info.origin.position.x = 0.0;
+        msg.info.origin.position.y = 0.0;
+        msg.info.resolution = global_map_res_;
+        msg.data.resize(rows * cols);
+        for (size_t i = 0; i < rows; i++)
+        {
+            for (size_t j = 0; j < cols; j++)
+            {
+                msg.data[i * cols + j] = map.at<uchar>(i, j);
+            }
+        }
+        pubGlobalOccupancyGridMap.publish(msg);
+    }
+
+    // 配置全局代价地图滤波器
     if (!globalMapFilterChain.configure("global_map_filters", nh_))
     {
         ROS_ERROR("[GridCostMap]: Could not configure the global filter chain!");
         success = false;
         return;
     }
-
+    
+    // 配置局部代价地图滤波器
     if (!localMapFilterChain.configure("local_map_filters", nh_))
     {
         ROS_ERROR("[GridCostMap]: Could not configure the local filter chain!");
@@ -170,32 +199,32 @@ void BuildCostMap::GlobalLaserCloudCallback(const sensor_msgs::PointCloud2::Ptr 
         }
     }
 
-    {
-        // 获取地图尺寸
-        const grid_map::Size size = global_map.getSize();
-        const int rows = size(1);  // GridMap 的行索引
-        const int cols = size(0);  // GridMap 的列索引
+    // {
+    //     // 获取地图尺寸
+    //     const grid_map::Size size = global_map.getSize();
+    //     const int rows = size(1);  // GridMap 的行索引
+    //     const int cols = size(0);  // GridMap 的列索引
 
-        // 创建 OpenCV 矩阵（单通道 float）
-        cv::Mat elevationMat(rows, cols, CV_32FC1);
+    //     // 创建 OpenCV 矩阵（单通道 float）
+    //     cv::Mat elevationMat(rows, cols, CV_32FC1);
 
-        // 遍历 GridMap 并填充数据
-        const grid_map::Matrix & elevationData = global_map["elevation_fill"];
-        for (int i = 0; i < rows; ++i)
-        {
-            for (int j = 0; j < cols; ++j)
-            {
-                // GridMap 使用 (行, 列) 索引，对应 OpenCV 的 (行, 列)
-                elevationMat.at<float>(i, j) = elevationData(cols - 1 - j, rows - 1 - i);
-            }
-        }
+    //     // 遍历 GridMap 并填充数据
+    //     const grid_map::Matrix & elevationData = global_map["elevation_fill"];
+    //     for (int i = 0; i < rows; ++i)
+    //     {
+    //         for (int j = 0; j < cols; ++j)
+    //         {
+    //             // GridMap 使用 (行, 列) 索引，对应 OpenCV 的 (行, 列)
+    //             elevationMat.at<float>(i, j) = elevationData(cols - 1 - j, rows - 1 - i);
+    //         }
+    //     }
 
-        // 使用 FileStorage 保存数据
-        cv::FileStorage fs("/home/brucesun/elevation.yaml", cv::FileStorage::WRITE);
-        fs << "elevation" << elevationMat;
-        fs.release();
-        ROS_INFO("[GridCostMap]: save elevation.yaml");
-    }
+    //     // 使用 FileStorage 保存数据
+    //     cv::FileStorage fs("/home/brucesun/elevation.yaml", cv::FileStorage::WRITE);
+    //     fs << "elevation" << elevationMat;
+    //     fs.release();
+    //     ROS_INFO("[GridCostMap]: save elevation.yaml");
+    // }
 
     // grid_map转成对应ros message
     grid_map_msgs::GridMap grid_map_msg;
@@ -206,6 +235,8 @@ void BuildCostMap::GlobalLaserCloudCallback(const sensor_msgs::PointCloud2::Ptr 
     grid_map::GridMapRosConverter::toOccupancyGrid(global_map, "traversability", 0, 1, occupancy_grid_map_msg);
     pubGlobalOccupancyGridMap.publish(occupancy_grid_map_msg);
 
+    // std::string file_path = ros::package::getPath("grid_cost_map") + "/map/XG_map.png";
+    // cv::imwrite(file_path, map);
     global_map_finished = true;
 }
 

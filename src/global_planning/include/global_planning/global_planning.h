@@ -8,6 +8,7 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 
+#include "global_planning/RefPath.h"
 #include "global_planning/planners/TSHAstar.h"
 #include "global_planning/planners/astar.h"
 #include "global_planning/planners/rrt.h"
@@ -40,9 +41,11 @@ private:
 
     std::string output_processed_map_topic_;
     std::string output_path_topic_;
+    std::string output_ref_path_topic_;
     std::string output_auxiliary_info_topic_;
     ros::Publisher pub_processed_map_;
     ros::Publisher pub_path_;
+    ros::Publisher pub_ref_path_;
     ros::Publisher pub_auxiliary_;
 
     bool info_flag_ = false;

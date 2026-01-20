@@ -400,8 +400,10 @@ public:
                 double total_cost_time = 0.0;
 
                 std::vector<cv::Point2d> dp_path;
-                std::vector<cv::Point2d> lower_bound;
-                std::vector<cv::Point2d> upper_bound;
+                std::vector<cv::Point2d> lower_bound_xy;
+                std::vector<cv::Point2d> upper_bound_xy;
+                std::vector<cv::Point2d> lower_bound_sl;
+                std::vector<cv::Point2d> upper_bound_sl;
 
                 REGISTER_STRUCT(REGISTER_MEMBER(dp_cost_time),
                                 REGISTER_MEMBER(bound_cost_time),
@@ -457,8 +459,10 @@ public:
             sample.path_dp.bound_cost_time = 0.0;
             sample.path_dp.total_cost_time = 0.0;
             sample.path_dp.dp_path.clear();
-            sample.path_dp.lower_bound.clear();
-            sample.path_dp.upper_bound.clear();
+            sample.path_dp.lower_bound_xy.clear();
+            sample.path_dp.upper_bound_xy.clear();
+            sample.path_dp.lower_bound_sl.clear();
+            sample.path_dp.upper_bound_sl.clear();
 
             sample.path_qp.path_size = 0;
             sample.path_qp.cost_time = 0.0;

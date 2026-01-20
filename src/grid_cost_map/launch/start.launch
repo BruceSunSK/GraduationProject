@@ -2,6 +2,7 @@
 
     <arg name="global_laser_cloud_topic" default="/global_laser_cloud_map"/>
     <arg name="local_laser_cloud_topic"  default="/all_lidars_preprocessed_ros"/>
+    <arg name="global_map_load_path"     default="$(find grid_cost_map)/map/XG_map.png"/> <!-- 如果该路径不为空，则尝试从该路径下预加载png的代价地图 -->
     <arg name="global_map_res_"   default="0.4"/>
     <arg name="local_map_res_"    default="0.3"/>
     <arg name="local_map_length_" default="30"/>
@@ -10,6 +11,7 @@
     <node pkg="grid_cost_map" type="build_cost_map" name="grid_cost_map" output="screen">
         <param name="global_laser_cloud_topic" type="str" value="$(arg global_laser_cloud_topic)"/>
         <param name="local_laser_cloud_topic"  type="str" value="$(arg local_laser_cloud_topic)"/>
+        <param name="global_map_load_path"     type="str" value="$(arg global_map_load_path)"/>
         <param name="global_map_res_"   type="double" value="$(arg global_map_res_)"/>
         <param name="local_map_res_"    type="double" value="$(arg local_map_res_)"/>
         <param name="local_map_length_" type="double" value="$(arg local_map_length_)"/>
