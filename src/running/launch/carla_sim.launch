@@ -1,0 +1,36 @@
+<launch>
+    <!-- 0.0 carla客户端连接相关参数 -->
+    <arg name='host'        default='192.168.86.1'/>        <!-- carla服务端ip，在windows中 -->
+    <arg name='port'        default='12345'/>               <!-- carla服务端端口 -->
+    <arg name='timeout'     default='3'/>                   <!-- carla客户端连接超时时间，s -->
+
+    <!-- 0.1 carla服务端环境相关参数 -->
+    <arg name="town"                default="package/Maps/MyScene/MyScene"/>
+                                                            <!-- carla要加载的地图-->
+    <arg name='synchronous_mode'    default='True'/>        <!-- carla是否使用同步模式。同步模式下，服务端和客户端会互相等待，直至同步该tick
+                                                                 这种情况下，更容易复现结果；但可能拖慢速度 -->
+    <arg name='synchronous_mode_wait_for_vehicle_control_command' default='False'/>
+                                                            <!-- 在同步模式下，carla服务端完成控制指令前暂停时间。即上个参数控制客户端等待；这个参数控制服务端等待 -->
+    <arg name='passive'             default='False'/>       <!-- 该carla客户端（此处是bridge形式）是否是passive mode。 passive mode仅针对同步模式(synchronous mode)。
+                                                                 所有carla客户端有且仅有一个设置为False，用于对齐时间；其他carla客户端设置为True -->
+    <arg name='fixed_delta_seconds' default='0.05'/>        <!-- 固定时间步长。0.05秒/步，即20步/仿真 -->
+
+
+
+    <!-- 1. 启动ros bridge，也即启动carla客户端 -->
+    <include file="$(find carla_ros_bridge)/launch/carla_ros_bridge.launch">
+        <arg name='host'                value='$(arg host)'/>
+        <arg name='port'                value='$(arg port)'/>
+        <arg name='timeout'             value='$(arg timeout)'/>
+        <arg name='town'                value='$(arg town)'/>
+        <arg name='synchronous_mode'    value='$(arg synchronous_mode)'/>
+        <arg name='synchronous_mode_wait_for_vehicle_control_command' value='$(arg synchronous_mode_wait_for_vehicle_control_command)'/>
+        <arg name='passive'             value='$(arg passive)'/>
+        <arg name='fixed_delta_seconds' value='$(arg fixed_delta_seconds)'/>
+    </include>
+
+
+
+    
+
+</launch>
