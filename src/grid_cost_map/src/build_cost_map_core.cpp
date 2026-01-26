@@ -6,10 +6,12 @@ BuildCostMap::BuildCostMap(ros::NodeHandle & nh, bool & success)
 {   
     // 配置ros参数
     global_laser_cloud_topic_ = nh_.param("global_laser_cloud_topic", std::string("/global_laser_cloud_map"));
-    local_laser_cloud_topic_  = nh_.param("local_laser_cloud_topic", std::string("/all_lidars_preprocessed_ros"));
-    global_map_load_path_     = nh_.param("global_map_load_path", std::string(""));
+    global_map_load_path_     = nh_.param("global_map_load_path_", std::string(""));
+    global_map_res_           = nh_.param("global_map_res_", 0.2);
+    global_map_save_flag_     = nh_.param("global_map_save_flag_", false);
+    global_map_save_path_     = nh_.param("global_map_save_path_", std::string(""));
 
-    global_map_res_   = nh_.param("global_map_res_", 0.2);
+    local_laser_cloud_topic_  = nh_.param("local_laser_cloud_topic", std::string("/all_lidars_preprocessed_ros"));
     local_map_res_    = nh_.param("local_map_res_", 0.2);
     local_map_length_ = nh_.param("local_map_length_", 20);
 
@@ -235,8 +237,23 @@ void BuildCostMap::GlobalLaserCloudCallback(const sensor_msgs::PointCloud2::Ptr 
     grid_map::GridMapRosConverter::toOccupancyGrid(global_map, "traversability", 0, 1, occupancy_grid_map_msg);
     pubGlobalOccupancyGridMap.publish(occupancy_grid_map_msg);
 
-    // std::string file_path = ros::package::getPath("grid_cost_map") + "/map/XG_map.png";
-    // cv::imwrite(file_path, map);
+    if (global_map_save_flag_)
+    {
+        // 用于保存当前png的代码
+        int rows = occupancy_grid_map_msg.info.height;
+        int cols = occupancy_grid_map_msg.info.width;
+        cv::Mat map = cv::Mat::zeros(rows, cols, CV_8UC1);
+        for (size_t i = 0; i < rows; i++)
+        {
+            for (size_t j = 0; j < cols; j++)
+            {
+                map.at<uchar>(i, j) = occupancy_grid_map_msg.data[i * cols + j];
+            }
+        }
+        cv::imwrite(global_map_save_path_, map);
+        ROS_INFO("[GridCostMap]: global map saved to %s", global_map_save_path_.c_str());
+    }
+
     global_map_finished = true;
 }
 

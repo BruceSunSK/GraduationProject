@@ -30,10 +30,14 @@ class BuildCostMap
 {
 private:
     ros::NodeHandle nh_;
+
     std::string global_laser_cloud_topic_;
-    std::string local_laser_cloud_topic_;
     std::string global_map_load_path_;      // 如果不为空，则预先从该路径加载预先计算好的png全局代价地图
     double global_map_res_;
+    bool global_map_save_flag_;
+    std::string global_map_save_path_;
+
+    std::string local_laser_cloud_topic_;
     double local_map_res_;
     double local_map_length_;
 

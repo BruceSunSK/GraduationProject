@@ -1,0 +1,37 @@
+<launch>
+    <node pkg="grid_cost_map" type="pcd_publisher" name="pcd_publisher" output="screen">
+        <!-- 必需的PCD文件路径 -->
+        <param name="pcd_file" value="$(find grid_cost_map)/pcd/carla_map.pcd" />
+        
+        <!-- 发布相关参数 -->
+        <param name="topic_name" value="/global_laser_cloud_map" />
+        <param name="frame_id" value="/map" />
+        
+        <!-- XYZ三轴范围过滤参数 -->
+        <param name="use_range_filter" value="true" />
+        <param name="filter_x_axis" value="true" />
+        <param name="filter_y_axis" value="true" />
+        <param name="filter_z_axis" value="false" />
+        <param name="min_x" value="-520.0" />
+        <param name="max_x" value="520.0" />
+        <param name="min_y" value="-350.0" />
+        <param name="max_y" value="350.0" />
+        <param name="min_z" value="-10.0" />
+        <param name="max_z" value="5.0" />
+        
+        <!-- 离群点过滤参数 -->
+        <param name="use_outlier_removal" value="false" />
+        <param name="outlier_removal_method" value="statistical" />
+        <param name="statistical_mean_k" value="50" />
+        <param name="statistical_stddev_mult" value="1.0" />
+        
+        <!-- 降采样参数 -->
+        <param name="use_downsampling" value="true" />
+        <param name="downsampling_method" value="voxel" />
+        <param name="voxel_leaf_size" value="0.25" />
+        <param name="uniform_search_radius" value="0.1" />
+        <param name="random_sample_num" value="10000" />
+        <param name="use_approximate_voxel" value="false" />
+        <param name="display_filter_stats" value="true" />
+    </node>
+</launch>

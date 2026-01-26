@@ -76,7 +76,9 @@ global_map_filters:
       # expression: 0.9 * ((slope )) + 0.8 * ((roughness))
       # expression: 0.6 * (1.0 - (slope / 0.6)) + 0.4 * (1.0 - (roughness / 0.2))
       # expression: (0.2 * slope) + (0.8 * roughness)
-      expression: (0.4 * slope) + (0.9 * roughness) + (0.7 * edges)
+      # expression: (0.4 * slope) + (0.9 * roughness) + (0.7 * edges)     # XG
+      expression: (0.5 * slope) + (2 * roughness) + (30 * edges)        # carla，用于算法效果和Occ可视化
+      # expression: (0.5 * slope) + (2 * roughness) + (5 * edges)        # carla，用于GridMap可视化
 
   # 平滑部分区域
   - name: traversability_mean

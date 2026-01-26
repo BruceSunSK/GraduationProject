@@ -645,9 +645,12 @@ int main(int argc, char * argv[])
     }
 
     // 可以选择手动加载地图，也可以选择订阅地图
-    std::string map_path = ros::package::getPath("grid_cost_map") + "/map/XG_map.png";
-    // std::string map_path = ros::package::getPath("grid_cost_map") + "/map/map2.png";
-    load_map(map_path, 0.4);
+    bool load_map_flag = nh.param<bool>("load_map", true);
+    if (load_map_flag)
+    {
+        std::string map_file = nh.param<std::string>("map_file", "");
+        load_map(map_file, 0.4);
+    }
      
     ros::spin();
     delete planner;
