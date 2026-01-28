@@ -8,10 +8,14 @@ project(local_planning)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  geometry_msgs
-  nav_msgs
   roscpp
   std_msgs
+  nav_msgs
+  geometry_msgs
+  tf2
+  tf2_ros
+  tf2_ros_geometry_msgs
+  global_planning
 )
 
 ## System dependencies are found with CMake's conventions
