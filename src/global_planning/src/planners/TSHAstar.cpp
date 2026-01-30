@@ -456,10 +456,6 @@ bool TSHAstar::getPath(std::vector<cv::Point2d> & path, std::vector<std::vector<
     auxiliary_info.push_back(helper_.search.path_optimization.sample_path);
     auxiliary_info.push_back(helper_.search.path_optimization.optimized_path);
     auxiliary_info.push_back(helper_.sample.path_dp.dp_path);
-    auxiliary_info.push_back(helper_.sample.path_dp.lower_bound_xy);
-    auxiliary_info.push_back(helper_.sample.path_dp.upper_bound_xy);
-    auxiliary_info.push_back(helper_.sample.path_dp.lower_bound_sl);
-    auxiliary_info.push_back(helper_.sample.path_dp.upper_bound_sl);
 
     return true;
 }
@@ -1156,18 +1152,10 @@ bool TSHAstar::findPathTunnel(const Path::ReferencePath::Ptr & reference_path, s
 
     // 4. 回溯路径，从终点到起点，记录路径点确定的上下边界值
     auto time_t3 = std::chrono::steady_clock::now();
-    tunnel_bounds.resize(sample_nodes.size());
+    tunnel_bounds.reserve(sample_nodes.size());
     tunnel_bounds.clear();
-    helper_.sample.path_dp.dp_path.resize(sample_nodes.size());
+    helper_.sample.path_dp.dp_path.reserve(sample_nodes.size());
     helper_.sample.path_dp.dp_path.clear();
-    helper_.sample.path_dp.lower_bound_xy.resize(sample_nodes.size());
-    helper_.sample.path_dp.lower_bound_xy.clear();
-    helper_.sample.path_dp.upper_bound_xy.resize(sample_nodes.size());
-    helper_.sample.path_dp.upper_bound_xy.clear();
-    helper_.sample.path_dp.lower_bound_sl.resize(sample_nodes.size());
-    helper_.sample.path_dp.lower_bound_sl.clear();
-    helper_.sample.path_dp.upper_bound_sl.resize(sample_nodes.size());
-    helper_.sample.path_dp.upper_bound_sl.clear();
     while (end_node)
     {
         // 对应参考点
@@ -1206,32 +1194,14 @@ bool TSHAstar::findPathTunnel(const Path::ReferencePath::Ptr & reference_path, s
         // 保存结果数据
         tunnel_bounds.emplace_back(lower_bound, upper_bound);
         helper_.sample.path_dp.dp_path.emplace_back(end_node->x, end_node->y);
-        Path::PointSL lower_sl(end_node->s, lower_bound);
-        Path::PointXY lower_xy = Path::Utils::SLtoXY(lower_sl, { ref_node.x, ref_node.y }, ref_node.theta);
-        helper_.sample.path_dp.lower_bound_xy.emplace_back(lower_xy.x, lower_xy.y);
-        helper_.sample.path_dp.lower_bound_sl.emplace_back(lower_sl.s, lower_sl.l);
-        Path::PointSL upper_sl(end_node->s, upper_bound);
-        Path::PointXY upper_xy = Path::Utils::SLtoXY(upper_sl, { ref_node.x, ref_node.y }, ref_node.theta);
-        helper_.sample.path_dp.upper_bound_xy.emplace_back(upper_xy.x, upper_xy.y);
-        helper_.sample.path_dp.upper_bound_sl.emplace_back(upper_sl.s, upper_sl.l);
         end_node = end_node->parent;
     }
     std::reverse(tunnel_bounds.begin(), tunnel_bounds.end());
     std::reverse(helper_.sample.path_dp.dp_path.begin(), helper_.sample.path_dp.dp_path.end());
-    std::reverse(helper_.sample.path_dp.lower_bound_xy.begin(), helper_.sample.path_dp.lower_bound_xy.end());
-    std::reverse(helper_.sample.path_dp.upper_bound_xy.begin(), helper_.sample.path_dp.upper_bound_xy.end());
-    std::reverse(helper_.sample.path_dp.lower_bound_sl.begin(), helper_.sample.path_dp.lower_bound_sl.end());
-    std::reverse(helper_.sample.path_dp.upper_bound_sl.begin(), helper_.sample.path_dp.upper_bound_sl.end());
     for (size_t i = 0; i < helper_.sample.path_dp.dp_path.size(); ++i)
     {
         helper_.sample.path_dp.dp_path[i].x = helper_.sample.path_dp.dp_path[i].x * res_ + ori_x_;
         helper_.sample.path_dp.dp_path[i].y = helper_.sample.path_dp.dp_path[i].y * res_ + ori_y_;
-
-        helper_.sample.path_dp.lower_bound_xy[i].x = helper_.sample.path_dp.lower_bound_xy[i].x * res_ + ori_x_;
-        helper_.sample.path_dp.lower_bound_xy[i].y = helper_.sample.path_dp.lower_bound_xy[i].y * res_ + ori_y_;
-
-        helper_.sample.path_dp.upper_bound_xy[i].x = helper_.sample.path_dp.upper_bound_xy[i].x * res_ + ori_x_;
-        helper_.sample.path_dp.upper_bound_xy[i].y = helper_.sample.path_dp.upper_bound_xy[i].y * res_ + ori_y_;
     }
     
 

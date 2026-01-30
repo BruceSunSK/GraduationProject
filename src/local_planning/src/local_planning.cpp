@@ -12,13 +12,6 @@ LocalPlanning::LocalPlanning(ros::NodeHandle & nh, const ros::Rate & loop_rate)
 
 LocalPlanning::~LocalPlanning()
 {
-    // 清理资源
-    if (planner_ != nullptr)
-    {
-        delete planner_;
-        planner_ = nullptr;
-    }
-
     ROS_INFO("[LocalPlanning]: LocalPlanning destroyed");
 }
 
@@ -61,11 +54,10 @@ void LocalPlanning::Initialize()
 void LocalPlanning::LoadParameters()
 {
     // 加载订阅话题名称
-    nh_.param("input_global_ref_topic",   input_global_ref_topic_,   std::string("/global_planning/reference_path"));
-    nh_.param("input_costmap_topic",      input_costmap_topic_,      std::string("/global_planning/costmap"));
-    nh_.param("input_vehicle_pose_topic", input_vehicle_pose_topic_, std::string("/simulation/vehicle_pose"));
-    nh_.param("input_vehicle_vel_topic",  input_vehicle_vel_topic_,  std::string("/simulation/vehicle_velocity"));
-    nh_.param("input_obstacles_topic",    input_obstacles_topic_,    std::string("/perception_prediction/predicted_obstacles"));
+    nh_.param("input_global_ref_topic",    input_ref_path_topic_,      std::string("/global_planning/path"));
+    nh_.param("input_costmap_topic",       input_costmap_topic_,       std::string("/global_planning/costmap"));
+    nh_.param("input_vehicle_state_topic", input_vehicle_state_topic_, std::string("/simulation/vehicle_state"));
+    nh_.param("input_obstacles_topic",     input_obstacles_topic_,     std::string("/perception_prediction/predicted_obstacles"));
 
     // 加载发布话题名称
     nh_.param("output_local_trajectory_topic", output_local_trajectory_topic_, std::string("trajectory"));
@@ -75,10 +67,9 @@ void LocalPlanning::LoadParameters()
 
     ROS_INFO("[LocalPlanning]: Parameters loaded successfully:");
     ROS_INFO("[LocalPlanning]:   Input topics:");
-    ROS_INFO("[LocalPlanning]:     - Global reference: %s", input_global_ref_topic_.c_str());
+    ROS_INFO("[LocalPlanning]:     - Global reference: %s", input_ref_path_topic_.c_str());
     ROS_INFO("[LocalPlanning]:     - Costmap: %s", input_costmap_topic_.c_str());
-    ROS_INFO("[LocalPlanning]:     - Vehicle pose: %s", input_vehicle_pose_topic_.c_str());
-    ROS_INFO("[LocalPlanning]:     - Vehicle velocity: %s", input_vehicle_vel_topic_.c_str());
+    ROS_INFO("[LocalPlanning]:     - Vehicle state: %s", input_vehicle_state_topic_.c_str());
     ROS_INFO("[LocalPlanning]:     - Obstacles: %s", input_obstacles_topic_.c_str());
     ROS_INFO("[LocalPlanning]:   Output topics:");
     ROS_INFO("[LocalPlanning]:     - Local trajectory: %s", output_local_trajectory_topic_.c_str());
@@ -88,10 +79,9 @@ void LocalPlanning::LoadParameters()
 
 void LocalPlanning::InitializeSubscribers()
 {
-    sub_global_ref_   = nh_.subscribe(input_global_ref_topic_,   1, &LocalPlanning::GlobalReferenceCallback, this);
-    sub_costmap_      = nh_.subscribe(input_costmap_topic_,      1, &LocalPlanning::CostmapCallback, this);
-    sub_vehicle_pose_ = nh_.subscribe(input_vehicle_pose_topic_, 5, &LocalPlanning::VehiclePoseCallback, this);
-    sub_vehicle_vel_  = nh_.subscribe(input_vehicle_vel_topic_,  5, &LocalPlanning::VehicleVelocityCallback, this);
+    sub_ref_path_      = nh_.subscribe(input_ref_path_topic_,      1, &LocalPlanning::ReferencePathCallback, this);
+    sub_costmap_       = nh_.subscribe(input_costmap_topic_,       1, &LocalPlanning::CostmapCallback, this);
+    sub_vehicle_state_ = nh_.subscribe(input_vehicle_state_topic_, 5, &LocalPlanning::VehicleStateCallback, this);
 
     // sub_obstacles_ = nh_.subscribe(input_obstacles_topic_, 1,
     //                               &LocalPlanning::PredictedObstaclesCallback<perception_prediction::PredictedObstacles>, this);
@@ -112,7 +102,7 @@ void LocalPlanning::InitializePlanner()
 {
     LocalPlanner::LocalPlannerParams params;
     // todo
-    planner_ = new LocalPlanner();
+    planner_ = std::make_unique<LocalPlanner>();
     planner_->InitParams(params);
     
     ROS_INFO("[LocalPlanning]: LocalPlanner initialized");
@@ -122,34 +112,36 @@ bool LocalPlanning::IsDataReady() const
 {
     // todo: chuli
     // 检查是否收到全局参考线（必须有）
-    if (global_reference_.poses.empty())
-    {
-        ROS_INFO_THROTTLE(1.0, "[LocalPlanning]: Waiting for global reference");
-        return false;
-    }
+    // if (reference_line_.poses.empty())
+    // {
+    //     ROS_INFO_THROTTLE(1.0, "[LocalPlanning]: Waiting for global reference");
+    //     return false;
+    // }
 
     // 检查是否收到车辆位姿（必须有）
-    if (vehicle_pose_.header.frame_id.empty())
-    {
-        ROS_INFO_THROTTLE(1.0, "[LocalPlanning]: Waiting for vehicle pose");
-        return false;
-    }
+    // if (vehicle_pose_.header.frame_id.empty())
+    // {
+    //     ROS_INFO_THROTTLE(1.0, "[LocalPlanning]: Waiting for vehicle pose");
+    //     return false;
+    // }
 
-    // 检查是否收到车辆速度（最好有，但可以先使用默认值）
-    if (vehicle_velocity_.header.frame_id.empty())
-    {
-        ROS_INFO_THROTTLE(1.0, "[LocalPlanning]: Vehicle velocity not received yet");
-        // 这里不返回false，因为速度可以有默认值
-    }
 
     return true;
 }
 
-void LocalPlanning::GlobalReferenceCallback(const nav_msgs::Path::ConstPtr & msg)
+void LocalPlanning::ReferencePathCallback(const nav_msgs::Path::ConstPtr & msg)
 {
-    global_reference_ = *msg;
-
-    ROS_INFO("[LocalPlanning]: Received global reference with %lu points", msg->poses.size());
+    std::vector<cv::Point2d> points;
+    points.reserve(msg->poses.size());
+    for (const auto & pose : msg->poses)
+    {
+        points.emplace_back(pose.pose.position.x, pose.pose.position.y);
+    }
+    // 全局目前间隔是4.0m，因此保存备份也按照4.0m保存，后续截断全局参考线时再使用更小的间隔。
+    reference_path_ = std::make_shared<Path::ReferencePath>(points, 4.0);
+    
+    ROS_INFO("[LocalPlanning]: Received reference path with %lu points and %.2fm",
+        msg->poses.size(), reference_path_->GetLength());
 }
 
 void LocalPlanning::CostmapCallback(const nav_msgs::OccupancyGrid::ConstPtr & msg)
@@ -160,14 +152,12 @@ void LocalPlanning::CostmapCallback(const nav_msgs::OccupancyGrid::ConstPtr & ms
         msg->info.resolution, msg->info.width, msg->info.height);
 }
 
-void LocalPlanning::VehiclePoseCallback(const geometry_msgs::PoseStamped::ConstPtr & msg)
+void LocalPlanning::VehicleStateCallback(const nav_msgs::Odometry::ConstPtr & msg)
 {
-    vehicle_pose_ = *msg;
-}
-
-void LocalPlanning::VehicleVelocityCallback(const geometry_msgs::TwistStamped::ConstPtr & msg)
-{
-    vehicle_velocity_ = *msg;
+    vehicle_state_.pos.x = msg->pose.pose.position.x;
+    vehicle_state_.pos.y = msg->pose.pose.position.y;
+    vehicle_state_.pos.theta = tf2::getYaw(msg->pose.pose.orientation);
+    vehicle_state_.v = msg->twist.twist.linear.x;
 }
 
 // 模板函数实现（预留，待感知模块完成后实现）todo

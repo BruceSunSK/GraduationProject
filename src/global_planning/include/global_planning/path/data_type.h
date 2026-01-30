@@ -45,4 +45,16 @@ struct PathNode : public PointXY, public PointSL
     double dkappa;
 };
 
+struct TrajectoryPoint : public PointXY
+{
+    TrajectoryPoint() : PointXY(), t(0), v(0), a(0), j(0) {}
+    TrajectoryPoint(const double x, const double y, const double t, const double v, const double a, const double j)
+        : PointXY(x, y), t(t), v(v), a(a), j(j) {}
+    
+    double t;
+    double v;
+    double a;
+    double j;
+};
+
 } // namespace Path

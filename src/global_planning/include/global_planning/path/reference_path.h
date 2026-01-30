@@ -31,6 +31,8 @@ public:
     ~ReferencePath() = default;
 
     void SetPath(const std::vector<cv::Point2d> & path, const double s_interval);
+    ReferencePath::Ptr GetSegment(const double start_s, const double end_s, const double s_interval) const;
+    std::pair<PathNode, int> GetProjection(const Path::PointXY & point, const int warmup_start_idx = 0) const;
     std::vector<cv::Point2d> GetPath() const;
     PathNode GetPathNode(const double s) const;
     const std::vector<PathNode> & GetPathNodes() const { return path_; }

@@ -20,7 +20,6 @@ GlobalPlanning::GlobalPlanning(const ros::NodeHandle & nh) : nh_(nh), listener_(
     sub_goal_ = nh_.subscribe(input_goal_topic_, 1, &GlobalPlanning::set_goal, this);
     pub_processed_map_ = nh_.advertise<nav_msgs::OccupancyGrid>(output_processed_map_topic_, 1, true);
     pub_path_          = nh_.advertise<nav_msgs::Path>(output_path_topic_, 10);
-    pub_ref_path_      = nh_.advertise<global_planning::RefPath>(output_ref_path_topic_, 10);
     pub_auxiliary_     = nh_.advertise<visualization_msgs::MarkerArray>(output_auxiliary_info_topic_, 1, true);
 
     // 规划器初始化
@@ -239,15 +238,6 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
         path_msg.poses.push_back(std::move(m));
     }
 
-    // 规划参考线信息，只对TSHAstar算法有效 （=路径+上下边界）
-    global_planning::RefPath ref_path_msg;
-    ref_path_msg.header = path_msg.header;
-    ref_path_msg.path = path_msg.poses;
-    ref_path_msg.lower_bound_xy.reserve(path.size());
-    ref_path_msg.upper_bound_xy.reserve(path.size());
-    ref_path_msg.lower_bound_sl.reserve(path.size());
-    ref_path_msg.upper_bound_sl.reserve(path.size());
-    
     // 辅助信息
     visualization_msgs::MarkerArray marker_array;
     visualization_msgs::Marker clean_marker;
@@ -452,22 +442,6 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
             p.y = auxiliary_info[7][i].y;
             p.z = 7;
             line_marker.points.push_back(std::move(p));
-
-            geometry_msgs::PoseStamped pose_xy;
-            pose_xy.header = path_msg.header;
-            pose_xy.pose.position.x = auxiliary_info[7][i].x;
-            pose_xy.pose.position.y = auxiliary_info[7][i].y;
-            pose_xy.pose.position.z = 0.0;
-            pose_xy.pose.orientation.w = 1.0;
-            ref_path_msg.lower_bound_xy.push_back(std::move(pose_xy));
-
-            geometry_msgs::PoseStamped pose_sl;
-            pose_sl.header = path_msg.header;
-            pose_sl.pose.position.x = auxiliary_info[9][i].x;
-            pose_sl.pose.position.y = auxiliary_info[9][i].y;
-            pose_sl.pose.position.z = 0.0;
-            pose_sl.pose.orientation.w = 1.0;
-            ref_path_msg.lower_bound_sl.push_back(std::move(pose_sl));
         }
         marker_array.markers.push_back(line_marker);
         // 6.3 dp得到的上边界
@@ -488,22 +462,6 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
             p.y = auxiliary_info[8][i].y;
             p.z = 7;
             line_marker.points.push_back(std::move(p));
-
-            geometry_msgs::PoseStamped pose_xy;
-            pose_xy.header = path_msg.header;
-            pose_xy.pose.position.x = auxiliary_info[8][i].x;
-            pose_xy.pose.position.y = auxiliary_info[8][i].y;
-            pose_xy.pose.position.z = 0.0;
-            pose_xy.pose.orientation.w = 1.0;
-            ref_path_msg.upper_bound_xy.push_back(std::move(pose_xy));
-
-            geometry_msgs::PoseStamped pose_sl;
-            pose_sl.header = path_msg.header;
-            pose_sl.pose.position.x = auxiliary_info[10][i].x;
-            pose_sl.pose.position.y = auxiliary_info[10][i].y;
-            pose_sl.pose.position.z = 0.0;
-            pose_sl.pose.orientation.w = 1.0;
-            ref_path_msg.upper_bound_sl.push_back(std::move(pose_sl));
         }
         marker_array.markers.push_back(line_marker);
     }
@@ -604,7 +562,6 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
     }
 
     pub_path_.publish(path_msg);
-    pub_ref_path_.publish(ref_path_msg);
     pub_auxiliary_.publish(marker_array);
 
     if (info_flag_)

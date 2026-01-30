@@ -1,5 +1,5 @@
 <launch>
-    <arg name="input_global_ref_topic"   default="/global_planning/reference_path" />
+    <arg name="input_global_ref_topic"   default="/global_planning/path" />
     <arg name="input_costmap_topic"      default="/global_planning/costmap" />
     <arg name="input_vehicle_pose_topic" default="/simulation/vehicle_pose" />
     <arg name="input_vehicle_vel_topic"  default="/simulation/vehicle_velocity" />

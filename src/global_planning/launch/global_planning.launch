@@ -4,7 +4,6 @@
     <arg name="input_goal_topic"            default="/move_base_simple/goal"/>           <!-- 输入的终点话题 -->
     <arg name="output_processed_map_topic"  default="processed_map"/>                    <!-- 输出的处理后的地图 -->
     <arg name="output_path_topic"           default="path"/>                             <!-- 输出最终规划路径 -->
-    <arg name="output_ref_path_topic"       default="ref_path"/>                         <!-- 输出最终规划的参考线，即路径+上下道路边界，包括xy和sl两种形式 -->
     <arg name="output_auxiliary_info_topic" default="auxiliary_info"/>                   <!-- 输出的各种辅助信息，种类、数量与规划器种类相关 -->
     <arg name="info_flag"                   default="true"/>                             <!-- 是否输出规划器的一系列信息 -->
     <arg name="save_flag"                   default="true"/>                             <!-- 是否保存规划结果到文件 -->
@@ -27,7 +26,6 @@
         <param name="input_goal_topic"            type="str"    value="$(arg input_goal_topic)"/>
         <param name="output_processed_map_topic"  type="str"    value="$(arg output_processed_map_topic)"/>
         <param name="output_path_topic"           type="str"    value="$(arg output_path_topic)"/>
-        <param name="output_ref_path_topic"       type="str"    value="$(arg output_ref_path_topic)"/>
         <param name="output_auxiliary_info_topic" type="str"    value="$(arg output_auxiliary_info_topic)"/>
         <param name="info_flag"                   type="bool"   value="$(arg info_flag)"/>
         <param name="save_flag"                   type="bool"   value="$(arg save_flag)"/>
