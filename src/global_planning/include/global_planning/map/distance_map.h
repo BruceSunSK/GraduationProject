@@ -10,6 +10,9 @@ namespace Map
 class DistanceMap
 {
 public:
+    using Ptr = std::shared_ptr<DistanceMap>;
+    
+public:
     DistanceMap() = default;
     DistanceMap(const cv::Mat & cv_map) { SetMap(cv_map); }
     DistanceMap(const DistanceMap & grid_map) = delete;
@@ -48,5 +51,21 @@ public:
   
 private:
     grid_map::GridMap map_;
+};
+
+struct MultiMap
+{
+    MultiMap() = default;
+    MultiMap(int rows, int cols, double resolution, double origin_x, double origin_y, const cv::Mat & cost_map, const cv::Mat & distance_map):
+        rows(rows), cols(cols), resolution(resolution), origin_x(origin_x), origin_y(origin_y),
+        cost_map(cost_map), distance_map(distance_map){}
+
+    int rows;
+    int cols;
+    double resolution;
+    double origin_x;
+    double origin_y;
+    cv::Mat cost_map;
+    DistanceMap distance_map;
 };
 } // namespace Map

@@ -146,7 +146,31 @@ void LocalPlanning::ReferencePathCallback(const nav_msgs::Path::ConstPtr & msg)
 
 void LocalPlanning::CostmapCallback(const nav_msgs::OccupancyGrid::ConstPtr & msg)
 {
-    costmap_ = *msg;
+    // 这部分直接是从全局规划算法内部抄过来并修改的代码。理论上这部分应该也用话题通讯传输数据，懒了。。。。
+
+    // 1. 离散代价值的障碍物地图，正常范围在[0, 100]，也包括255未探明的情况
+    map_.rows = msg->info.height;
+    map_.cols = msg->info.width;
+    map_.resolution = msg->info.resolution;
+    map_.origin_x = msg->info.origin.position.x;
+    map_.origin_y = msg->info.origin.position.y;
+    cv::Mat map = cv::Mat::zeros(map_.cols, map_.cols, CV_8UC1);
+    for (size_t i = 0; i < map_.rows; i++)
+    {
+        for (size_t j = 0; j < map_.cols; j++)
+        {
+            map.at<uchar>(i, j) = msg->data[i * map_.cols + j];
+        }
+    }
+    map_.cost_map = std::move(map);
+    // 2. 代价值二值化后的障碍物地图，未探明情况视为障碍物。即[0, OBSTACLE_THRESHOLD)值为255，白色，前景；[OBSTACLE_THRESHOLD, 255]值为0，黑色，背景。
+    cv::Mat binary_map;
+    cv::threshold(map_.cost_map, binary_map, 99, 255, cv::ThresholdTypes::THRESH_BINARY_INV);    // 代价值>=99的视为障碍物，该值目前直接从全局部分copy
+    // 3. 在二值化地图中进行distanceTransform变换的结果，用于描述每个栅格到障碍物的距离
+    cv::Mat distance_map;
+    cv::distanceTransform(binary_map, distance_map, cv::DIST_L2, cv::DIST_MASK_PRECISE, CV_32FC1);
+    // 4. 设置距离地图，用于描述每个栅格到最近不可通过障碍物的距离
+    map_.distance_map.SetMap(distance_map);
 
     ROS_INFO("[LocalPlanning]: Received costmap with resolution: %.2f, size: %dx%d",
         msg->info.resolution, msg->info.width, msg->info.height);
