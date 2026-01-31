@@ -1,0 +1,23 @@
+<launch>
+    <node pkg="control" type="control" name="control" output="screen">
+        <!-- PID参数 -->
+        <param name="pid/linear/kp" value="1.0" />
+        <param name="pid/linear/ki" value="0.01" />
+        <param name="pid/linear/kd" value="0.05" />
+        <param name="pid/angular/kp" value="1.5" />
+        <param name="pid/angular/ki" value="0.01" />
+        <param name="pid/angular/kd" value="0.1" />
+        
+        <!-- 控制参数 -->
+        <param name="lookahead_distance" value="0.5" />
+        <param name="max_linear_vel" value="3.0" />
+        <param name="max_angular_vel" value="2.0" />
+        <param name="control_frequency" value="50.0" />
+        <param name="goal_tolerance" value="0.1" />
+        
+        <!-- 话题重映射 -->
+        <remap from="trajectory" to="/local_planning/trajectory" />
+        <remap from="odom" to="/vehicle/odom" />
+        <remap from="cmd_vel" to="/control/cmd_vel" />
+    </node>
+</launch>

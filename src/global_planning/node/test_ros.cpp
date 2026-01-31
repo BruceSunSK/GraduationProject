@@ -10,7 +10,6 @@
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 
-#include "global_planning/RefPath.h"
 #include "global_planning/planners/TSHAstar.h"
 #include "global_planning/planners/astar.h"
 #include "global_planning/planners/rrt.h"
@@ -20,7 +19,6 @@
 
 ros::Publisher processed_map_pub;
 ros::Publisher path_pub;
-ros::Publisher ref_path_pub;
 ros::Publisher auxiliary_pub;
 GlobalPlannerInterface * planner;
 std::string planner_name;
@@ -92,15 +90,6 @@ void pub_path()
         m.pose.position.z = 10;
         path_msg.poses.push_back(std::move(m));
     }
-
-    // 规划参考线信息，只对TSHAstar算法有效 （=路径+上下边界）
-    global_planning::RefPath ref_path_msg;
-    ref_path_msg.header = path_msg.header;
-    ref_path_msg.path = path_msg.poses;
-    ref_path_msg.lower_bound_xy.reserve(path.size());
-    ref_path_msg.upper_bound_xy.reserve(path.size());
-    ref_path_msg.lower_bound_sl.reserve(path.size());
-    ref_path_msg.upper_bound_sl.reserve(path.size());
 
     // 辅助信息
     visualization_msgs::MarkerArray marker_array;
@@ -306,22 +295,6 @@ void pub_path()
             p.y = auxiliary_info[7][i].y;
             p.z = 7;
             line_marker.points.push_back(std::move(p));
-
-            geometry_msgs::PoseStamped pose_xy;
-            pose_xy.header = path_msg.header;
-            pose_xy.pose.position.x = auxiliary_info[7][i].x;
-            pose_xy.pose.position.y = auxiliary_info[7][i].y;
-            pose_xy.pose.position.z = 0.0;
-            pose_xy.pose.orientation.w = 1.0;
-            ref_path_msg.lower_bound_xy.push_back(std::move(pose_xy));
-
-            geometry_msgs::PoseStamped pose_sl;
-            pose_sl.header = path_msg.header;
-            pose_sl.pose.position.x = auxiliary_info[9][i].x;
-            pose_sl.pose.position.y = auxiliary_info[9][i].y;
-            pose_sl.pose.position.z = 0.0;
-            pose_sl.pose.orientation.w = 1.0;
-            ref_path_msg.lower_bound_sl.push_back(std::move(pose_sl));
         }
         marker_array.markers.push_back(line_marker);
         // 6.3 dp得到的上边界
@@ -342,22 +315,6 @@ void pub_path()
             p.y = auxiliary_info[8][i].y;
             p.z = 7;
             line_marker.points.push_back(std::move(p));
-
-            geometry_msgs::PoseStamped pose_xy;
-            pose_xy.header = path_msg.header;
-            pose_xy.pose.position.x = auxiliary_info[8][i].x;
-            pose_xy.pose.position.y = auxiliary_info[8][i].y;
-            pose_xy.pose.position.z = 0.0;
-            pose_xy.pose.orientation.w = 1.0;
-            ref_path_msg.upper_bound_xy.push_back(std::move(pose_xy));
-
-            geometry_msgs::PoseStamped pose_sl;
-            pose_sl.header = path_msg.header;
-            pose_sl.pose.position.x = auxiliary_info[10][i].x;
-            pose_sl.pose.position.y = auxiliary_info[10][i].y;
-            pose_sl.pose.position.z = 0.0;
-            pose_sl.pose.orientation.w = 1.0;
-            ref_path_msg.upper_bound_sl.push_back(std::move(pose_sl));
         }
         marker_array.markers.push_back(line_marker);
     }
@@ -458,7 +415,6 @@ void pub_path()
     }
 
     path_pub.publish(path_msg);
-    ref_path_pub.publish(ref_path_msg);
     auxiliary_pub.publish(marker_array);
     // planner->showAllInfo(true, ros::package::getPath("global_planning") + "/result/test_result/");
 }
@@ -536,7 +492,6 @@ int main(int argc, char * argv[])
     ros::Subscriber map_sub         = nh.subscribe("/grid_cost_map/global_occupancy_grid_map", 1, map_callback);
     processed_map_pub = nh.advertise<nav_msgs::OccupancyGrid>("processed_map", 1, true);
     path_pub          = nh.advertise<nav_msgs::Path>("path", 1, true);
-    ref_path_pub      = nh.advertise<global_planning::RefPath>("ref_path", 10);
     auxiliary_pub     = nh.advertise<visualization_msgs::MarkerArray>("auxiliary_info", 1, true);
 
     planner_name = nh.param<std::string>("planner_name", "TSHAstar");
