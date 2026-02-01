@@ -1,34 +1,69 @@
-<?xml version="1.0"?>
 <launch>
-    <!-- 启动测试控制节点 -->
-    <node pkg="control" type="test_control_node" name="test_control_node" output="screen">
-        <!-- 基本参数 -->
-        <param name="lookahead_distance" value="0.5" />
-        <param name="max_linear_vel" value="1.0" />
-        <param name="max_angular_vel" value="1.0" />
-        <param name="control_frequency" value="50.0" />
-        <param name="goal_tolerance" value="0.1" />
+    <arg name="test_case"       default="2" />      <!-- 测试用例: 0=直线, 1=圆形, 2=正弦 -->
+    <arg name="use_sim_time"    default="false" />  <!-- 是否使用仿真时间 -->
+    
+
+    <!-- 0. 使用仿真时间 -->
+    <param if="$(arg use_sim_time)" name="use_sim_time" value="true" />
+    
+    <!-- 1. 启动测试控制节点 -->
+    <node pkg="control" type="test_control" name="test_control" output="screen">
+        <!-- 测试用例选择 -->
+        <param name="test_case"             value="$(arg test_case)" />
+
+        <!-- 基本控制参数 -->
+        <param name="lookahead_distance"    value="0.6" />
+        <param name="max_linear_vel"        value="2.0" />
+        <param name="max_angular_vel"       value="1.0" />
+        <param name="control_frequency"     value="50.0" />
+        <param name="goal_tolerance"        value="0.1" />
+        <param name="min_trajectory_point_distance" value="0.2" />
         
-        <!-- 测试用例：0=直线，1=圆形，2=正弦 -->
-        <param name="test_case" value="0" />
+        <!-- PID控制器参数 -->
+        <param name="pid/linear/kp"         value="0.5" />
+        <param name="pid/linear/ki"         value="0.01" />
+        <param name="pid/linear/kd"         value="0.01" />
+        <param name="pid/angular/kp"        value="4" />
+        <param name="pid/angular/ki"        value="0.6" />
+        <param name="pid/angular/kd"        value="0.1" />
         
-        <!-- PID参数 -->
-        <param name="pid/linear/kp" value="1.0" />
-        <param name="pid/linear/ki" value="0.01" />
-        <param name="pid/linear/kd" value="0.05" />
-        <param name="pid/angular/kp" value="1.5" />
-        <param name="pid/angular/ki" value="0.01" />
-        <param name="pid/angular/kd" value="0.1" />
-        
-        <!-- 重映射话题 -->
-        <remap from="odom" to="/odometry/filtered" />
-        <remap from="cmd_vel" to="/cmd_vel" />
+        <!-- 话题重映射 -->
+        <remap from="odom"                  to="/vehicle/odom" />                       <!-- 订阅车辆位姿和速度 -->
+        <remap from="cmd_vel"               to="/test_control/cmd_vel" />               <!-- 发布车辆控制指令 -->
+        <remap from="reference_trajectory"  to="/test_control/reference_trajectory" />  <!-- 发布参考轨迹 -->
+        <remap from="actual_trajectory"     to="/test_control/actual_trajectory" />     <!-- 发布实际轨迹 -->
     </node>
     
-    <!-- 启动RViz进行可视化 -->
-    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find control)/launch/test_control.rviz" />
-    
-    <!-- 发布静态TF -->
-    <node pkg="tf" type="static_transform_publisher" name="map_to_odom" 
-          args="0 0 0 0 0 0 map odom 100" />
+    <!-- 2. 启动仿真环境 -->
+    <node pkg="simulation" type="simulation" name="simulation" output="screen">
+        <!-- 仿真参数 -->
+        <param name="simulation_frequency"      value="100.0" />
+        <param name="cmd_vel_timeout"           value="0.5" />
+        <param name="world_frame"               value="/map" />
+        <param name="robot_frame"               value="/veh" />
+        
+        <!-- 车辆参数 -->
+        <param name="vehicle/max_linear_vel"    value="2.0" />
+        <param name="vehicle/max_angular_vel"   value="1.0" />
+        
+        <!-- 初始位置 -->
+        <param name="initial_position/x"        value="0.0" />
+        <param name="initial_position/y"        value="0.0" />
+        <param name="initial_position/theta"    value="0.0" />
+        
+        <!-- 噪声参数 -->
+        <param name="noise/add_noise"           value="true" />
+        <param name="noise/linear_stddev"       value="0.002" />
+        <param name="noise/angular_stddev"      value="0.005" />
+        <param name="noise/position_stddev"     value="0.0005" />
+        <param name="noise/velocity_stddev"     value="0.001" />
+        
+        <!-- 话题重映射 -->
+        <remap from="cmd_vel" to="/test_control/cmd_vel" /> <!-- 订阅车辆控制指令 -->
+        <remap from="odom"    to="/vehicle/odom" />         <!-- 发布车辆位姿和速度 -->
+    </node>
+
+    <!-- 3. 启动rviz -->
+    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find control)/rviz/test_control.rviz" />
+
 </launch>

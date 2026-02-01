@@ -1,26 +1,26 @@
 <launch>
     <node pkg="simulation" type="simulation" name="simulation" output="screen">
         <!-- 仿真参数 -->
-        <param name="simulation_frequency" value="100.0" />
-        <param name="cmd_vel_timeout" value="0.5" />
-        <param name="world_frame" value="/map" />
-        <param name="robot_frame" value="/veh" />
+        <param name="simulation_frequency"      value="100.0" />
+        <param name="cmd_vel_timeout"           value="0.5" />
+        <param name="world_frame"               value="/map" />
+        <param name="robot_frame"               value="/veh" />
         
         <!-- 车辆参数 -->
-        <param name="vehicle/max_linear_vel" value="4.0" />
-        <param name="vehicle/max_angular_vel" value="1.5" />
+        <param name="vehicle/max_linear_vel"    value="4.0" />
+        <param name="vehicle/max_angular_vel"   value="1.5" />
         
         <!-- 初始位置 -->
-        <param name="initial_position/x" value="0.0" />
-        <param name="initial_position/y" value="0.0" />
-        <param name="initial_position/theta" value="0.0" />
+        <param name="initial_position/x"        value="0.0" />
+        <param name="initial_position/y"        value="0.0" />
+        <param name="initial_position/theta"    value="0.0" />
         
         <!-- 噪声参数 -->
-        <param name="noise/add_noise" value="true" />
-        <param name="noise/linear_stddev" value="0.002" />
-        <param name="noise/angular_stddev" value="0.005" />
-        <param name="noise/position_stddev" value="0.0005" />
-        <param name="noise/velocity_stddev" value="0.001" />
+        <param name="noise/add_noise"           value="true" />
+        <param name="noise/linear_stddev"       value="0.002" />
+        <param name="noise/angular_stddev"      value="0.005" />
+        <param name="noise/position_stddev"     value="0.0005" />
+        <param name="noise/velocity_stddev"     value="0.001" />
         
         <!-- 话题重映射 -->
         <remap from="cmd_vel" to="/control/cmd_vel" />  <!-- 订阅车辆控制指令 -->

@@ -174,16 +174,16 @@ void Control::computeControlOutput(const geometry_msgs::PoseStamped & target_pos
 
     // 获取目标速度（从轨迹点中提取）
     // 这里假设轨迹点的速度存储在pose的position.z中
-    // 实际应用中可能需要自定义消息类型
     double target_vel = target_pose.pose.position.z;
 
     // 使用PID计算控制输出
-    v = linear_pid_->compute(target_vel, current_odom.twist.twist.linear.x);
+    v = linear_pid_->compute(target_vel, current_odom.twist.twist.linear.x)
+        + current_odom.twist.twist.linear.x;
 
     // 根据角度误差和距离误差计算角速度
     // 当距离较近时，减小角速度增益
     double angular_gain_factor = std::tanh(distance_error / lookahead_distance_);
-    w = angular_pid_->compute(0.0, angle_error * angular_gain_factor);
+    w = angular_pid_->compute(0.0, -angle_error * angular_gain_factor);
 
     // 限制输出
     if (v > max_linear_vel_) v = max_linear_vel_;

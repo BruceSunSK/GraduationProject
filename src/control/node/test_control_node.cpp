@@ -22,7 +22,8 @@ public:
     TestControlNode(ros::NodeHandle & private_nh)
         : private_nh_(private_nh),
         has_odom_(false), test_case_(0), test_iteration_(0),
-        last_pose_x_(0.0), last_pose_y_(0.0)
+        last_saved_pose_x_(0.0), last_saved_pose_y_(0.0),
+        has_last_saved_pose_(false)
     {
         // 获取参数
         private_nh_.param<double>("lookahead_distance", lookahead_distance_, 0.5);
@@ -30,6 +31,7 @@ public:
         private_nh_.param<double>("max_angular_vel", max_angular_vel_, 1.5);
         private_nh_.param<double>("control_frequency", control_frequency_, 50.0);
         private_nh_.param<double>("goal_tolerance", goal_tolerance_, 0.1);
+        private_nh_.param<double>("min_trajectory_point_distance", min_trajectory_point_distance_, 0.1);
         private_nh_.param<int>("test_case", test_case_, 0);  // 0: 直线, 1: 圆形, 2: 正弦
 
         // 获取PID参数
@@ -69,6 +71,7 @@ public:
             kp_linear, ki_linear, kd_linear);
         ROS_INFO("[TestControlNode]:    Angular PID: Kp=%.3f, Ki=%.3f, Kd=%.3f",
             kp_angular, ki_angular, kd_angular);
+        ROS_INFO("[TestControlNode]:    Min trajectory point distance: %.3f m", min_trajectory_point_distance_);
     }
 
     ~TestControlNode()
@@ -152,6 +155,8 @@ public:
             }
         }
 
+        // ROS_INFO("[TestControlNode]: Nearest point index: %d, target point index: %d", nearest_index, target_index);
+
         // 如果已经到了终点
         if (target_index >= static_cast<int>(reference_trajectory_.poses.size()))
         {
@@ -195,15 +200,17 @@ public:
         double distance_error = std::hypot(dx, dy);
 
         // 获取目标速度（从轨迹点中提取）
+        // 这里假设轨迹点的速度存储在pose的position.z中
         double target_vel = target_pose.pose.position.z;
 
         // 使用PID计算控制输出
-        v = linear_pid_->compute(target_vel, current_odom.twist.twist.linear.x);
+        v = linear_pid_->compute(target_vel, current_odom.twist.twist.linear.x)
+            + current_odom.twist.twist.linear.x;
 
         // 根据角度误差和距离误差计算角速度
         // 当距离较近时，减小角速度增益
         double angular_gain_factor = std::tanh(distance_error / lookahead_distance_);
-        w = angular_pid_->compute(0.0, angle_error * angular_gain_factor);
+        w = angular_pid_->compute(0.0, -angle_error * angular_gain_factor);
 
         // 限制输出
         if (v > max_linear_vel_) v = max_linear_vel_;
@@ -254,7 +261,7 @@ public:
     {
         double start_x = 0.0, start_y = 0.0;
         double end_x = 10.0, end_y = 0.0;
-        double velocity = 1.0;  // m/s
+        double velocity = 0.5;  // m/s
         int num_points = 100;
 
         for (int i = 0; i <= num_points; ++i)
@@ -273,14 +280,14 @@ public:
 
     void generateCircleTrajectory()
     {
-        double center_x = 5.0, center_y = 0.0;
-        double radius = 3.0;
+        double center_x = 0.0, center_y = 5.0;
+        double radius = 5.0;
         double velocity = 0.8;  // m/s
-        int num_points = 100;
+        int num_points = 150;
 
-        for (int i = 0; i <= num_points; ++i)
+        for (int i = 0; i <= num_points - 10; ++i)
         {
-            double angle = 2.0 * M_PI * i / num_points;
+            double angle = 2.0 * M_PI * i / num_points - M_PI_2;
             geometry_msgs::PoseStamped pose;
             pose.header.frame_id = "/map";
             pose.header.stamp = ros::Time::now();
@@ -301,15 +308,16 @@ public:
     void generateSineTrajectory()
     {
         double start_x = 0.0, end_x = 10.0;
-        double amplitude = 2.0;
-        double wavelength = 4.0;
+        double amplitude = 0.5;
+        double wavelength = 4.5;
+        double phi = M_PI_2;
         double velocity = 0.6;  // m/s
-        int num_points = 100;
+        int num_points = 200;
 
         for (int i = 0; i <= num_points; ++i)
         {
             double x = start_x + (end_x - start_x) * i / num_points;
-            double y = amplitude * sin(2.0 * M_PI * x / wavelength);
+            double y = amplitude * sin(2.0 * M_PI * x / wavelength + phi) - amplitude;
 
             geometry_msgs::PoseStamped pose;
             pose.header.frame_id = "/map";
@@ -319,7 +327,7 @@ public:
             pose.pose.position.z = velocity;
 
             // 计算切线方向（导数）
-            double dy_dx = amplitude * (2.0 * M_PI / wavelength) * cos(2.0 * M_PI * x / wavelength);
+            double dy_dx = amplitude * (2.0 * M_PI / wavelength) * cos(2.0 * M_PI * x / wavelength + phi);
             double yaw = atan2(dy_dx, 1.0);
             tf2::Quaternion q;
             q.setRPY(0, 0, yaw);
@@ -329,22 +337,48 @@ public:
         }
     }
 
-    // 记录实际轨迹
+    // 记录实际轨迹 - 按最小距离保存点
     void recordActualTrajectory(const nav_msgs::Odometry & odom)
     {
+        double current_x = odom.pose.pose.position.x;
+        double current_y = odom.pose.pose.position.y;
+
+        // 检查是否需要保存新点（按最小距离）
+        if (has_last_saved_pose_)
+        {
+            double dx = current_x - last_saved_pose_x_;
+            double dy = current_y - last_saved_pose_y_;
+            double distance = std::hypot(dx, dy);
+
+            // 如果距离小于最小距离，不保存
+            if (distance < min_trajectory_point_distance_)
+            {
+                return;
+            }
+        }
+
+        // 创建新的轨迹点
         geometry_msgs::PoseStamped pose;
         pose.header.frame_id = "/map";
         pose.header.stamp = ros::Time::now();
         pose.pose = odom.pose.pose;
+
+        // 保存新点
+        actual_trajectory_.poses.push_back(pose);
+
+        // 更新上一次保存的点
+        last_saved_pose_x_ = current_x;
+        last_saved_pose_y_ = current_y;
+        has_last_saved_pose_ = true;
+
+        // 更新轨迹头时间戳
+        actual_trajectory_.header.stamp = ros::Time::now();
 
         // 限制实际轨迹长度，避免内存无限增长
         if (actual_trajectory_.poses.size() > 1000)
         {
             actual_trajectory_.poses.erase(actual_trajectory_.poses.begin());
         }
-
-        actual_trajectory_.poses.push_back(pose);
-        actual_trajectory_.header.stamp = ros::Time::now();
 
         // 定期发布实际轨迹
         if (ros::Time::now().toSec() - last_actual_trajectory_pub_time_ > 0.1)  // 10Hz
@@ -453,12 +487,18 @@ private:
     double max_angular_vel_;
     double control_frequency_;
     double goal_tolerance_;
+    double min_trajectory_point_distance_;  // 最小轨迹点间距
     int test_case_;
 
     // 测试状态
     int test_iteration_;
     double last_ref_trajectory_pub_time_;
     double last_actual_trajectory_pub_time_;
+
+    // 轨迹记录相关
+    double last_saved_pose_x_;      // 上一次保存的轨迹点x坐标
+    double last_saved_pose_y_;      // 上一次保存的轨迹点y坐标
+    bool has_last_saved_pose_;      // 是否已经保存过轨迹点
 };
 
 int main(int argc, char ** argv)

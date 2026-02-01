@@ -125,9 +125,7 @@ include_directories(
 )
 
 ## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/control.cpp
-# )
+add_library(controller src/controller/pid_controller.cpp)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -137,10 +135,9 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(control src/controller/pid_controller.cpp
-                       src/control.cpp
-                       node/control_node.cpp
-)
+add_executable(control      src/control.cpp
+                            node/control_node.cpp)
+add_executable(test_control node/test_control_node.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -150,10 +147,12 @@ add_executable(control src/controller/pid_controller.cpp
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-add_dependencies(control ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(control      ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(test_control ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(control ${catkin_LIBRARIES})
+target_link_libraries(control      ${catkin_LIBRARIES} controller)
+target_link_libraries(test_control ${catkin_LIBRARIES} controller)
 
 #############
 ## Install ##
