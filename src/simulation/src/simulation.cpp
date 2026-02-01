@@ -16,8 +16,8 @@ Simulation::Simulation(ros::NodeHandle & nh, ros::NodeHandle & private_nh)
 
     // 获取车辆参数
     double max_linear_vel, max_angular_vel;
-    private_nh_.param<double>("vehicle/max_linear_vel", max_linear_vel, 1.0);
-    private_nh_.param<double>("vehicle/max_angular_vel", max_angular_vel, 1.0);
+    private_nh_.param<double>("vehicle/max_linear_vel", max_linear_vel, 4.0);
+    private_nh_.param<double>("vehicle/max_angular_vel", max_angular_vel, 1.5);
 
     // 获取初始位置
     double init_x, init_y, init_theta;
@@ -27,11 +27,11 @@ Simulation::Simulation(ros::NodeHandle & nh, ros::NodeHandle & private_nh)
 
     // 获取噪声参数
     double linear_noise, angular_noise, position_noise, velocity_noise;
-    private_nh_.param<bool>("noise/add_noise", add_noise_, false);
-    private_nh_.param<double>("noise/linear_stddev", linear_noise, 0.02);
-    private_nh_.param<double>("noise/angular_stddev", angular_noise, 0.05);
-    private_nh_.param<double>("noise/position_stddev", position_noise, 0.005);
-    private_nh_.param<double>("noise/velocity_stddev", velocity_noise, 0.01);
+    private_nh_.param<bool>("noise/add_noise", add_noise_, true);
+    private_nh_.param<double>("noise/linear_stddev", linear_noise, 0.002);
+    private_nh_.param<double>("noise/angular_stddev", angular_noise, 0.005);
+    private_nh_.param<double>("noise/position_stddev", position_noise, 0.0005);
+    private_nh_.param<double>("noise/velocity_stddev", velocity_noise, 0.001);
 
     // 初始化车辆模型
     vehicle_model_.initialize(max_linear_vel, max_angular_vel);
@@ -50,11 +50,11 @@ Simulation::Simulation(ros::NodeHandle & nh, ros::NodeHandle & private_nh)
     // 初始化服务
     reset_service_ = nh_.advertiseService("reset_simulation", &Simulation::resetCallback, this);
 
-    ROS_INFO("Simulation module initialized");
-    ROS_INFO("  Simulation frequency: %.1f Hz", simulation_frequency_);
-    ROS_INFO("  Cmd_vel timeout: %.2f s", cmd_vel_timeout_);
-    ROS_INFO("  Initial position: x=%.2f, y=%.2f, theta=%.2f", init_x, init_y, init_theta);
-    ROS_INFO("  Initial noise mode: %s", add_noise_ ? "ON" : "OFF");
+    ROS_INFO("[Simulation]: Simulation module initialized");
+    ROS_INFO("[Simulation]:   Simulation frequency: %.1f Hz", simulation_frequency_);
+    ROS_INFO("[Simulation]:   Cmd_vel timeout: %.2f s", cmd_vel_timeout_);
+    ROS_INFO("[Simulation]:   Initial position: x=%.2f, y=%.2f, theta=%.2f", init_x, init_y, init_theta);
+    ROS_INFO("[Simulation]:   Initial noise mode: %s", add_noise_ ? "ON" : "OFF");
 }
 
 Simulation::~Simulation()
@@ -74,7 +74,7 @@ bool Simulation::resetCallback(std_srvs::Empty::Request & req,
     vehicle_model_.reset();
     last_update_time_ = std::chrono::steady_clock::now();
 
-    ROS_INFO("Simulation reset to initial state");
+    ROS_INFO("[Simulation]: Simulation reset to initial state");
     return true;
 }
 
@@ -108,10 +108,10 @@ nav_msgs::Odometry Simulation::stateToOdometry(const VehicleState & state,
     odom_msg.pose.pose.orientation = tf2::toMsg(q);
 
     // 设置协方差矩阵
-    for (int i = 0; i < 6; ++i)
-    {
-        odom_msg.pose.covariance[i * 6 + i] = 0.01;
-    }
+    // for (int i = 0; i < 6; ++i)
+    // {
+    //     odom_msg.pose.covariance[i * 6 + i] = 0.01;
+    // }
 
     // 设置速度
     odom_msg.twist.twist.linear.x = state.v;
@@ -122,10 +122,10 @@ nav_msgs::Odometry Simulation::stateToOdometry(const VehicleState & state,
     odom_msg.twist.twist.angular.z = state.w;
 
     // 速度协方差
-    for (int i = 0; i < 6; ++i)
-    {
-        odom_msg.twist.covariance[i * 6 + i] = 0.01;
-    }
+    // for (int i = 0; i < 6; ++i)
+    // {
+    //     odom_msg.twist.covariance[i * 6 + i] = 0.01;
+    // }
 
     return odom_msg;
 }
@@ -196,8 +196,7 @@ void Simulation::run()
 {
     ros::Rate rate(simulation_frequency_);
 
-    ROS_INFO("Simulation started");
-
+    ROS_INFO("[Simulation]: Simulation started");
     while (ros::ok() && is_running_)
     {
         // 更新仿真
@@ -208,9 +207,8 @@ void Simulation::run()
 
         // 处理ROS回调
         ros::spinOnce();
-
         rate.sleep();
     }
 
-    ROS_INFO("Simulation stopped");
+    ROS_INFO("[Simulation]: Simulation stopped");
 }

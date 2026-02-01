@@ -1,0 +1,10 @@
+<launch>
+    <!-- 测试节点 -->
+    <node pkg="simulation" type="test_simulation" name="test_simulation" output="screen">
+        <param name="world_frame" value="/map" />
+        <param name="robot_frame" value="/veh" />
+    </node>
+    
+    <!-- RViz可视化 -->
+    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find simulation)/rviz/test_simulation.rviz" />
+</launch>
