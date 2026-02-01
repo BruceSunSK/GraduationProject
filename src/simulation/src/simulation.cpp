@@ -45,7 +45,7 @@ Simulation::Simulation(ros::NodeHandle & nh, ros::NodeHandle & private_nh)
 
     // 初始化订阅者和发布者
     cmd_vel_sub_ = nh_.subscribe("cmd_vel", 1, &Simulation::cmdVelCallback, this);
-    odom_pub_ = nh_.advertise<nav_msgs::Odometry>("odom", 10);
+    odom_pub_    = nh_.advertise<nav_msgs::Odometry>("odom", 10);
 
     // 初始化服务
     reset_service_ = nh_.advertiseService("reset_simulation", &Simulation::resetCallback, this);

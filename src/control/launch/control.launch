@@ -10,14 +10,14 @@
         
         <!-- 控制参数 -->
         <param name="lookahead_distance" value="0.5" />
-        <param name="max_linear_vel" value="3.0" />
-        <param name="max_angular_vel" value="2.0" />
+        <param name="max_linear_vel" value="4.0" />
+        <param name="max_angular_vel" value="1.5" />
         <param name="control_frequency" value="50.0" />
         <param name="goal_tolerance" value="0.1" />
         
         <!-- 话题重映射 -->
-        <remap from="trajectory" to="/local_planning/trajectory" />
-        <remap from="odom" to="/vehicle/odom" />
-        <remap from="cmd_vel" to="/control/cmd_vel" />
+        <remap from="trajectory" to="/local_planning/trajectory" /> <!-- 订阅轨迹 -->
+        <remap from="odom"       to="/vehicle/odom" />              <!-- 订阅车辆位姿和速度 -->
+        <remap from="cmd_vel"    to="cmd_vel" />                    <!-- 发布控制指令 -->
     </node>
 </launch>

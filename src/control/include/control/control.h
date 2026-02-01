@@ -18,7 +18,7 @@
 class Control
 {
 public:
-    Control(ros::NodeHandle& nh, ros::NodeHandle& private_nh);
+    Control(ros::NodeHandle& private_nh);
     ~Control();
     
     // 主控制循环
@@ -26,7 +26,6 @@ public:
     
 private:
     // ROS相关
-    ros::NodeHandle nh_;
     ros::NodeHandle private_nh_;
     ros::Subscriber trajectory_sub_;
     ros::Subscriber odom_sub_;
@@ -66,5 +65,8 @@ private:
                               double& v, double& w);
     
     // 寻找最近的轨迹点
-    int findNearestPointIndex(const geometry_msgs::Pose& current_pose);
+    int findNearestPointIndex(const geometry_msgs::Pose & current_pose);
+
+    // 检查是否到达目标点
+    bool checkGoalReached(const nav_msgs::Odometry & current_odom);
 };

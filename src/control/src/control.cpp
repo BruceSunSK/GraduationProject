@@ -1,8 +1,7 @@
 #include "control/control.h"
 
 
-Control::Control(ros::NodeHandle & nh, ros::NodeHandle & private_nh)
-    : nh_(nh),
+Control::Control(ros::NodeHandle & private_nh) : 
     private_nh_(private_nh),
     tf_listener_(tf_buffer_),
     has_trajectory_(false),
@@ -10,8 +9,8 @@ Control::Control(ros::NodeHandle & nh, ros::NodeHandle & private_nh)
 {
     // 获取参数
     private_nh_.param<double>("lookahead_distance", lookahead_distance_, 0.5);
-    private_nh_.param<double>("max_linear_vel", max_linear_vel_, 1.0);
-    private_nh_.param<double>("max_angular_vel", max_angular_vel_, 1.0);
+    private_nh_.param<double>("max_linear_vel", max_linear_vel_, 4.0);
+    private_nh_.param<double>("max_angular_vel", max_angular_vel_, 1.5);
     private_nh_.param<double>("control_frequency", control_frequency_, 50.0);
     private_nh_.param<double>("goal_tolerance", goal_tolerance_, 0.1);
 
@@ -34,13 +33,13 @@ Control::Control(ros::NodeHandle & nh, ros::NodeHandle & private_nh)
     angular_pid_->setOutputLimits(-max_angular_vel_, max_angular_vel_);
 
     // 初始化订阅者和发布者
-    trajectory_sub_ = nh_.subscribe("trajectory", 1, &Control::trajectoryCallback, this);
-    odom_sub_ = nh_.subscribe("odom", 1, &Control::odometryCallback, this);
-    cmd_vel_pub_ = nh_.advertise<geometry_msgs::Twist>("cmd_vel", 1);
+    trajectory_sub_ = private_nh_.subscribe("trajectory", 1, &Control::trajectoryCallback, this);
+    odom_sub_       = private_nh_.subscribe("odom",       1, &Control::odometryCallback, this);
+    cmd_vel_pub_    = private_nh_.advertise<geometry_msgs::Twist>("cmd_vel", 1);
 
-    ROS_INFO("Control module initialized");
-    ROS_INFO("Linear PID: Kp=%.3f, Ki=%.3f, Kd=%.3f", kp_linear, ki_linear, kd_linear);
-    ROS_INFO("Angular PID: Kp=%.3f, Ki=%.3f, Kd=%.3f", kp_angular, ki_angular, kd_angular);
+    ROS_INFO("[Control]: Control module initialized");
+    ROS_INFO("[Control]:    Linear PID: Kp=%.3f, Ki=%.3f, Kd=%.3f", kp_linear, ki_linear, kd_linear);
+    ROS_INFO("[Control]:    Angular PID: Kp=%.3f, Ki=%.3f, Kd=%.3f", kp_angular, ki_angular, kd_angular);
 }
 
 Control::~Control()
@@ -189,8 +188,21 @@ void Control::computeControlOutput(const geometry_msgs::PoseStamped & target_pos
     // 限制输出
     if (v > max_linear_vel_) v = max_linear_vel_;
     if (v < -max_linear_vel_) v = -max_linear_vel_;
-    if (w > max_angular_vel_) v = max_angular_vel_;
-    if (w < -max_angular_vel_) v = -max_angular_vel_;
+    if (w > max_angular_vel_) w = max_angular_vel_;
+    if (w < -max_angular_vel_) w = -max_angular_vel_;
+}
+
+bool Control::checkGoalReached(const nav_msgs::Odometry & current_odom)
+{
+    std::lock_guard<std::mutex> lock(trajectory_mutex_);
+    if (current_trajectory_.poses.empty()) return false;
+    
+    geometry_msgs::Pose & goal_pose = current_trajectory_.poses.back().pose;
+    double dx = goal_pose.position.x - current_odom.pose.pose.position.x;
+    double dy = goal_pose.position.y - current_odom.pose.pose.position.y;
+    double distance_to_goal = std::hypot(dx, dy);
+
+    return distance_to_goal < goal_tolerance_;
 }
 
 void Control::run()
@@ -227,22 +239,11 @@ void Control::run()
         computeControlOutput(target_pose, current_odom, v, w);
 
         // 检查是否到达终点
+        if (checkGoalReached(current_odom))
         {
-            std::lock_guard<std::mutex> lock(trajectory_mutex_);
-            if (!current_trajectory_.poses.empty())
-            {
-                geometry_msgs::Pose & goal_pose = current_trajectory_.poses.back().pose;
-                double dx = goal_pose.position.x - current_odom.pose.pose.position.x;
-                double dy = goal_pose.position.y - current_odom.pose.pose.position.y;
-                double distance_to_goal = std::hypot(dx, dy);
-
-                if (distance_to_goal < goal_tolerance_)
-                {
-                    v = 0.0;
-                    w = 0.0;
-                    ROS_INFO("Goal reached!");
-                }
-            }
+            v = 0.0;
+            w = 0.0;
+            ROS_INFO("[Control]: Goal reached!");
         }
 
         // 发布控制指令
