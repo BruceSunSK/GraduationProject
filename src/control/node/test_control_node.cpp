@@ -187,17 +187,36 @@ public:
         // 计算到目标点的向量
         double dx = target_pose.pose.position.x - x;
         double dy = target_pose.pose.position.y - y;
+        double distance_error = std::hypot(dx, dy);
 
-        // 计算目标方向（全局坐标系）
-        double target_yaw = std::atan2(dy, dx);
+        double angle_error;
+        // ****************** 新增：终点附近处理 ******************
+        // 当非常接近终点时，使用更稳定的控制策略
+        if (distance_error < 0.3)  // 距离小于0.3m时
+        {
+            // 从目标点获取目标偏航角
+            tf2::Quaternion target_q(
+                target_pose.pose.orientation.x,
+                target_pose.pose.orientation.y,
+                target_pose.pose.orientation.z,
+                target_pose.pose.orientation.w);
+            tf2::Matrix3x3 target_m(target_q);
+            double target_roll, target_pitch, target_yaw;
+            target_m.getRPY(target_roll, target_pitch, target_yaw);
+
+            // 计算角度误差
+            angle_error = target_yaw - yaw;
+        }
+        else
+        {
+            // 计算目标方向（全局坐标系）
+            double target_yaw = std::atan2(dy, dx);
+            angle_error = target_yaw - yaw;
+        }
 
         // 计算角度误差（归一化到[-pi, pi]）
-        double angle_error = target_yaw - yaw;
         while (angle_error > M_PI) angle_error -= 2.0 * M_PI;
         while (angle_error < -M_PI) angle_error += 2.0 * M_PI;
-
-        // 计算距离误差
-        double distance_error = std::hypot(dx, dy);
 
         // 获取目标速度（从轨迹点中提取）
         // 这里假设轨迹点的速度存储在pose的position.z中
@@ -311,7 +330,9 @@ public:
         double amplitude = 0.5;
         double wavelength = 4.5;
         double phi = M_PI_2;
-        double velocity = 0.6;  // m/s
+        double base_velocity = 0.6;  // 基础速度 m/s
+        double min_velocity = 0.2;   // 最小速度 m/s
+        double max_curvature = 2.0;  // 最大曲率限制
         int num_points = 200;
 
         for (int i = 0; i <= num_points; ++i)
@@ -319,15 +340,34 @@ public:
             double x = start_x + (end_x - start_x) * i / num_points;
             double y = amplitude * sin(2.0 * M_PI * x / wavelength + phi) - amplitude;
 
+            // 计算一阶导数（切线斜率）
+            double dy_dx = amplitude * (2.0 * M_PI / wavelength) * cos(2.0 * M_PI * x / wavelength + phi);
+
+            // 计算二阶导数
+            double d2y_dx2 = -amplitude * pow(2.0 * M_PI / wavelength, 2) * sin(2.0 * M_PI * x / wavelength + phi);
+
+            // 计算曲率 κ = |y''| / (1 + (y')²)^(3/2)
+            double curvature = fabs(d2y_dx2) / pow(1.0 + dy_dx * dy_dx, 1.5);
+
+            // 限制曲率值，防止过大
+            curvature = std::min(curvature, max_curvature);
+
+            // 根据曲率调整速度：曲率越大，速度越小
+            // 使用反比关系：velocity = base_velocity / (1 + curvature_factor * curvature)
+            static const double curvature_factor = 3.0;  // 曲率影响因子，可根据需要调整
+            double velocity = base_velocity / (1.0 + curvature_factor * curvature);
+
+            // 确保速度不低于最小值
+            velocity = std::max(velocity, min_velocity);
+
             geometry_msgs::PoseStamped pose;
             pose.header.frame_id = "/map";
             pose.header.stamp = ros::Time::now();
             pose.pose.position.x = x;
             pose.pose.position.y = y;
-            pose.pose.position.z = velocity;
+            pose.pose.position.z = velocity;  // 存储速度值
 
-            // 计算切线方向（导数）
-            double dy_dx = amplitude * (2.0 * M_PI / wavelength) * cos(2.0 * M_PI * x / wavelength + phi);
+            // 计算切线方向
             double yaw = atan2(dy_dx, 1.0);
             tf2::Quaternion q;
             q.setRPY(0, 0, yaw);

@@ -20,10 +20,10 @@
         <param name="min_trajectory_point_distance" value="0.2" />
         
         <!-- PID控制器参数 -->
-        <param name="pid/linear/kp"         value="0.5" />
+        <param name="pid/linear/kp"         value="0.3" />
         <param name="pid/linear/ki"         value="0.01" />
         <param name="pid/linear/kd"         value="0.01" />
-        <param name="pid/angular/kp"        value="4" />
+        <param name="pid/angular/kp"        value="2" />
         <param name="pid/angular/ki"        value="0.6" />
         <param name="pid/angular/kd"        value="0.1" />
         

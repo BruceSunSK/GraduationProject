@@ -160,17 +160,36 @@ void Control::computeControlOutput(const geometry_msgs::PoseStamped & target_pos
     // 计算到目标点的向量
     double dx = target_pose.pose.position.x - x;
     double dy = target_pose.pose.position.y - y;
+    double distance_error = std::hypot(dx, dy);
 
-    // 计算目标方向（全局坐标系）
-    double target_yaw = std::atan2(dy, dx);
+    double angle_error;
+    // ****************** 新增：终点附近处理 ******************
+    // 当非常接近终点时，使用更稳定的控制策略
+    if (distance_error < 0.3)  // 距离小于0.3m时
+    {
+        // 从目标点获取目标偏航角
+        tf2::Quaternion target_q(
+            target_pose.pose.orientation.x,
+            target_pose.pose.orientation.y,
+            target_pose.pose.orientation.z,
+            target_pose.pose.orientation.w);
+        tf2::Matrix3x3 target_m(target_q);
+        double target_roll, target_pitch, target_yaw;
+        target_m.getRPY(target_roll, target_pitch, target_yaw);
+
+        // 计算角度误差
+        angle_error = target_yaw - yaw;
+    }
+    else
+    {
+        // 计算目标方向（全局坐标系）
+        double target_yaw = std::atan2(dy, dx);
+        angle_error = target_yaw - yaw;
+    }
 
     // 计算角度误差（归一化到[-pi, pi]）
-    double angle_error = target_yaw - yaw;
     while (angle_error > M_PI) angle_error -= 2.0 * M_PI;
     while (angle_error < -M_PI) angle_error += 2.0 * M_PI;
-
-    // 计算距离误差
-    double distance_error = std::hypot(dx, dy);
 
     // 获取目标速度（从轨迹点中提取）
     // 这里假设轨迹点的速度存储在pose的position.z中
