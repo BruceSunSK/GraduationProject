@@ -111,9 +111,9 @@ find_package(OsqpEigen REQUIRED QUIET)
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
+  INCLUDE_DIRS include
 #  LIBRARIES global_planning
-  CATKIN_DEPENDS roscpp std_msgs geometry_msgs
+  CATKIN_DEPENDS roscpp roslib std_msgs nav_msgs geometry_msgs grid_map_core grid_map_cv tf2 tf2_ros
 #  DEPENDS system_lib
 )
 
@@ -150,8 +150,7 @@ add_library(planners            SHARED  src/planners/TSHAstar.cpp
                                         src/planners/rrtstar.cpp
                                         src/planners/genetic_algorithm.cpp)
 
-target_link_libraries(map       ${catkin_LIBRARIES} 
-                                ${OpenCV_LIBRARIES})
+target_link_libraries(map       ${OpenCV_LIBRARIES})
 target_link_libraries(curve     ${OpenCV_LIBRARIES} 
                                 tools)
 target_link_libraries(path      ${OpenCV_LIBRARIES} 

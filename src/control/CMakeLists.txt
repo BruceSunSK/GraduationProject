@@ -136,8 +136,8 @@ add_library(controller src/controller/pid_controller.cpp)
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(control      src/control.cpp
-                            node/control_node.cpp)
+add_executable(control      node/control_node.cpp
+                            src/control.cpp)
 add_executable(test_control node/test_control_node.cpp)
 
 ## Rename C++ executable without prefix

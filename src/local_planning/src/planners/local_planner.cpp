@@ -1,4 +1,4 @@
-#include "local_planning/planner/local_planner.h"
+#include "local_planning/planners/local_planner.h"
 
 
 void LocalPlanner::InitParams(const LocalPlannerParams & params)
@@ -35,6 +35,7 @@ bool LocalPlanner::Plan(const Path::ReferencePath::Ptr & reference_path,
     // 包括两部分：①代价地图确定的边界；②决策部分给出的每辆车的边界。两部分叠加得到最终上下边界。
     auto bounds = GetBoundsByMap(reference_path, map);
 
+    // 5. 进行路径规划，QP优化
 }
 
 

@@ -12,7 +12,7 @@
 
 #include "global_planning/map/distance_map.h"
 #include "global_planning/path/reference_path.h"
-#include "local_planning/planner/local_planner.h"
+#include "local_planning/planners/local_planner.h"
 #include "local_planning/vehicle/data_type.h"
 
 

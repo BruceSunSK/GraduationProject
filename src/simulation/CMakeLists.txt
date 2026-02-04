@@ -135,8 +135,8 @@ add_library(model src/model/differential_model.cpp)
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(simulation      src/simulation.cpp
-                               node/simulation_node.cpp)
+add_executable(simulation      node/simulation_node.cpp
+                               src/simulation.cpp)
 add_executable(test_simulation node/test_simulation_node.cpp)
 
 
