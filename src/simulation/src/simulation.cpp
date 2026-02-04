@@ -1,8 +1,7 @@
 #include "simulation/simulation.h"
 
 
-Simulation::Simulation(ros::NodeHandle & nh, ros::NodeHandle & private_nh)
-    : nh_(nh),
+Simulation::Simulation(ros::NodeHandle & private_nh) :
     private_nh_(private_nh),
     add_noise_(false),
     is_running_(true),
@@ -14,10 +13,13 @@ Simulation::Simulation(ros::NodeHandle & nh, ros::NodeHandle & private_nh)
     private_nh_.param<std::string>("world_frame", world_frame_, "/map");
     private_nh_.param<std::string>("robot_frame", robot_frame_, "/veh");
 
-    // 获取车辆参数
+    // 获取车辆速度、加速度参数
     double max_linear_vel, max_angular_vel;
     private_nh_.param<double>("vehicle/max_linear_vel", max_linear_vel, 4.0);
     private_nh_.param<double>("vehicle/max_angular_vel", max_angular_vel, 1.5);
+    double max_linear_acc, max_angular_acc;
+    private_nh_.param<double>("vehicle/max_linear_acc", max_linear_acc, std::numeric_limits<double>::max());
+    private_nh_.param<double>("vehicle/max_angular_acc", max_angular_acc, std::numeric_limits<double>::max());
 
     // 获取初始位置
     double init_x, init_y, init_theta;
@@ -34,7 +36,7 @@ Simulation::Simulation(ros::NodeHandle & nh, ros::NodeHandle & private_nh)
     private_nh_.param<double>("noise/velocity_stddev", velocity_noise, 0.001);
 
     // 初始化车辆模型
-    vehicle_model_.initialize(max_linear_vel, max_angular_vel);
+    vehicle_model_.initialize(max_linear_vel, max_angular_vel, max_linear_acc, max_angular_acc);
     vehicle_model_.setInitialState(init_x, init_y, init_theta);
     vehicle_model_.setNoiseParameters(linear_noise, angular_noise, position_noise, velocity_noise);
 
@@ -44,15 +46,33 @@ Simulation::Simulation(ros::NodeHandle & nh, ros::NodeHandle & private_nh)
     last_cmd_vel_time_ = ros::Time::now();
 
     // 初始化订阅者和发布者
-    cmd_vel_sub_ = nh_.subscribe("cmd_vel", 1, &Simulation::cmdVelCallback, this);
-    odom_pub_    = nh_.advertise<nav_msgs::Odometry>("odom", 10);
+    cmd_vel_sub_ = private_nh.subscribe("/cmd_vel", 1, &Simulation::cmdVelCallback, this);
+    odom_pub_    = private_nh.advertise<nav_msgs::Odometry>("/odom", 10);
 
     // 初始化服务
-    reset_service_ = nh_.advertiseService("reset_simulation", &Simulation::resetCallback, this);
+    reset_service_ = private_nh.advertiseService("reset_simulation", &Simulation::resetCallback, this);
 
     ROS_INFO("[Simulation]: Simulation module initialized");
     ROS_INFO("[Simulation]:   Simulation frequency: %.1f Hz", simulation_frequency_);
     ROS_INFO("[Simulation]:   Cmd_vel timeout: %.2f s", cmd_vel_timeout_);
+    ROS_INFO("[Simulation]:   Max linear velocity: %.2f m/s", max_linear_vel);
+    ROS_INFO("[Simulation]:   Max angular velocity: %.2f rad/s", max_angular_vel);
+    if (max_linear_acc < std::numeric_limits<double>::max())
+    {
+        ROS_INFO("[Simulation]:   Max linear acceleration: %.2f m/s²", max_linear_acc);
+    }
+    else
+    {
+        ROS_INFO("[Simulation]:   Max linear acceleration: unlimited");
+    }
+    if (max_angular_acc < std::numeric_limits<double>::max())
+    {
+        ROS_INFO("[Simulation]:   Max angular acceleration: %.2f rad/s²", max_angular_acc);
+    }
+    else
+    {
+        ROS_INFO("[Simulation]:   Max angular acceleration: unlimited");
+    }
     ROS_INFO("[Simulation]:   Initial position: x=%.2f, y=%.2f, theta=%.2f", init_x, init_y, init_theta);
     ROS_INFO("[Simulation]:   Initial noise mode: %s", add_noise_ ? "ON" : "OFF");
 }

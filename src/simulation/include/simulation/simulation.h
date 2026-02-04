@@ -17,7 +17,7 @@
 class Simulation
 {
 public:
-    Simulation(ros::NodeHandle & nh, ros::NodeHandle & private_nh);
+    Simulation(ros::NodeHandle & private_nh);
     ~Simulation();
 
     // 主仿真循环
@@ -44,7 +44,6 @@ private:
     ros::Time chronoToRosTime(const std::chrono::steady_clock::time_point & tp);
 
     // ROS相关
-    ros::NodeHandle nh_;
     ros::NodeHandle private_nh_;
     ros::Subscriber cmd_vel_sub_;
     ros::Publisher odom_pub_;

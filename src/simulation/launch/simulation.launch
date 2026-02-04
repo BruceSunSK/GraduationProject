@@ -9,6 +9,8 @@
         <!-- 车辆参数 -->
         <param name="vehicle/max_linear_vel"    value="4.0" />
         <param name="vehicle/max_angular_vel"   value="1.5" />
+        <param name="vehicle/max_linear_acc"    value="2.0" />
+        <param name="vehicle/max_angular_acc"   value="1.0" />
         
         <!-- 初始位置 -->
         <param name="initial_position/x"        value="0.0" />

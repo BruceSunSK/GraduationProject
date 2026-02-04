@@ -33,8 +33,10 @@ class DifferentialModel
 public:
     DifferentialModel();
 
-    // 初始化模型参数
-    void initialize(double max_linear_vel, double max_angular_vel);
+    // 初始化模型参数（添加加速度参数）
+    void initialize(double max_linear_vel, double max_angular_vel,
+        double max_linear_acc = std::numeric_limits<double>::max(),
+        double max_angular_acc = std::numeric_limits<double>::max());
 
     // 设置初始状态
     void setInitialState(double x, double y, double theta);
@@ -72,8 +74,11 @@ private:
     // 添加测量噪声
     void addMeasurementNoise(VehicleState & state);
 
-    // 限制控制输入
+    // 限制控制输入（速度限制）
     void clampVelocity(double & linear_vel, double & angular_vel);
+
+    // 限制加速度（新增）
+    void clampAcceleration(double & linear_vel, double & angular_vel, double dt);
 
     // 归一化角度到[-π, π]
     void normalizeAngle(double & angle);
@@ -81,10 +86,16 @@ private:
     // 车辆参数
     double max_linear_vel_;
     double max_angular_vel_;
+    double max_linear_acc_;   // 新增：最大线加速度
+    double max_angular_acc_;  // 新增：最大角加速度
 
     // 车辆状态
     VehicleState current_state_;
     VehicleState initial_state_;
+
+    // 上一次的控制指令（用于计算加速度）
+    double last_linear_vel_;
+    double last_angular_vel_;
 
     // 噪声参数
     double linear_noise_stddev_;

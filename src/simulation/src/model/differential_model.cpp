@@ -6,6 +6,12 @@ DifferentialModel::DifferentialModel()
     // 默认参数
     max_linear_vel_ = 1.0;
     max_angular_vel_ = 1.0;
+    max_linear_acc_ = std::numeric_limits<double>::max();  // 默认无加速度限制
+    max_angular_acc_ = std::numeric_limits<double>::max(); // 默认无加速度限制
+
+    // 初始化上一次控制指令
+    last_linear_vel_ = 0.0;
+    last_angular_vel_ = 0.0;
 
     // 默认噪声参数
     linear_noise_stddev_ = 0.02;
@@ -31,10 +37,17 @@ DifferentialModel::DifferentialModel()
     velocity_noise_dist_ = std::normal_distribution<double>(0.0, velocity_noise_stddev_);
 }
 
-void DifferentialModel::initialize(double max_linear_vel, double max_angular_vel)
+void DifferentialModel::initialize(double max_linear_vel, double max_angular_vel,
+    double max_linear_acc, double max_angular_acc)
 {
     max_linear_vel_ = max_linear_vel;
     max_angular_vel_ = max_angular_vel;
+    max_linear_acc_ = max_linear_acc;
+    max_angular_acc_ = max_angular_acc;
+
+    // 重置上一次控制指令
+    last_linear_vel_ = 0.0;
+    last_angular_vel_ = 0.0;
 }
 
 void DifferentialModel::setInitialState(double x, double y, double theta)
@@ -47,6 +60,10 @@ void DifferentialModel::setInitialState(double x, double y, double theta)
     initial_state_.timestamp = std::chrono::steady_clock::now();
 
     current_state_ = initial_state_;
+
+    // 重置上一次控制指令
+    last_linear_vel_ = 0.0;
+    last_angular_vel_ = 0.0;
 }
 
 void DifferentialModel::setNoiseParameters(double linear_noise_stddev,
@@ -72,6 +89,55 @@ void DifferentialModel::clampVelocity(double & linear_vel, double & angular_vel)
     if (linear_vel < -max_linear_vel_) linear_vel = -max_linear_vel_;
     if (angular_vel > max_angular_vel_) angular_vel = max_angular_vel_;
     if (angular_vel < -max_angular_vel_) angular_vel = -max_angular_vel_;
+}
+
+void DifferentialModel::clampAcceleration(double & linear_vel, double & angular_vel, double dt)
+{
+    if (dt <= 0.0)
+    {
+        // 防止除零或负的时间步长
+        return;
+    }
+
+    // 计算速度变化
+    double delta_linear = linear_vel - last_linear_vel_;
+    double delta_angular = angular_vel - last_angular_vel_;
+
+    // 计算当前加速度
+    double linear_acc = delta_linear / dt;
+    double angular_acc = delta_angular / dt;
+
+    // 限制线加速度
+    if (std::abs(linear_acc) > max_linear_acc_)
+    {
+        double max_delta_linear = max_linear_acc_ * dt;
+        if (delta_linear > 0)
+        {
+            linear_vel = last_linear_vel_ + max_delta_linear;
+        }
+        else
+        {
+            linear_vel = last_linear_vel_ - max_delta_linear;
+        }
+    }
+
+    // 限制角加速度
+    if (std::abs(angular_acc) > max_angular_acc_)
+    {
+        double max_delta_angular = max_angular_acc_ * dt;
+        if (delta_angular > 0)
+        {
+            angular_vel = last_angular_vel_ + max_delta_angular;
+        }
+        else
+        {
+            angular_vel = last_angular_vel_ - max_delta_angular;
+        }
+    }
+
+    // 更新上一次控制指令（注意：这里使用限制后的值）
+    last_linear_vel_ = linear_vel;
+    last_angular_vel_ = angular_vel;
 }
 
 void DifferentialModel::normalizeAngle(double & angle)
@@ -144,8 +210,11 @@ VehicleState DifferentialModel::updateIdeal(double linear_vel, double angular_ve
 {
     VehicleState new_state = current_state_;
 
-    // 限制控制输入
+    // 首先进行速度限制
     clampVelocity(linear_vel, angular_vel);
+
+    // 然后进行加速度限制
+    clampAcceleration(linear_vel, angular_vel, dt);
 
     // 差速运动学模型（理想）
     double v = linear_vel;
@@ -185,12 +254,16 @@ VehicleState DifferentialModel::updateNoisy(double linear_vel, double angular_ve
     // 复制当前状态作为基础
     VehicleState new_state = current_state_;
 
-    // 1. 添加控制噪声
+    // 1. 对输入控制指令进行速度和加速度限制
+    clampVelocity(linear_vel, angular_vel);
+    clampAcceleration(linear_vel, angular_vel, dt);
+
+    // 2. 添加控制噪声
     double noisy_linear_vel = linear_vel;
     double noisy_angular_vel = angular_vel;
     addControlNoise(noisy_linear_vel, noisy_angular_vel);
 
-    // 2. 运动模型更新（使用带噪声的控制输入）
+    // 3. 运动模型更新（使用带噪声的控制输入）
     double v = noisy_linear_vel;
     double w = noisy_angular_vel;
 
@@ -213,10 +286,10 @@ VehicleState DifferentialModel::updateNoisy(double linear_vel, double angular_ve
 
     normalizeAngle(new_state.theta);
 
-    // 3. 添加过程噪声
+    // 4. 添加过程噪声
     addProcessNoise(new_state, dt);
 
-    // 4. 添加测量噪声
+    // 5. 添加测量噪声
     addMeasurementNoise(new_state);
 
     // 更新速度（使用带噪声的速度）
@@ -249,6 +322,10 @@ void DifferentialModel::reset()
 
     // 重置噪声状态
     noise_state_ = {};
+
+    // 重置上一次控制指令
+    last_linear_vel_ = 0.0;
+    last_angular_vel_ = 0.0;
 }
 
 VehicleState DifferentialModel::getCurrentState() const

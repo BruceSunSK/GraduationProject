@@ -45,6 +45,8 @@
         <!-- 车辆参数 -->
         <param name="vehicle/max_linear_vel"    value="2.0" />
         <param name="vehicle/max_angular_vel"   value="1.0" />
+        <param name="vehicle/max_linear_acc"    value="2.0" />
+        <param name="vehicle/max_angular_acc"   value="1.0" />
         
         <!-- 初始位置 -->
         <param name="initial_position/x"        value="0.0" />
@@ -59,8 +61,8 @@
         <param name="noise/velocity_stddev"     value="0.001" />
         
         <!-- 话题重映射 -->
-        <remap from="cmd_vel" to="/test_control/cmd_vel" /> <!-- 订阅车辆控制指令 -->
-        <remap from="odom"    to="/vehicle/odom" />         <!-- 发布车辆位姿和速度 -->
+        <remap from="odom"    to="/vehicle/odom" />         <!-- 订阅车辆位姿和速度 -->
+        <remap from="cmd_vel" to="/test_control/cmd_vel" /> <!-- 发布控制指令 -->
     </node>
 
     <!-- 3. 启动plotter -->
