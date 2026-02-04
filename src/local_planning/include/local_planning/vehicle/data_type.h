@@ -4,10 +4,10 @@
 
 namespace Vehicle
 {
-struct VehicleState
+struct State
 {
-    VehicleState() : pos(), v(0.0), a(0.0), j(0.0) {}
-    VehicleState(const Path::PathNode & pos, const double v, const double a, const double j)
+    State() : pos(), v(0.0), a(0.0), j(0.0) {}
+    State(const Path::PathNode & pos, const double v, const double a, const double j)
         : pos(pos), v(v), a(a), j(j) {}
 
     Path::PathNode pos;

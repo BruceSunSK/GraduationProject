@@ -38,5 +38,11 @@ PointSLWithDerivatives XYtoSL(const PointXY xy, const double theta, const double
 /// @return Cartesian坐标系的xy值
 PointXY SLtoXY(const PointSL sl, const PointXY ref_xy, const double ref_theta);
 
+/// @brief 输入的reference和target是以global为原点的，现在将target转化为以reference为原点的坐标系下。不会转换sl值。
+/// @param reference 转换后的原点
+/// @param target 待转换点
+/// @return 在reference坐标系下的target点
+PathNode GlobalToLocal(const PathNode & reference, const PathNode & target);
+
 } // namespace Utils
 } // namespace Path

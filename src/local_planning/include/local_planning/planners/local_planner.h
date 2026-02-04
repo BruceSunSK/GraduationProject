@@ -6,6 +6,7 @@
 #include "global_planning/path/utils.h"
 #include "global_planning/path/reference_path.h"
 #include "local_planning/vehicle/data_type.h"
+#include "local_planning/vehicle/collision.h"
 
 
 /// @brief 局部规划器
@@ -26,14 +27,16 @@ public:
         {
             double LENGTH = 3.8; // m
             double WIDTH = 2.0; // m
-            double COLLISION_CIRCLE_RADIUS = 1.183685;  // m，碰撞圆半径，车辆使用三碰撞圆检测时的半径。 =sqrt( (l/6)^2 + (w/2)^2 )
-            double COLLISION_SAFETY_MARGIN = 0.1;  // m，冗余安全距离，在三碰撞圆和OBB碰撞检测时都使用
+            double CENTER_TO_COLLISION_CENTER = LENGTH / 3; // m，车辆几何中心到前后碰撞圆中心的距离。 = l/3
+            double COLLISION_CIRCLE_RADIUS = std::sqrt( LENGTH*LENGTH/36 + WIDTH*WIDTH/4 );
+                                                            // m，碰撞圆半径，车辆使用三碰撞圆检测时的半径。 =sqrt( (l/6)^2 + (w/2)^2 )
+            double COLLISION_SAFETY_MARGIN = 0.1;           // m，冗余安全距离，在三碰撞圆和OBB碰撞检测时都使用
         } vehicle;
 
         struct
         {
             double BOUND_SEARCH_RANGE = 10.0;  // m， 在sl坐标系下，搜索上下边界时的单边范围
-            double BOUND_SEARCH_LARGR_RESOLUTION = 0.5;  // m， 在sl坐标系下，搜索上下边界时的粗分辨率
+            double BOUND_SEARCH_LARGE_RESOLUTION = 0.5;  // m， 在sl坐标系下，搜索上下边界时的粗分辨率
             double BOUND_SEARCH_SMALL_RESOLUTION = 0.1;  // m， 在sl坐标系下，搜索上下边界时的细分辨率
         } map;
     };
@@ -61,19 +64,21 @@ public:
     //     const std::vector<Obstacle> & obstacles,
     //     Trajectory & trajectory);
     bool Plan(const Path::ReferencePath::Ptr & reference_path,
-        const Vehicle::VehicleState & vehicle_state,
+        const Vehicle::State & vehicle_state,
         const Map::MultiMap & map);
 
 
 private:
     LocalPlannerParams params_;
 
-    Vehicle::VehicleState vehicle_state_;
+    Vehicle::State vehicle_state_;
 
 
     std::pair<double, double> GetBackwardAndForwardDistance(
         const Path::ReferencePath::Ptr & reference_path) const;
-    std::vector<std::pair<double, double>> GetBoundsByMap(
+    Path::PathNode GetApproxNode(const Path::ReferencePath::Ptr & reference_path,
+        const Path::PathNode & original_node, const Path::PathNode & actual_node, double len) const;
+    std::vector<std::array<std::pair<double, double>, 3>> GetBoundsByMap(
         const Path::ReferencePath::Ptr & reference_path,
         const Map::MultiMap & map) const;
 };

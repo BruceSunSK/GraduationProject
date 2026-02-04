@@ -42,5 +42,18 @@ PointXY SLtoXY(const PointSL sl, const PointXY ref_xy, const double ref_theta)
     return xy;
 }
 
+PathNode GlobalToLocal(const PathNode & reference, const PathNode & target)
+{
+    double dx = target.x - reference.x;
+    double dy = target.y - reference.y;
+
+    PathNode local;
+    local.x = dx * std::cos(reference.theta) + dy * std::sin(reference.theta);
+    local.y = -dx * std::sin(reference.theta) + dy * std::cos(reference.theta);
+    local.theta = target.theta - reference.theta;
+    local.kappa = target.kappa;
+    local.dkappa = target.kappa;
+    return local;
+}
 } // namespace Utils
 } // namespace Path
