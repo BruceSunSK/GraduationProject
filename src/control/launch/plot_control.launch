@@ -1,0 +1,15 @@
+<launch>
+
+    <!-- 目前不用，代码不完全且不完善 -->
+    <node pkg="control" type="plotter_node.py" name="pid_plotter" output="screen" respawn="false">
+        <param name="max_data_points" value="2000" />
+        <param name="plot_update_rate" value="5" />
+        <param name="save_interval" value="10" />
+
+        <!-- 话题重映射 -->
+        <remap from="odom"                  to="/vehicle/odom" />
+        <remap from="reference_trajectory"  to="/test_control/reference_trajectory" />
+        <remap from="actual_trajectory"     to="/test_control/actual_trajectory" />
+    </node>
+
+</launch>
