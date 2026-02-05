@@ -1,29 +1,30 @@
-#include "global_planning/smoothers/piecewise_jerk_smoother.h"
+#include "global_planning/smoothers/piecewise_jerk_smoother2.h"
 
 
 namespace Smoother
 {
 /// @brief 用OSQP求解器求解，起点硬约束，终点软约束。基本和apollo一致，只是在连续性约束中取消了对l''的连续性约束；将起点约束合并到边界约束中
-/// 代价函数由以下几部分组成：1.偏离代价(l要小)，2.平滑代价(l', l''，l'''要小)，3.居中代价(l要接近上下边界中央)，4.终点代价(l(n - 1)要接近终点)
-/// 约束条件：1.边界约束(包含起点约束)，2.连续性约束。
+/// 代价函数由以下几部分组成：1.偏离代价(l要小)，2.平滑代价(l', l''，l'''要小)，3.终点代价(l(n - 1)要接近终点)
+/// 约束条件：1.碰撞圆边界约束(包含起点约束)，2.连续性约束。
 /// 公式参考：https://zhuanlan.zhihu.com/p/480298921
-bool PiecewiseJerkSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path, const std::vector<std::pair<double, double>> & bounds,
-    const std::array<double, 3> & init_state, const std::array<double, 3> & end_state_ref, std::vector<cv::Point2d> & optimized_path) const
+bool PiecewiseJerkSmoother2::Solve(const Path::ReferencePath::Ptr & ref_path, const std::vector<std::array<std::pair<double, double>, 3>> & bounds,
+                                   const std::array<double, 3> & init_state, const std::array<double, 3> & end_state_ref, std::vector<cv::Point2d> & optimized_path) const
 {
     // 0. 变量个数、约束个数
     const size_t point_num = bounds.size();
     const size_t variable_num = 3 * point_num;              // 一个路点包含l, l', l''三个参数（包含起点约束）
-    const size_t constraint_num = 3 * point_num             // 3n个针对l, l', l''的边界约束，
+    const size_t constraint_num = 3 * point_num             // 3n个针对l的碰撞圆边界约束，
+                                + 2 * point_num             // 2n个针对l', l''的边界约束，
                                 + 2 * (point_num - 1);      // 2(n-1)个针对l, l'的连续性约束
     // 此处这样计算ds会导致每个参考路点和bound并不是完全对应的，会有误差，但因为bound本身就存在误差，此处认为这个误差可以忽略。
-    const double ds = raw_ref_path->GetLength() / (point_num - 1);
+    const double ds = ref_path->GetLength() / (point_num - 1);
 
     // 1. 设置求解器配置
     OsqpEigen::Solver solver;
     solver.settings()->setVerbosity(false);                 // 关闭输出
     solver.settings()->setWarmStart(true);                  // 开启warm start
     solver.settings()->setTimeLimit(3);                     // 3秒内求解完成，否则返回失败
-    solver.data()->setNumberOfVariables(variable_num);
+    solver.data()->setNumberOfVariables(variable_num);      
     solver.data()->setNumberOfConstraints(constraint_num);
 
     // 2. 设置Hessian矩阵 H/Q
@@ -31,9 +32,9 @@ bool PiecewiseJerkSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path,
     // 2.1 l部分系数
     for (size_t i = 0; i < point_num - 1; ++i)
     {
-        hessian.insert(i, i) = weight_l_ + weight_center_;
+        hessian.insert(i, i) = weight_l_;
     }
-    hessian.insert(point_num - 1, point_num - 1) = weight_l_ + weight_center_ + weight_end_state_[0];
+    hessian.insert(point_num - 1, point_num - 1) = weight_l_ + weight_end_state_[0];
     // 2.2 l'部分系数
     for (size_t i = point_num; i < 2 * point_num - 1; ++i)
     {
@@ -64,24 +65,7 @@ bool PiecewiseJerkSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path,
 
     // 3.设置梯度向量 f/q
     Eigen::VectorXd gradient = Eigen::VectorXd::Zero(variable_num);
-    // 3.1 居中代价带来的梯度
-    for (size_t i = 0; i < point_num; ++i)
-    {
-        const double center_l = (bounds[i].first + bounds[i].second) * 0.5;
-        if (std::abs(center_l) > center_deviation_thres_ &&
-            (-bounds[i].first  < center_bounds_thres_ ||
-              bounds[i].second < center_bounds_thres_))
-        {
-            double w_c = Math::Lerp(0.0, weight_center_, std::abs(center_l) / lateral_sample_range_);
-            if (bounds[i].first > 0 || bounds[i].second < 0)
-            {
-                w_c *= center_obs_coeff_;
-            }
-            
-            gradient(i) += -2.0 * w_c * center_l;
-        }
-    }
-    // 3.2 终点代价带来的梯度
+    // 3.1 终点代价带来的梯度
     gradient(point_num - 1) += -2.0 * weight_end_state_[0] * end_state_ref[0];
     gradient(point_num - 1) += -2.0 * weight_end_state_[1] * end_state_ref[1];
     gradient(point_num - 1) += -2.0 * weight_end_state_[2] * end_state_ref[2];
@@ -97,7 +81,7 @@ bool PiecewiseJerkSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path,
     const size_t vari_ddl = vari_dl + point_num;
     // 4.1 边界约束
     const size_t cons_bound_l = 0;                              // l边界约束在A矩阵中的起始行号
-    const size_t cons_bound_dl = cons_bound_l + point_num;      // dl边界约束在A矩阵中的起始行号
+    const size_t cons_bound_dl = cons_bound_l + 3 * point_num;  // dl边界约束在A矩阵中的起始行号
     const size_t cons_bound_ddl = cons_bound_dl + point_num;    // ddl边界约束在A矩阵中的起始行号
     // 4.1.1 l项
     linear_matrix.insert(vari_l, vari_l) = 1.0;
@@ -126,7 +110,7 @@ bool PiecewiseJerkSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path,
     for (size_t i = vari_ddl + 1; i < variable_num; ++i)
     {
         linear_matrix.insert(i, i) = 1.0;
-        const Path::PathNode ref_node = raw_ref_path->GetPathNode((i - 2 * point_num) * ds);
+        const Path::PathNode ref_node = ref_path->GetPathNode((i - 2 * point_num) * ds);
         lower_bound(i) = -vehicle_kappa_max_ - ref_node.kappa;
         upper_bound(i) = vehicle_kappa_max_ - ref_node.kappa;
     }
@@ -172,7 +156,7 @@ bool PiecewiseJerkSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path,
     optimized_path.clear();
     for (size_t i = 0; i < point_num; ++i)
     {
-        const Path::PathNode ref_node = raw_ref_path->GetPathNode(i * ds);
+        const Path::PathNode ref_node = ref_path->GetPathNode(i * ds);
         const Path::PointSL sl(ref_node.s, solution(i));
         const Path::PointXY xy = Path::Utils::SLtoXY(sl, { ref_node.x, ref_node.y }, ref_node.theta);
         optimized_path.emplace_back(xy.x, xy.y);

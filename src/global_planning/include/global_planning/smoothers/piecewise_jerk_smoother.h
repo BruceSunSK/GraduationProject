@@ -3,10 +3,8 @@
 #include <array>
 
 #include <opencv2/core.hpp>
-
 #include <Eigen/Core>
 #include <Eigen/Sparse>
-
 #include <OsqpEigen/OsqpEigen.h>
 
 #include "global_planning/path/reference_path.h"

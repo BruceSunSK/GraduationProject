@@ -246,12 +246,6 @@ void GlobalPlanning::set_goal(const geometry_msgs::PoseStamped::Ptr msg)
     marker_array.markers.push_back(std::move(clean_marker));
     if (planner_name_ == "TSHAstar")
     {
-        // 保证路径点数量与（辅助信息中的）上下边界点数量一致
-        assert(path.size() == auxiliary_info[7].size());    // lower_bound_xy
-        assert(path.size() == auxiliary_info[8].size());    // upper_bound_xy
-        assert(path.size() == auxiliary_info[9].size());    // lower_bound_sl
-        assert(path.size() == auxiliary_info[10].size());   // upper_bound_sl
-
         // 用于显示
         visualization_msgs::Marker line_marker;
         line_marker.header = path_msg.header;
