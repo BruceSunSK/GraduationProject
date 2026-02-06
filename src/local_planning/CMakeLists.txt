@@ -126,10 +126,16 @@ include_directories(
 )
 
 ## Declare a C++ library
+add_library(vehicle        SHARED src/vehicle/collision.cpp)
 add_library(local_planners SHARED src/planners/local_planner.cpp)
+
+target_link_libraries(vehicle        map 
+                                     path)
 target_link_libraries(local_planners map 
                                      curve 
-                                     path)
+                                     path
+                                     vehicle
+                                     smoothers)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -139,8 +145,9 @@ target_link_libraries(local_planners map
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(local_planning src/local_planning.cpp
-                              node/local_planning_node.cpp)
+add_executable(local_planning     src/local_planning.cpp
+                                  node/local_planning_node.cpp)
+add_executable(test_path_planning node/test_path_planning.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -150,11 +157,12 @@ add_executable(local_planning src/local_planning.cpp
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-add_dependencies(local_planning ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(local_planning     ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(test_path_planning ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(local_planning ${catkin_LIBRARIES} 
-                                     local_planners)
+target_link_libraries(local_planning     ${catkin_LIBRARIES} local_planners)
+target_link_libraries(test_path_planning ${catkin_LIBRARIES} local_planners)
 
 #############
 ## Install ##

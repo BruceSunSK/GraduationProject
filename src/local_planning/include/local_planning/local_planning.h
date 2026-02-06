@@ -80,9 +80,9 @@ private:
     
     // *********************************************************************************
     // 2. 数据存储
-    Path::ReferencePath::Ptr reference_path_;   // 全局参考线
-    Map::MultiMap map_;                         // 多层地图，包含基本地图信息、代价地图和距离地图
-    Vehicle::State vehicle_state_;       // 车辆位置
+    // Path::ReferencePath::Ptr reference_path_;   // 全局参考线
+    // Map::MultiMap map_;                         // 多层地图，包含基本地图信息、代价地图和距离地图
+    // Vehicle::State vehicle_state_;       // 车辆位置
 
     // 算法实例
     std::unique_ptr<LocalPlanner> planner_;     // LocalPlanner算法实例指针

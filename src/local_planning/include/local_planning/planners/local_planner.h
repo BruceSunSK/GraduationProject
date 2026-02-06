@@ -1,10 +1,12 @@
 #pragma once
 #include <vector>
 #include <string>
+#include <chrono>
 
 #include "global_planning/map/distance_map.h"
 #include "global_planning/path/utils.h"
 #include "global_planning/path/reference_path.h"
+#include "global_planning/smoothers/piecewise_jerk_smoother2.h"
 #include "local_planning/vehicle/data_type.h"
 #include "local_planning/vehicle/collision.h"
 
@@ -18,6 +20,11 @@ public:
     {
         struct
         {
+            double PLANNING_CYCLE_TIME = 0.1;  // s
+        } common;
+
+        struct
+        {
             double S_INTERVAL = 0.5;   // m
             double TRUNCATED_BACKWARD_S = 5.0;  // m
             double TRUNCATED_FORWARD_S = 20.0;   // m
@@ -25,12 +32,23 @@ public:
 
         struct
         {
+            double V_TOLERANCE = 0.1;  // m/s
+            double W_TOLERANCE = 0.001;  // rad/s
+            double POS_TOLERANCE = 0.5;  // m
+        } start_point;
+
+        struct
+        {
+            // 几何参数
             double LENGTH = 3.8; // m
             double WIDTH = 2.0; // m
             double CENTER_TO_COLLISION_CENTER = LENGTH / 3; // m，车辆几何中心到前后碰撞圆中心的距离。 = l/3
             double COLLISION_CIRCLE_RADIUS = std::sqrt( LENGTH*LENGTH/36 + WIDTH*WIDTH/4 );
                                                             // m，碰撞圆半径，车辆使用三碰撞圆检测时的半径。 =sqrt( (l/6)^2 + (w/2)^2 )
             double COLLISION_SAFETY_MARGIN = 0.1;           // m，冗余安全距离，在三碰撞圆和OBB碰撞检测时都使用
+
+            // 运动学参数
+            double MAX_KAPPA = 0.5;                         // 1/m，车辆最大曲率。路径qp过程中l''约束用到。
         } vehicle;
 
         struct
@@ -39,46 +57,84 @@ public:
             double BOUND_SEARCH_LARGE_RESOLUTION = 0.5;  // m， 在sl坐标系下，搜索上下边界时的粗分辨率
             double BOUND_SEARCH_SMALL_RESOLUTION = 0.1;  // m， 在sl坐标系下，搜索上下边界时的细分辨率
         } map;
+
+        struct
+        {
+            double WEIGHT_L = 1.0;                      // 在路径qp过程中，路径点在参考线上L项的权重。
+            double WEIGHT_DL = 100.0;                   // 在路径qp过程中，路径点在参考线上L'项的权重。
+            double WEIGHT_DDL = 1000.0;                 // 在路径qp过程中，路径点在参考线上L''项的权重。
+            double WEIGHT_DDDL = 7000.0;                // 在路径qp过程中，路径点在参考线上L'''项的权重。
+            double WEIGHT_END_STATE_L = 10.0;           // 在路径qp过程中，靠近给定终点L项的权重。
+            double WEIGHT_END_STATE_DL = 50.0;          // 在路径qp过程中，靠近给定终点L'项的权重。
+            double WEIGHT_END_STATE_DDL = 500.0;        // 在路径qp过程中，靠近给定终点L''项的权重。
+            double DL_LIMIT = 2.0;                      // 在路径qp过程中，l'绝对值的最大值约束。
+        } path_qp;
+        
     };
 
 public:
-    LocalPlanner() = default;
+    LocalPlanner() : last_veh_proj_nearest_idx_(0) {};
     LocalPlanner(const LocalPlanner & other) = delete;
     LocalPlanner(LocalPlanner && other) = delete;
     LocalPlanner & operator=(const LocalPlanner & other) = delete;
     LocalPlanner & operator=(LocalPlanner && other) = delete;
     ~LocalPlanner() = default;
 
-
-    /// @brief 对规划器相关变量进行初始化设置，进行参数拷贝设置
-    /// @param params 传入的参数
     void InitParams(const LocalPlannerParams & params);
-    /// @brief 执行规划主函数
-    /// @param reference_path 全局参考线
-    /// @param vehicle_state 车辆状态
-    /// @param obstacles 障碍物列表
-    /// @param trajectory 输出的局部轨迹
-    /// @return 规划是否成功
-    // bool Plan(const Path::ReferencePath::Ptr & reference_path,
-    //     const TrajectoryPoint & vehicle_state,
-    //     const std::vector<Obstacle> & obstacles,
-    //     Trajectory & trajectory);
-    bool Plan(const Path::ReferencePath::Ptr & reference_path,
-        const Vehicle::State & vehicle_state,
-        const Map::MultiMap & map);
+    void SetMap(const Map::MultiMap::Ptr & map);
+    void SetReferencePath(const Path::ReferencePath::Ptr & reference_path);
+    void SetVehicleState(const Vehicle::State::Ptr & vehicle_state);
+    bool Plan(std::vector<Path::TrajectoryPoint> & trajectory, std::string & error_msg);
 
 
 private:
     LocalPlannerParams params_;
 
-    Vehicle::State vehicle_state_;
+    // 存储外界数据 及 标志位
+    Map::MultiMap::Ptr map_;
+    Path::ReferencePath::Ptr reference_path_;
+    Vehicle::State::Ptr vehicle_state_;
+    bool flag_map_ = false;
+    bool flag_reference_path_ = false;
+    bool flag_vehicle_state_ = false;
 
+    std::string log_;
+    int last_veh_proj_nearest_idx_;
+    double curr_s_interval_;
 
-    std::pair<double, double> GetBackwardAndForwardDistance(
-        const Path::ReferencePath::Ptr & reference_path) const;
-    Path::PathNode GetApproxNode(const Path::ReferencePath::Ptr & reference_path,
-        const Path::PathNode & original_node, const Path::PathNode & actual_node, double len) const;
+    /// @brief 检查算法所需数据是否准备好
+    /// @return 是否可以进行算法部分
+    bool IsDataReady() const;
+    /// @brief 根据车辆当前速度信息、与上帧规划结果的信息，得到当前规划起点位置
+    /// @param curr_veh_state 本帧车辆状态
+    /// @param veh_proj_point 本帧车辆在参考线上的投影点
+    /// @return 本帧规划起点位置
+    Path::PathNode GetPlanningStart(const Vehicle::State & curr_veh_state, 
+        const Path::PathNode & veh_proj_point) const;
+    /// @brief 根据车辆规划起点位置，得到局部采样点，截取车辆周围的参考线，以PathNode的形式返回。
+    /// @param planning_start_point 规划起点位置
+    /// @return 车辆周围的参考线采样点，即局部采样点，也是本帧局部规划的范围
+    std::vector<Path::PathNode> SampleReferencePoints(const Path::PathNode & planning_start_point);
+    /// @brief 将碰撞圆圆心进行偏移，偏移后的位置是由参考线上的点投影而来
+    /// @param original_node 车辆几何中心
+    /// @param actual_node 当前碰撞圆圆心
+    /// @param len 当前碰撞圆圆心到车辆几何中心的距离，有正负planning_start_point
+    /// @return 偏移后的碰撞圆圆心
+    Path::PathNode GetApproxNode(const Path::PathNode & original_node, 
+        const Path::PathNode & actual_node, double len) const;
+    /// @brief 根据代价地图计算当前所有碰撞圆的边界
+    /// @param ref_points 局部采样点
+    /// @return 所有碰撞圆的边界
     std::vector<std::array<std::pair<double, double>, 3>> GetBoundsByMap(
-        const Path::ReferencePath::Ptr & reference_path,
-        const Map::MultiMap & map) const;
+        const std::vector<Path::PathNode> & ref_points) const;
+    /// @brief 进行路径QP优化，得到最优路径
+    /// @param ref_points 局部采样点
+    /// @param bounds 优化边界，包括碰撞圆边界与障碍物边界
+    /// @param start_point 规划起点位置
+    /// @param optimized_path 最优路径
+    /// @return 是否成功进行路径QP优化
+    bool PathQP(const std::vector<Path::PathNode> & ref_points,
+        const std::vector<std::array<std::pair<double, double>, 3>> & bounds,
+        const Path::PathNode & start_point,
+        std::vector<Path::PointXY> & optimized_path);
 };

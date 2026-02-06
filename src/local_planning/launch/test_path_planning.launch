@@ -1,0 +1,60 @@
+<launch>
+    <arg name="global_ref_topic"       default="/test_global_planning/path" />
+    <arg name="costmap_topic"          default="/test_global_planning/costmap" />
+    <arg name="vehicle_state_topic"    default="/vehicle/odom" />
+    <arg name="local_trajectory_topic" default="/test_path_planning/trajectory" />
+
+    <!-- 1. 启动全局规划，用于提供地图、参考线 -->
+    <node pkg="global_planning" name="test_global_planning" type="test_global_planning" output="screen" >
+        <param name="planner_name"  type="str"  value="TSHAstar"/>
+        <param name="load_map"      type="bool" value="true"/> <!-- 手动加载现有png地图 -->
+        <param name="map_file"      type="str"  value="$(find grid_cost_map)/map/XG_map.png"/> <!-- 地图文件路径 -->
+
+        <remap from="/test_global_planning/path"          to="$(arg global_ref_topic)"/>
+        <remap from="/test_global_planning/processed_map" to="$(arg costmap_topic)"/>
+    </node>
+
+    <!-- 2. 测试局部规划中的路径规划 -->
+    <node pkg="local_planning" name="test_path_planning" type="test_path_planning" output="screen">
+        <param name="input_global_ref_topic"        type="str" value="$(arg global_ref_topic)" />
+        <param name="input_costmap_topic"           type="str" value="$(arg costmap_topic)" />
+        <param name="input_vehicle_state_topic"     type="str" value="$(arg vehicle_state_topic)" />
+        <param name="output_local_trajectory_topic" type="str" value="$(arg local_trajectory_topic)" />
+    </node>
+
+    <!-- 3. 启动仿真，用于提供车辆位置 -->
+    <node pkg="simulation" type="simulation" name="simulation" output="screen">
+        <!-- 仿真参数 -->
+        <param name="simulation_frequency"      value="100.0" />
+        <param name="cmd_vel_timeout"           value="0.5" />
+        <param name="world_frame"               value="/map" />
+        <param name="robot_frame"               value="/veh" />
+        
+        <!-- 车辆参数 -->
+        <param name="vehicle/max_linear_vel"    value="4.0" />
+        <param name="vehicle/max_angular_vel"   value="1.5" />
+        <param name="vehicle/max_linear_acc"    value="2.0" />
+        <param name="vehicle/max_angular_acc"   value="1.0" />
+        
+        <!-- 初始位置 -->
+        <param name="initial_position/x"        value="0.0" />
+        <param name="initial_position/y"        value="0.0" />
+        <param name="initial_position/theta"    value="0.0" />
+        
+        <!-- 噪声参数 -->
+        <param name="noise/add_noise"           value="true" />
+        <param name="noise/linear_stddev"       value="0.002" />
+        <param name="noise/angular_stddev"      value="0.005" />
+        <param name="noise/position_stddev"     value="0.0005" />
+        <param name="noise/velocity_stddev"     value="0.001" />
+        
+        <!-- 话题重映射 -->
+        <remap from="cmd_vel" to="/control/cmd_vel" />              <!-- 订阅车辆控制指令 -->
+        <remap from="odom"    to="$(arg vehicle_state_topic)" />    <!-- 发布车辆位姿和速度 -->
+    </node>
+
+    <!-- 4. 启动 rviz -->
+    <node pkg="rviz" name="rviz" type="rviz" args="-d $(find local_planning)/rviz/test_path_planning.rviz" />
+
+    
+</launch>
