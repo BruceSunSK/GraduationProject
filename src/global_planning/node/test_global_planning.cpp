@@ -478,7 +478,7 @@ void map_callback(const nav_msgs::OccupancyGrid & msg)
 
 int main(int argc, char * argv[])
 {
-    ros::init(argc, argv, "test_ros");
+    ros::init(argc, argv, "test_global_planning");
     ros::NodeHandle nh("~");
 
     ros::Subscriber start_point_sub = nh.subscribe("/initialpose", 1, start_point_callback);

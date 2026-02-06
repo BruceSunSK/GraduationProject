@@ -7,8 +7,10 @@ namespace Smoother
 /// 代价函数由以下几部分组成：1.偏离代价(l要小)，2.平滑代价(l', l''，l'''要小)，3.终点代价(l(n - 1)要接近终点)
 /// 约束条件：1.碰撞圆边界约束(包含起点约束)，2.连续性约束。
 /// 公式参考：https://zhuanlan.zhihu.com/p/480298921
-bool PiecewiseJerkSmoother2::Solve(const Path::ReferencePath::Ptr & ref_path, const std::vector<std::array<std::pair<double, double>, 3>> & bounds,
-                                   const std::array<double, 3> & init_state, const std::array<double, 3> & end_state_ref, std::vector<cv::Point2d> & optimized_path) const
+bool PiecewiseJerkSmoother2::Solve(const double ds, const std::vector<Path::PathNode> & ref_points,
+                                   const std::vector<std::array<std::pair<double, double>, 3>> & bounds,
+                                   const std::array<double, 3> & init_state, const std::array<double, 3> & end_state_ref, 
+                                   std::vector<Path::PointXY> & optimized_path) const
 {
     // 0. 变量个数、约束个数
     const size_t point_num = bounds.size();
@@ -16,8 +18,6 @@ bool PiecewiseJerkSmoother2::Solve(const Path::ReferencePath::Ptr & ref_path, co
     const size_t constraint_num = 3 * point_num             // 3n个针对l的碰撞圆边界约束，
                                 + 2 * point_num             // 2n个针对l', l''的边界约束，
                                 + 2 * (point_num - 1);      // 2(n-1)个针对l, l'的连续性约束
-    // 此处这样计算ds会导致每个参考路点和bound并不是完全对应的，会有误差，但因为bound本身就存在误差，此处认为这个误差可以忽略。
-    const double ds = ref_path->GetLength() / (point_num - 1);
 
     // 1. 设置求解器配置
     OsqpEigen::Solver solver;
@@ -84,35 +84,45 @@ bool PiecewiseJerkSmoother2::Solve(const Path::ReferencePath::Ptr & ref_path, co
     const size_t cons_bound_dl = cons_bound_l + 3 * point_num;  // dl边界约束在A矩阵中的起始行号
     const size_t cons_bound_ddl = cons_bound_dl + point_num;    // ddl边界约束在A矩阵中的起始行号
     // 4.1.1 l项
-    linear_matrix.insert(vari_l, vari_l) = 1.0;
-    lower_bound(vari_l) = init_state[0];
-    upper_bound(vari_l) = init_state[0];
-    for (size_t i = vari_l + 1; i < vari_dl; ++i)
+    linear_matrix.insert(cons_bound_l + 1, vari_l) = 1.0;
+    lower_bound(cons_bound_l + 1) = init_state[0];
+    upper_bound(cons_bound_l + 1) = init_state[0];
+    for (size_t i = 1; i < point_num; ++i)
     {
-        linear_matrix.insert(i, i) = 1.0;
-        lower_bound(i) = bounds[i].first;
-        upper_bound(i) = bounds[i].second;
+        // c0和c2的碰撞边界，在外面计算好再传进来，因此此处不需要额外处理
+        // todo 看优化速度，如果慢，则这部分合并处理，从外到内的改
+        linear_matrix.insert(cons_bound_l + 3 * i, vari_l + i) = 1.0;
+        lower_bound(cons_bound_l + 3 * i) = bounds[i][0].first;
+        upper_bound(cons_bound_l + 3 * i) = bounds[i][0].second;
+
+        linear_matrix.insert(cons_bound_l + 3 * i + 1, vari_l + i) = 1.0;
+        lower_bound(cons_bound_l + 3 * i + 1) = bounds[i][1].first;
+        upper_bound(cons_bound_l + 3 * i + 1) = bounds[i][1].second;
+
+        linear_matrix.insert(cons_bound_l + 3 * i + 2, vari_l + i) = 1.0;
+        lower_bound(cons_bound_l + 3 * i + 2) = bounds[i][1].first;
+        upper_bound(cons_bound_l + 3 * i + 2) = bounds[i][1].second;
     }
     // 4.1.2 l'项
-    linear_matrix.insert(vari_dl, vari_dl) = 1.0;
-    lower_bound(vari_dl) = init_state[1];
-    upper_bound(vari_dl) = init_state[1];
-    for (size_t i = vari_dl + 1; i < vari_ddl; ++i)
+    linear_matrix.insert(cons_bound_dl, vari_dl) = 1.0;
+    lower_bound(cons_bound_dl) = init_state[1];
+    upper_bound(cons_bound_dl) = init_state[1];
+    for (size_t i = 1; i < point_num; ++i)
     {
-        linear_matrix.insert(i, i) = 1.0;
-        lower_bound(i) = -dl_limit_;
-        upper_bound(i) = dl_limit_;
+        linear_matrix.insert(cons_bound_dl + i, vari_dl + i) = 1.0;
+        lower_bound(cons_bound_dl + i) = -dl_limit_;
+        upper_bound(cons_bound_dl + i) =  dl_limit_;
     }
     // 4.1.3 l''项
-    linear_matrix.insert(vari_ddl, vari_ddl) = 1.0;
-    lower_bound(vari_ddl) = init_state[2];
-    upper_bound(vari_ddl) = init_state[2];
-    for (size_t i = vari_ddl + 1; i < variable_num; ++i)
+    linear_matrix.insert(cons_bound_ddl, vari_ddl) = 1.0;
+    lower_bound(cons_bound_ddl) = init_state[2];
+    upper_bound(cons_bound_ddl) = init_state[2];
+    for (size_t i = 1; i < point_num; ++i)
     {
-        linear_matrix.insert(i, i) = 1.0;
-        const Path::PathNode ref_node = ref_path->GetPathNode((i - 2 * point_num) * ds);
-        lower_bound(i) = -vehicle_kappa_max_ - ref_node.kappa;
-        upper_bound(i) = vehicle_kappa_max_ - ref_node.kappa;
+        linear_matrix.insert(cons_bound_ddl + i, vari_ddl + i) = 1.0;
+        const Path::PathNode & ref_node = ref_points[i];
+        lower_bound(cons_bound_ddl + i) = -vehicle_kappa_max_ - ref_node.kappa;
+        upper_bound(cons_bound_ddl + i) =  vehicle_kappa_max_ - ref_node.kappa;
     }
     // 4.2 连续性约束。理论上还有l"的连续性约束，需要传入l'''的上下边界，我偷懒直接省略掉这个了。
     const size_t cons_continuity_dl = cons_bound_ddl + point_num;           // dl连续性约束在A矩阵中的起始行号
@@ -156,7 +166,7 @@ bool PiecewiseJerkSmoother2::Solve(const Path::ReferencePath::Ptr & ref_path, co
     optimized_path.clear();
     for (size_t i = 0; i < point_num; ++i)
     {
-        const Path::PathNode ref_node = ref_path->GetPathNode(i * ds);
+        const Path::PathNode & ref_node = ref_points[i];
         const Path::PointSL sl(ref_node.s, solution(i));
         const Path::PointXY xy = Path::Utils::SLtoXY(sl, { ref_node.x, ref_node.y }, ref_node.theta);
         optimized_path.emplace_back(xy.x, xy.y);

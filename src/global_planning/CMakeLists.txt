@@ -142,7 +142,8 @@ add_library(path                SHARED  src/path/utils.cpp
                                         src/path/reference_path.cpp
                                         src/path/simplification.cpp)
 add_library(smoothers           SHARED  src/smoothers/discrete_point_smoother.cpp
-                                        src/smoothers/piecewise_jerk_smoother.cpp)
+                                        src/smoothers/piecewise_jerk_smoother.cpp
+                                        src/smoothers/piecewise_jerk_smoother2.cpp)
 add_library(planners            SHARED  src/planners/TSHAstar.cpp
                                         src/planners/QHAstar.cpp
                                         src/planners/astar.cpp
@@ -171,14 +172,14 @@ target_link_libraries(planners  ${OpenCV_LIBRARIES}
 
 ## Declare a C++ executable
 add_executable(test_opencv              node/test_opencv.cpp)
-add_executable(test_ros                 node/test_ros.cpp)
+add_executable(test_global_planning     node/test_global_planning.cpp)
 add_executable(test_curve               node/test_curve.cpp)
 add_executable(test_path_simplification node/test_path_simplification.cpp)
 add_executable(global_planning          node/global_planning_node.cpp
                                         src/global_planning.cpp)
 
 target_link_libraries(test_opencv               ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} planners)
-target_link_libraries(test_ros                  ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} planners)
+target_link_libraries(test_global_planning      ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} planners)
 target_link_libraries(test_curve                ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} curve)
 target_link_libraries(test_path_simplification  ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} path)
 target_link_libraries(global_planning           ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} planners)

@@ -1,13 +1,13 @@
 <launch>
 
     <!-- [1] 启动规划 -->
-    <node pkg="global_planning" name="test_ros" type="test_ros" output="screen" >
+    <node pkg="global_planning" name="test_global_planning" type="test_global_planning" output="screen" >
         <param name="planner_name"  type="str"  value="TSHAstar"/> <!-- 选用的规划器种类，大小写敏感。 TSHAstar / Astar / RRT / RRTstar / GA-->
         <param name="load_map"      type="bool" value="true"/> <!-- 手动加载现有png地图 -->
         <param name="map_file"      type="str"  value="$(find grid_cost_map)/map/XG_map.png"/> <!-- 地图文件路径 -->
     </node>
 
     <!-- [2] 启动 rviz -->
-    <node pkg="rviz" name="rviz" type="rviz" args="-d $(find global_planning)/rviz/test_ros.rviz" />
+    <node pkg="rviz" name="rviz" type="rviz" args="-d $(find global_planning)/rviz/test_global_planning.rviz" />
 
 </launch>

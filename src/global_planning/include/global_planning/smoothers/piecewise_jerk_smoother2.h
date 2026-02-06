@@ -30,8 +30,10 @@ public:
     PiecewiseJerkSmoother2 & operator=(PiecewiseJerkSmoother2 &&) = delete;
     ~PiecewiseJerkSmoother2() = default;
 
-    bool Solve(const Path::ReferencePath::Ptr & ref_path, const std::vector<std::array<std::pair<double, double>, 3>> & bounds,
-               const std::array<double, 3> & init_state, const std::array<double, 3> & end_state_ref, std::vector<cv::Point2d> & optimized_path) const;
+    bool Solve(const double ds, const std::vector<Path::PathNode> & ref_points,
+               const std::vector<std::array<std::pair<double, double>, 3>> & bounds,
+               const std::array<double, 3> & init_state, const std::array<double, 3> & end_state_ref, 
+               std::vector<Path::PointXY> & optimized_path) const;
 
 private:
     double weight_l_;

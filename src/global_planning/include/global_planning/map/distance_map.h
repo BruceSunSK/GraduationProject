@@ -55,6 +55,8 @@ private:
 
 struct MultiMap
 {
+    using Ptr = std::shared_ptr<MultiMap>;
+
     MultiMap() = default;
     MultiMap(int rows, int cols, double resolution, double origin_x, double origin_y, const cv::Mat & cost_map, const cv::Mat & distance_map):
         rows(rows), cols(cols), resolution(resolution), origin_x(origin_x), origin_y(origin_y),

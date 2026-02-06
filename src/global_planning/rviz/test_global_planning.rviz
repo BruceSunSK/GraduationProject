@@ -82,7 +82,7 @@ Visualization Manager:
               Draw Behind: false
               Enabled: true
               Name: ProcessedMap
-              Topic: /test_ros/processed_map
+              Topic: /test_global_planning/processed_map
               Unreliable: false
               Use Timestamp: false
               Value: true
@@ -106,12 +106,12 @@ Visualization Manager:
               Radius: 0.029999999329447746
               Shaft Diameter: 0.10000000149011612
               Shaft Length: 0.10000000149011612
-              Topic: /test_ros/path
+              Topic: /test_global_planning/path
               Unreliable: false
               Value: true
             - Class: rviz/MarkerArray
               Enabled: true
-              Marker Topic: /test_ros/auxiliary_info
+              Marker Topic: /test_global_planning/auxiliary_info
               Name: GlobalPlanningAuxiliaryInfo
               Namespaces:
                 {}

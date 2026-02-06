@@ -100,35 +100,35 @@ bool PiecewiseJerkSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path,
     const size_t cons_bound_dl = cons_bound_l + point_num;      // dl边界约束在A矩阵中的起始行号
     const size_t cons_bound_ddl = cons_bound_dl + point_num;    // ddl边界约束在A矩阵中的起始行号
     // 4.1.1 l项
-    linear_matrix.insert(vari_l, vari_l) = 1.0;
-    lower_bound(vari_l) = init_state[0];
-    upper_bound(vari_l) = init_state[0];
-    for (size_t i = vari_l + 1; i < vari_dl; ++i)
+    linear_matrix.insert(cons_bound_l, vari_l) = 1.0;
+    lower_bound(cons_bound_l) = init_state[0];
+    upper_bound(cons_bound_l) = init_state[0];
+    for (size_t i = 1; i < point_num; ++i)
     {
-        linear_matrix.insert(i, i) = 1.0;
-        lower_bound(i) = bounds[i].first;
-        upper_bound(i) = bounds[i].second;
+        linear_matrix.insert(cons_bound_l + i, vari_l + i) = 1.0;
+        lower_bound(cons_bound_l + i) = bounds[i].first;
+        upper_bound(cons_bound_l + i) = bounds[i].second;
     }
     // 4.1.2 l'项
-    linear_matrix.insert(vari_dl, vari_dl) = 1.0;
-    lower_bound(vari_dl) = init_state[1];
-    upper_bound(vari_dl) = init_state[1];
-    for (size_t i = vari_dl + 1; i < vari_ddl; ++i)
+    linear_matrix.insert(cons_bound_dl, vari_dl) = 1.0;
+    lower_bound(cons_bound_dl) = init_state[1];
+    upper_bound(cons_bound_dl) = init_state[1];
+    for (size_t i = 1; i < point_num; ++i)
     {
-        linear_matrix.insert(i, i) = 1.0;
-        lower_bound(i) = -dl_limit_;
-        upper_bound(i) = dl_limit_;
+        linear_matrix.insert(cons_bound_dl + i, vari_dl + i) = 1.0;
+        lower_bound(cons_bound_dl + i) = -dl_limit_;
+        upper_bound(cons_bound_dl + i) = dl_limit_;
     }
     // 4.1.3 l''项
-    linear_matrix.insert(vari_ddl, vari_ddl) = 1.0;
-    lower_bound(vari_ddl) = init_state[2];
-    upper_bound(vari_ddl) = init_state[2];
-    for (size_t i = vari_ddl + 1; i < variable_num; ++i)
+    linear_matrix.insert(cons_bound_ddl, vari_ddl) = 1.0;
+    lower_bound(cons_bound_ddl) = init_state[2];
+    upper_bound(cons_bound_ddl) = init_state[2];
+    for (size_t i = 1; i < point_num; ++i)
     {
-        linear_matrix.insert(i, i) = 1.0;
-        const Path::PathNode ref_node = raw_ref_path->GetPathNode((i - 2 * point_num) * ds);
-        lower_bound(i) = -vehicle_kappa_max_ - ref_node.kappa;
-        upper_bound(i) = vehicle_kappa_max_ - ref_node.kappa;
+        linear_matrix.insert(cons_bound_ddl + i, vari_ddl + i) = 1.0;
+        const Path::PathNode ref_node = raw_ref_path->GetPathNode(i * ds);
+        lower_bound(cons_bound_ddl + i) = -vehicle_kappa_max_ - ref_node.kappa;
+        upper_bound(cons_bound_ddl + i) =  vehicle_kappa_max_ - ref_node.kappa;
     }
     // 4.2 连续性约束。理论上还有l"的连续性约束，需要传入l'''的上下边界，我偷懒直接省略掉这个了。
     const size_t cons_continuity_dl = cons_bound_ddl + point_num;           // dl连续性约束在A矩阵中的起始行号
