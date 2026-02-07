@@ -187,7 +187,16 @@ void LocalPlanning::VehicleStateCallback(const nav_msgs::Odometry::ConstPtr & ms
     vehicle_state->pos.theta = tf2::getYaw(msg->pose.pose.orientation);
     vehicle_state->v = msg->twist.twist.linear.x;
     vehicle_state->w = msg->twist.twist.angular.z;
-    vehicle_state->pos.kappa = vehicle_state->w / (vehicle_state->v + 1e-6);
+    if (std::abs(vehicle_state->v) > 1e-3)
+    {
+        // 计算车辆的kappa
+        vehicle_state->pos.kappa = vehicle_state->w / vehicle_state->v;
+    }
+    else
+    {
+        // 若速度为0，则kappa也为0
+        vehicle_state->pos.kappa = 0.0;
+    }
     planner_->SetVehicleState(vehicle_state);
 }
 

@@ -1,4 +1,7 @@
 #pragma once
+#include <iostream>
+#include <memory>
+
 #include "global_planning/path/data_type.h"
 
 
@@ -18,5 +21,6 @@ struct State
     double a;
     double j;
 };
+std::ostream & operator<<(std::ostream & os, const State & state);
 
 } // namespace Vehicle

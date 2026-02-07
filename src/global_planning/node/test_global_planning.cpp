@@ -600,7 +600,35 @@ int main(int argc, char * argv[])
         std::string map_file = nh.param<std::string>("map_file", "");
         load_map(map_file, 0.4);
     }
-     
+
+    // 手动设置起点和终点
+    // 5. 直接手动指定起点和终点
+    if (true)
+    {
+        geometry_msgs::PoseWithCovarianceStamped start_point;
+        start_point.header.frame_id = "/map";
+        start_point.header.stamp = ros::Time::now();
+        start_point.pose.pose.position.x = 40.0;
+        start_point.pose.pose.position.y = 185.0;
+        start_point.pose.pose.position.z = 0.0;
+        start_point.pose.pose.orientation.x = 0.0;
+        start_point.pose.pose.orientation.y = 0.0;
+        start_point.pose.pose.orientation.z = 0.0;
+        start_point.pose.pose.orientation.w = 1.0;
+        start_point_callback(start_point);
+        geometry_msgs::PoseStamped end_point;
+        end_point.header.frame_id = "/map";
+        end_point.header.stamp = ros::Time::now();
+        end_point.pose.position.x = 875.0;
+        end_point.pose.position.y = 60.0;
+        end_point.pose.position.z = 0.0;
+        end_point.pose.orientation.x = 0.0;
+        end_point.pose.orientation.y = 0.0;
+        end_point.pose.orientation.z = -0.434185925891;
+        end_point.pose.orientation.w = 0.900823279982;
+        end_point_callback(end_point);
+    }
+        
     ros::spin();
     delete planner;
     return 0;

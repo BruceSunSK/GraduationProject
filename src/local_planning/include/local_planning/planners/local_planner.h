@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <string>
+#include <sstream>
 #include <chrono>
 
 #include "global_planning/map/distance_map.h"
@@ -61,15 +62,38 @@ public:
         struct
         {
             double WEIGHT_L = 1.0;                      // 在路径qp过程中，路径点在参考线上L项的权重。
-            double WEIGHT_DL = 100.0;                   // 在路径qp过程中，路径点在参考线上L'项的权重。
-            double WEIGHT_DDL = 1000.0;                 // 在路径qp过程中，路径点在参考线上L''项的权重。
-            double WEIGHT_DDDL = 7000.0;                // 在路径qp过程中，路径点在参考线上L'''项的权重。
-            double WEIGHT_END_STATE_L = 10.0;           // 在路径qp过程中，靠近给定终点L项的权重。
-            double WEIGHT_END_STATE_DL = 50.0;          // 在路径qp过程中，靠近给定终点L'项的权重。
-            double WEIGHT_END_STATE_DDL = 500.0;        // 在路径qp过程中，靠近给定终点L''项的权重。
+            double WEIGHT_DL = 500.0;                   // 在路径qp过程中，路径点在参考线上L'项的权重。
+            double WEIGHT_DDL = 3000.0;                 // 在路径qp过程中，路径点在参考线上L''项的权重。
+            double WEIGHT_DDDL = 70000.0;                // 在路径qp过程中，路径点在参考线上L'''项的权重。
+            double WEIGHT_END_STATE_L = 1.0;           // 在路径qp过程中，靠近给定终点L项的权重。
+            double WEIGHT_END_STATE_DL = 5.0;          // 在路径qp过程中，靠近给定终点L'项的权重。
+            double WEIGHT_END_STATE_DDL = 50.0;        // 在路径qp过程中，靠近给定终点L''项的权重。
             double DL_LIMIT = 2.0;                      // 在路径qp过程中，l'绝对值的最大值约束。
         } path_qp;
-        
+    };
+
+    struct LocalPlannerResult
+    {
+        // 规划结果
+        double timestamp = 0.0;                             // 规划时间戳，单位：秒
+        double planning_time = 0.0;                         // 规划耗时，单位：秒
+        std::vector<Path::TrajectoryPoint> trajectory;
+
+        // 附加信息
+        std::stringstream log;
+        std::vector<std::array<Path::PointXY, 3>> path_qp_lb;
+        std::vector<std::array<Path::PointXY, 3>> path_qp_ub;
+
+        void Clear()
+        {
+            timestamp = 0.0;
+            planning_time = 0.0;
+            trajectory.clear();
+
+            log.str("");
+            path_qp_lb.clear();
+            path_qp_ub.clear();
+        }
     };
 
 public:
@@ -84,12 +108,13 @@ public:
     void SetMap(const Map::MultiMap::Ptr & map);
     void SetReferencePath(const Path::ReferencePath::Ptr & reference_path);
     void SetVehicleState(const Vehicle::State::Ptr & vehicle_state);
-    bool Plan(std::vector<Path::TrajectoryPoint> & trajectory, std::string & error_msg);
+    bool Plan(LocalPlannerResult & result, std::string & error_msg);
 
 
 private:
     LocalPlannerParams params_;
-
+    LocalPlannerResult result_;
+        
     // 存储外界数据 及 标志位
     Map::MultiMap::Ptr map_;
     Path::ReferencePath::Ptr reference_path_;
@@ -98,7 +123,6 @@ private:
     bool flag_reference_path_ = false;
     bool flag_vehicle_state_ = false;
 
-    std::string log_;
     int last_veh_proj_nearest_idx_;
     double curr_s_interval_;
 
@@ -110,7 +134,7 @@ private:
     /// @param veh_proj_point 本帧车辆在参考线上的投影点
     /// @return 本帧规划起点位置
     Path::PathNode GetPlanningStart(const Vehicle::State & curr_veh_state, 
-        const Path::PathNode & veh_proj_point) const;
+        const Path::PathNode & veh_proj_point);
     /// @brief 根据车辆规划起点位置，得到局部采样点，截取车辆周围的参考线，以PathNode的形式返回。
     /// @param planning_start_point 规划起点位置
     /// @return 车辆周围的参考线采样点，即局部采样点，也是本帧局部规划的范围
@@ -126,7 +150,7 @@ private:
     /// @param ref_points 局部采样点
     /// @return 所有碰撞圆的边界
     std::vector<std::array<std::pair<double, double>, 3>> GetBoundsByMap(
-        const std::vector<Path::PathNode> & ref_points) const;
+        const std::vector<Path::PathNode> & ref_points);
     /// @brief 进行路径QP优化，得到最优路径
     /// @param ref_points 局部采样点
     /// @param bounds 优化边界，包括碰撞圆边界与障碍物边界

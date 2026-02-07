@@ -31,7 +31,9 @@ public:
     std::array<std::pair<double, double>, 3> GetCollisionBounds(
         const double bound_search_range,
         const double bound_search_large_resolution, 
-        const double bound_search_small_resolution) const;
+        const double bound_search_small_resolution,
+        std::array<Path::PointXY, 3> * const lb_xy = nullptr,
+        std::array<Path::PointXY, 3> * const ub_xy = nullptr) const;
 
 private:
     const Map::MultiMap & map_;

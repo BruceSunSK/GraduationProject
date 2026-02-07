@@ -138,7 +138,8 @@ add_library(curve               SHARED  src/curve/bezier.cpp
                                         src/curve/cubic_spline.cpp
                                         src/curve/dubins.cpp
                                         src/curve/polynomial.cpp)
-add_library(path                SHARED  src/path/utils.cpp
+add_library(path                SHARED  src/path/data_type.cpp
+                                        src/path/utils.cpp
                                         src/path/reference_path.cpp
                                         src/path/simplification.cpp)
 add_library(smoothers           SHARED  src/smoothers/discrete_point_smoother.cpp

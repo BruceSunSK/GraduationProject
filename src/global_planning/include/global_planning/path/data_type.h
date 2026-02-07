@@ -1,4 +1,5 @@
 #pragma once
+#include <iostream>
 
 
 namespace Path
@@ -44,6 +45,7 @@ struct PathNode : public PointXY, public PointSL
     double kappa;
     double dkappa;
 };
+std::ostream & operator<<(std::ostream & os, const PathNode & point);
 
 struct TrajectoryPoint : public PointXY
 {

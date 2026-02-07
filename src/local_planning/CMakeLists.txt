@@ -126,7 +126,8 @@ include_directories(
 )
 
 ## Declare a C++ library
-add_library(vehicle        SHARED src/vehicle/collision.cpp)
+add_library(vehicle        SHARED src/vehicle/data_type.cpp
+                                  src/vehicle/collision.cpp)
 add_library(local_planners SHARED src/planners/local_planner.cpp)
 
 target_link_libraries(vehicle        map 

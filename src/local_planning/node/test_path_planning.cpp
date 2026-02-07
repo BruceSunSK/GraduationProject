@@ -2,10 +2,13 @@
 #include <chrono>
 
 #include <ros/ros.h>
+#include <std_msgs/ColorRGBA.h>
 #include <nav_msgs/Path.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
 #include <tf2/utils.h>
 
 #include <opencv2/core.hpp>
@@ -17,13 +20,12 @@
 #include "local_planning/planners/local_planner.h"
 #include "local_planning/vehicle/data_type.h"
 
+ // ============================================================================
+ // 全局数据存储和标志
+ // Global data storage and flags
+ // ============================================================================
 
-// ============================================================================
-// 全局数据存储和标志
-// Global data storage and flags
-// ============================================================================
-
-/// @brief 测试数据命名空间
+ /// @brief 测试数据命名空间
 namespace TestData
 {
 // 数据接收标志
@@ -39,13 +41,13 @@ Vehicle::State::Ptr vehicle_state { nullptr };
 // 测试状态
 std::atomic<bool> test_executed { false };
 std::atomic<bool> test_success { false };
-std::string last_error_msg;
 
 // LocalPlanner实例
 std::unique_ptr<LocalPlanner> planner { nullptr };
 
 // 规划结果
-std::vector<Path::TrajectoryPoint> trajectory_result;
+LocalPlanner::LocalPlannerResult planning_result;
+std::string error_msg;
 }
 
 // ============================================================================
@@ -54,6 +56,7 @@ std::vector<Path::TrajectoryPoint> trajectory_result;
 // ============================================================================
 
 ros::Publisher g_local_trajectory_pub;
+ros::Publisher g_visualization_marker_array_pub;
 
 // ============================================================================
 // ROS话题回调函数 - 简化版本，只设置标志
@@ -131,7 +134,6 @@ void ReferencePathCallback(const nav_msgs::Path::ConstPtr & msg)
         return;
     }
 
-    // 即使已经接收过，也重新处理（可能数据更新）
     try
     {
         // 转换nav_msgs::Path到cv::Point2d向量
@@ -187,7 +189,7 @@ void VehicleStateCallback(const nav_msgs::Odometry::ConstPtr & msg)
         TestData::vehicle_state->w = msg->twist.twist.angular.z;
 
         // 计算曲率（防止除零）
-        if (std::abs(TestData::vehicle_state->v) > 1e-6)
+        if (std::abs(TestData::vehicle_state->v) > 1e-3)
         {
             TestData::vehicle_state->pos.kappa = TestData::vehicle_state->w / TestData::vehicle_state->v;
         }
@@ -291,7 +293,7 @@ nav_msgs::Path ConvertTrajectoryToPathMsg(const std::vector<Path::TrajectoryPoin
         pose_stamped.header = path_msg.header;
         pose_stamped.pose.position.x = point.x;
         pose_stamped.pose.position.y = point.y;
-        pose_stamped.pose.position.z = 0.0;
+        pose_stamped.pose.position.z = 12.0;
 
         // 使用默认朝向（可以后续根据轨迹点速度方向计算，目前使用单位四元数）
         pose_stamped.pose.orientation.w = 1.0;
@@ -329,37 +331,259 @@ void PublishTrajectory(const std::vector<Path::TrajectoryPoint> & trajectory)
 }
 
 /**
- * @brief 初始化LocalPlanner
+ * @brief 创建颜色RGBA
+ * @param r 红色分量 [0, 1]
+ * @param g 绿色分量 [0, 1]
+ * @param b 蓝色分量 [0, 1]
+ * @param a 透明度 [0, 1]
+ * @return std_msgs::ColorRGBA
  */
-void InitializePlanner()
+std_msgs::ColorRGBA CreateColor(double r, double g, double b, double a = 1.0)
 {
-    // 创建LocalPlanner参数
-    LocalPlanner::LocalPlannerParams params;
+    std_msgs::ColorRGBA color;
+    color.r = r;
+    color.g = g;
+    color.b = b;
+    color.a = a;
+    return color;
+}
 
-    // 可以根据需要调整参数
-    // params.common.PLANNING_CYCLE_TIME = 0.1;
-    // params.reference_path.S_INTERVAL = 0.5;
-    // 等等...
-
-    // 创建并初始化规划器
-    TestData::planner = std::make_unique<LocalPlanner>();
-    TestData::planner->InitParams(params);
-
-    // 如果已经有数据，设置到规划器中
-    if (TestData::map_received && TestData::planner)
+/**
+ * @brief 发布QP优化边界可视化信息
+ * @param lower_bounds 下边界点数组
+ * @param upper_bounds 上边界点数组
+ * @param trajectory 轨迹点（用于参考位置）
+ */
+void PublishQPBoundaryVisualization(
+    const std::vector<std::array<Path::PointXY, 3>> & lower_bounds,
+    const std::vector<std::array<Path::PointXY, 3>> & upper_bounds,
+    const std::vector<Path::TrajectoryPoint> & trajectory)
+{
+    if (lower_bounds.empty() || upper_bounds.empty())
     {
-        TestData::planner->SetMap(TestData::map);
-    }
-    if (TestData::reference_path_received && TestData::planner)
-    {
-        TestData::planner->SetReferencePath(TestData::reference_path);
-    }
-    if (TestData::vehicle_state_received && TestData::planner)
-    {
-        TestData::planner->SetVehicleState(TestData::vehicle_state);
+        ROS_WARN("QP boundaries are empty, nothing to visualize");
+        return;
     }
 
-    ROS_INFO("LocalPlanner initialized");
+    // 创建MarkerArray来包含所有可视化元素
+    visualization_msgs::MarkerArray marker_array;
+
+    // 1. 显示下边界点（红色系）
+    for (size_t i = 0; i < lower_bounds.size(); ++i)
+    {
+        const auto & lb_points = lower_bounds[i];
+        double g = Math::Lerp(0.2, 0.6, i / static_cast<double>(lower_bounds.size() - 1));
+
+        // 为每个轨迹点的3个下边界点创建单独的Marker（便于区分）
+        for (int j = 0; j < 3; ++j)
+        {
+            visualization_msgs::Marker marker;
+            marker.header.frame_id = "/map";
+            marker.header.stamp = ros::Time::now();
+            marker.ns = "qp_lower_bound";
+            marker.id = i * 3 + j; // 唯一ID
+            marker.type = visualization_msgs::Marker::SPHERE;
+            marker.action = visualization_msgs::Marker::ADD;
+
+            // 设置位置
+            marker.pose.position.x = lb_points[j].x;
+            marker.pose.position.y = lb_points[j].y;
+            marker.pose.position.z = 0.1; // 稍微抬高避免与地面重叠
+            marker.pose.orientation.w = 1.0;
+
+            // 设置大小
+            marker.scale.x = 0.15;
+            marker.scale.y = 0.15;
+            marker.scale.z = 0.15;
+
+            // 设置颜色 - 红色系，不同圆使用不同深浅
+            marker.color = CreateColor(0.9, g, 0.2, 0.8);
+
+            // 设置生命周期
+            marker.lifetime = ros::Duration(0);
+
+            marker_array.markers.push_back(marker);
+        }
+    }
+
+    // 2. 显示上边界点（蓝色系）
+    for (size_t i = 0; i < upper_bounds.size(); ++i)
+    {
+        const auto & ub_points = upper_bounds[i];
+        double g = Math::Lerp(0.2, 0.6, i / static_cast<double>(upper_bounds.size() - 1));
+
+        // 为每个轨迹点的3个上边界点创建单独的Marker
+        for (int j = 0; j < 3; ++j)
+        {
+            visualization_msgs::Marker marker;
+            marker.header.frame_id = "/map";
+            marker.header.stamp = ros::Time::now();
+            marker.ns = "qp_upper_bound";
+            marker.id = i * 3 + j; // 唯一ID
+            marker.type = visualization_msgs::Marker::SPHERE;
+            marker.action = visualization_msgs::Marker::ADD;
+
+            // 设置位置
+            marker.pose.position.x = ub_points[j].x;
+            marker.pose.position.y = ub_points[j].y;
+            marker.pose.position.z = 0.1; // 稍微抬高
+            marker.pose.orientation.w = 1.0;
+
+            // 设置大小
+            marker.scale.x = 0.15;
+            marker.scale.y = 0.15;
+            marker.scale.z = 0.15;
+
+            // 设置颜色 - 蓝色系，不同圆使用不同深浅
+            marker.color = CreateColor(0.2, g, 0.9, 0.8);
+
+            // 设置生命周期
+            marker.lifetime = ros::Duration(0);
+
+            marker_array.markers.push_back(marker);
+        }
+    }
+
+    // 3. 连接同组边界点（显示边界框）
+    // 3.1 连接下边界点（红色线框）
+    for (size_t i = 0; i < lower_bounds.size(); ++i)
+    {
+        visualization_msgs::Marker line_marker;
+        line_marker.header.frame_id = "/map";
+        line_marker.header.stamp = ros::Time::now();
+        line_marker.ns = "qp_lower_bound_lines";
+        line_marker.id = i;
+        line_marker.type = visualization_msgs::Marker::LINE_STRIP;
+        line_marker.action = visualization_msgs::Marker::ADD;
+        line_marker.pose.orientation.w = 1.0;
+
+        // 设置线宽
+        line_marker.scale.x = 0.05;
+
+        // 设置颜色 - 浅红色半透明
+        line_marker.color = CreateColor(1.0, 0.5, 0.5, 0.6);
+
+        // 添加点
+        geometry_msgs::Point p1, p2, p3;
+        p1.x = lower_bounds[i][0].x;
+        p1.y = lower_bounds[i][0].y;
+        p1.z = 0.05;
+
+        p2.x = lower_bounds[i][1].x;
+        p2.y = lower_bounds[i][1].y;
+        p2.z = 0.05;
+
+        p3.x = lower_bounds[i][2].x;
+        p3.y = lower_bounds[i][2].y;
+        p3.z = 0.05;
+
+        line_marker.points.push_back(p1);
+        line_marker.points.push_back(p2);
+        line_marker.points.push_back(p3);
+
+        line_marker.lifetime = ros::Duration(0);
+        marker_array.markers.push_back(line_marker);
+    }
+
+    // 3.2 连接上边界点（蓝色线框）
+    for (size_t i = 0; i < upper_bounds.size(); ++i)
+    {
+        visualization_msgs::Marker line_marker;
+        line_marker.header.frame_id = "/map";
+        line_marker.header.stamp = ros::Time::now();
+        line_marker.ns = "qp_upper_bound_lines";
+        line_marker.id = i;
+        line_marker.type = visualization_msgs::Marker::LINE_STRIP;
+        line_marker.action = visualization_msgs::Marker::ADD;
+        line_marker.pose.orientation.w = 1.0;
+
+        // 设置线宽
+        line_marker.scale.x = 0.05;
+
+        // 设置颜色 - 浅蓝色半透明
+        line_marker.color = CreateColor(0.5, 0.5, 1.0, 0.6);
+
+        // 添加点
+        geometry_msgs::Point p1, p2, p3;
+        p1.x = upper_bounds[i][0].x;
+        p1.y = upper_bounds[i][0].y;
+        p1.z = 0.05;
+
+        p2.x = upper_bounds[i][1].x;
+        p2.y = upper_bounds[i][1].y;
+        p2.z = 0.05;
+
+        p3.x = upper_bounds[i][2].x;
+        p3.y = upper_bounds[i][2].y;
+        p3.z = 0.05;
+
+        line_marker.points.push_back(p1);
+        line_marker.points.push_back(p2);
+        line_marker.points.push_back(p3);
+
+        line_marker.lifetime = ros::Duration(0);
+        marker_array.markers.push_back(line_marker);
+    }
+
+    // 4. 显示轨迹点与边界点的连接线（显示对应关系）
+    if (!trajectory.empty() && trajectory.size() == lower_bounds.size())
+    {
+        for (size_t i = 0; i < trajectory.size(); i += 3) // 每3个点显示一次，避免过于密集
+        {
+            visualization_msgs::Marker connection_marker;
+            connection_marker.header.frame_id = "/map";
+            connection_marker.header.stamp = ros::Time::now();
+            connection_marker.ns = "trajectory_boundary_connections";
+            connection_marker.id = i;
+            connection_marker.type = visualization_msgs::Marker::LINE_LIST;
+            connection_marker.action = visualization_msgs::Marker::ADD;
+            connection_marker.pose.orientation.w = 1.0;
+
+            // 设置线宽
+            connection_marker.scale.x = 0.02;
+
+            // 设置颜色 - 灰色半透明
+            connection_marker.color = CreateColor(0.7, 0.7, 0.7, 0.4);
+
+            // 添加轨迹点到每个边界点的连线
+            geometry_msgs::Point traj_point;
+            traj_point.x = trajectory[i].x;
+            traj_point.y = trajectory[i].y;
+            traj_point.z = 0.0;
+
+            // 连接到下边界点
+            for (int j = 0; j < 3; ++j)
+            {
+                geometry_msgs::Point bound_point;
+                bound_point.x = lower_bounds[i][j].x;
+                bound_point.y = lower_bounds[i][j].y;
+                bound_point.z = 0.05;
+
+                connection_marker.points.push_back(traj_point);
+                connection_marker.points.push_back(bound_point);
+            }
+
+            // 连接到上边界点
+            for (int j = 0; j < 3; ++j)
+            {
+                geometry_msgs::Point bound_point;
+                bound_point.x = upper_bounds[i][j].x;
+                bound_point.y = upper_bounds[i][j].y;
+                bound_point.z = 0.05;
+
+                connection_marker.points.push_back(traj_point);
+                connection_marker.points.push_back(bound_point);
+            }
+
+            connection_marker.lifetime = ros::Duration(0);
+            marker_array.markers.push_back(connection_marker);
+        }
+    }
+
+    // 5. 发布MarkerArray
+    g_visualization_marker_array_pub.publish(marker_array);
+
+    ROS_INFO("Published QP boundary visualization with %lu markers", marker_array.markers.size());
 }
 
 /**
@@ -380,32 +604,32 @@ void ExecuteTest()
     // 检查规划器是否初始化
     if (!TestData::planner)
     {
-        TestData::last_error_msg = "LocalPlanner not initialized";
         TestData::test_success = false;
-        ROS_ERROR("Test failed: %s", TestData::last_error_msg.c_str());
+        ROS_ERROR("Test failed: LocalPlanner not initialized");
         return;
     }
 
-    // 清空之前的轨迹结果
-    TestData::trajectory_result.clear();
-
     // 执行规划
-    std::string error_msg;
-    auto start_time = std::chrono::high_resolution_clock::now();
-
     // 调用新的Plan函数，传入轨迹向量接收结果
-    bool success = TestData::planner->Plan(TestData::trajectory_result, error_msg);
-
-    auto end_time = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-
+    bool success = TestData::planner->Plan(TestData::planning_result, TestData::error_msg);
     if (success)
     {
         TestData::test_success = true;
-        ROS_INFO("Planning successful, time: %ld ms", duration.count());
+        ROS_INFO("Planning successful, time: %ld ms", static_cast<long>(TestData::planning_result.planning_time));
+
+        if (!TestData::planning_result.log.str().empty())
+        {
+            ROS_INFO("Planning log: \n%s", TestData::planning_result.log.str().c_str());
+        }
 
         // 发布轨迹到ROS话题
-        PublishTrajectory(TestData::trajectory_result);
+        PublishTrajectory(TestData::planning_result.trajectory);
+
+        // 发布QP边界可视化信息
+        PublishQPBoundaryVisualization(
+            TestData::planning_result.path_qp_lb,
+            TestData::planning_result.path_qp_ub,
+            TestData::planning_result.trajectory);
 
         ROS_INFO("=======================================");
         ROS_INFO("Test completed successfully!");
@@ -414,9 +638,7 @@ void ExecuteTest()
     else
     {
         TestData::test_success = false;
-        TestData::last_error_msg = error_msg;
-        ROS_ERROR("Planning failed, time: %ld ms", duration.count());
-        ROS_ERROR("Error: %s", error_msg.c_str());
+        ROS_ERROR("Planning failed, Error: %s", TestData::error_msg.c_str());
     }
 
     TestData::test_executed = true;
@@ -425,9 +647,8 @@ void ExecuteTest()
     ROS_INFO("Press Ctrl+C to exit.");
 }
 
-
 // ============================================================================
-// 主函数 - 保持原有结构，但使用简化的WaitForData
+// 主函数
 // ============================================================================
 /**
  * @brief 主函数
@@ -448,7 +669,13 @@ int main(int argc, char ** argv)
     nh.param("input_vehicle_state_topic", vehicle_state_topic, std::string("/vehicle/odom"));
 
     // 创建发布者（用于可视化）
-    g_local_trajectory_pub = nh.advertise<nav_msgs::Path>("trajectory", 1, true);
+    g_local_trajectory_pub           = nh.advertise<nav_msgs::Path>("trajectory", 1, true);
+    g_visualization_marker_array_pub = nh.advertise<visualization_msgs::MarkerArray>("visualization_marker_array", 10, true);
+
+    ROS_INFO("Publishers created:");
+    ROS_INFO("  - Local trajectory: /trajectory");
+    ROS_INFO("  - Visualization marker: /visualization_marker");
+    ROS_INFO("  - Visualization marker array: /visualization_marker_array");
 
     // 创建订阅者
     ros::Subscriber ref_sub     = nh.subscribe(ref_path_topic, 1, ReferencePathCallback);
@@ -479,18 +706,6 @@ int main(int argc, char ** argv)
     }
 
     // 保持节点运行以维持RViz可视化
-    ROS_INFO("Entering spin() for visualization...");
-
-    // 设置一个定时器，定期重新发布轨迹以保持RViz显示
-    ros::Timer timer = nh.createTimer(ros::Duration(1.0), [](const ros::TimerEvent &) {
-        if (!TestData::trajectory_result.empty())
-        {
-            PublishTrajectory(TestData::trajectory_result);
-            ROS_INFO_THROTTLE(10, "Re-publishing trajectory for RViz visualization...");
-        }
-        });
-
     ros::spin();
-
     return 0;
 }

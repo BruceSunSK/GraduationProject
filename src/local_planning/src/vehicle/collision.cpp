@@ -21,7 +21,9 @@ bool CollisionCircle::CheckCollision() const
 std::array<std::pair<double, double>, 3> CollisionCircle::GetCollisionBounds(
     const double bound_search_range,
     const double bound_search_large_resolution,
-    const double bound_search_small_resolution
+    const double bound_search_small_resolution,
+    std::array<Path::PointXY, 3> * const lb_xy,
+    std::array<Path::PointXY, 3> * const ub_xy
 ) const
 {
     std::array<std::pair<double, double>, 3> bounds;
@@ -61,6 +63,12 @@ std::array<std::pair<double, double>, 3> CollisionCircle::GetCollisionBounds(
                 break;
             }
         }
+        if (lb_xy)
+        {
+            Path::PointSL sl(0.0, lower_bound);
+            Path::PointXY xy = Path::Utils::SLtoXY(sl, { point.x, point.y }, point.theta);
+            lb_xy->operator[](i) = xy;
+        }
 
         // 确定上边界， 粗+细
         double upper_bound = 0.0;
@@ -93,6 +101,12 @@ std::array<std::pair<double, double>, 3> CollisionCircle::GetCollisionBounds(
                 upper_bound -= bound_search_small_resolution;
                 break;
             }
+        }
+        if (ub_xy)
+        {
+            Path::PointSL sl(0.0, upper_bound);
+            Path::PointXY xy = Path::Utils::SLtoXY(sl, { point.x, point.y }, point.theta);
+            ub_xy->operator[](i) = xy;
         }
 
         bounds[i] = { lower_bound, upper_bound };

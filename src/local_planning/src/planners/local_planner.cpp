@@ -24,10 +24,10 @@ void LocalPlanner::SetVehicleState(const Vehicle::State::Ptr & vehicle_state)
     flag_vehicle_state_ = true;
 }
 
-bool LocalPlanner::Plan(std::vector<Path::TrajectoryPoint> & trajectory, std::string & error_msg)
+bool LocalPlanner::Plan(LocalPlannerResult & result, std::string & error_msg)
 {
+    result_.Clear();
     error_msg.clear();
-    log_.clear();
 
     // 0. 判断当前帧数据是否完整
     if (!IsDataReady())
@@ -35,8 +35,10 @@ bool LocalPlanner::Plan(std::vector<Path::TrajectoryPoint> & trajectory, std::st
         error_msg = "LocalPlanner::Plan() failed: data not ready.";
         return false;
     }
-    log_ += "==========================================\n";
-    log_ += "A new planning request is received.\n";
+    result_.timestamp = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    result_.log << "============================================================\n"
+                << "LocalPlanner::Plan() start.\n";
+
 
     // 1. 寻找车辆在参考线上的投影点 并 更新车辆信息
     // 传入的vehicle_state仅包含x, y, theta, kappa, v, w，此处添加上s, l
@@ -44,26 +46,25 @@ bool LocalPlanner::Plan(std::vector<Path::TrajectoryPoint> & trajectory, std::st
     auto [curr_veh_proj_point, curr_veh_proj_nearest_idx] = reference_path_->GetProjection(
         { curr_veh_state.pos.x, curr_veh_state.pos.y }, last_veh_proj_nearest_idx_);
     last_veh_proj_nearest_idx_ = curr_veh_proj_nearest_idx;
-    log_ += "curr_veh_proj_nearest_idx: " + std::to_string(curr_veh_proj_nearest_idx) + "\n";
+    result_.log << "reference_path_.size(): " << reference_path_->GetSize() << "\n"
+                << "curr_veh_proj_nearest_idx: " << curr_veh_proj_nearest_idx << "\n";
 
     Path::PointXY veh_xy = { curr_veh_state.pos.x, curr_veh_state.pos.y };
     Path::PointSL veh_sl = Path::Utils::XYtoSL(veh_xy,
         { curr_veh_proj_point.x, curr_veh_proj_point.y }, curr_veh_proj_point.s, curr_veh_proj_point.theta);
     curr_veh_state.pos.s = veh_sl.s;
     curr_veh_state.pos.l = veh_sl.l;
-    log_ += "curr_veh_state.pos.s: " + std::to_string(curr_veh_state.pos.s) + "\n";
-    log_ += "curr_veh_state.pos.l: " + std::to_string(curr_veh_state.pos.l) + "\n";
+    result_.log << "curr_veh_state:\n" << curr_veh_state;
 
     // 2. 确定规划起点 
     Path::PathNode planning_start_point = GetPlanningStart(curr_veh_state, curr_veh_proj_point);
+    result_.log << "planning_start_point:\n" << planning_start_point;
     
     // 3. 截断参考线
     // 本质上应该是获得一组采样的s点，不应该直接截断，会出很多问题。采样的点仅在车辆当前位置前后附近，不是全部参考线采样
     // reference_path_: 完整的参考线类型，内部会包含整条参考线及其各个点
     // ref_points: 在参考线上，只在车辆附近采样得到的点
     const auto ref_points = SampleReferencePoints(planning_start_point);
-    // Path::ReferencePath::Ptr truncated_reference_path =
-    //     reference_path->GetSegment(bwd_fwd_s.first, bwd_fwd_s.second, params_.reference_path.S_INTERVAL);
 
     // 3. 决策
     // todo
@@ -82,7 +83,6 @@ bool LocalPlanner::Plan(std::vector<Path::TrajectoryPoint> & trajectory, std::st
     }
 
     // 6. 转换为TrajectoryPoint类型
-    trajectory.clear();
     for (const auto & point : optimized_path)
     {
         Path::TrajectoryPoint traj_point;
@@ -92,9 +92,14 @@ bool LocalPlanner::Plan(std::vector<Path::TrajectoryPoint> & trajectory, std::st
         traj_point.v = 0.0;
         traj_point.a = 0.0;
         traj_point.j = 0.0;
-        trajectory.push_back(traj_point);
+        result_.trajectory.push_back(traj_point);
     }
 
+    auto end_time = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    result_.planning_time = end_time - result_.timestamp;
+    result_.log << "LocalPlanner::Plan() end.\n"
+                << "LocalPlanner::Plan() elapsed time: " << result_.planning_time * 1000.0 << " ms.\n";
+    result = std::move(result_);
     return true;
 }
 
@@ -104,13 +109,14 @@ bool LocalPlanner::IsDataReady() const
     return flag_map_ && flag_reference_path_ && flag_vehicle_state_;
 }
 
-Path::PathNode LocalPlanner::GetPlanningStart(const Vehicle::State & curr_veh_state, const Path::PathNode & veh_proj_point) const
+Path::PathNode LocalPlanner::GetPlanningStart(const Vehicle::State & curr_veh_state, const Path::PathNode & veh_proj_point)
 {
     // 1. 车速为0，直接认为当前车辆位置就是规划起点情形
     // todo 上一帧无规划结果
     if (curr_veh_state.v < params_.start_point.V_TOLERANCE &&
         curr_veh_state.w < params_.start_point.W_TOLERANCE)
     {
+        result_.log << "GetPlanningStart(): vehicle is stopped.\n";
         return curr_veh_state.pos;
     }
 
@@ -146,11 +152,14 @@ Path::PathNode LocalPlanner::GetPlanningStart(const Vehicle::State & curr_veh_st
         Path::PointSL sl = Path::Utils::XYtoSL({ ret.x, ret.y }, { proj_node.x, proj_node.y }, proj_node.s, proj_node.theta);
         ret.s = sl.s;
         ret.l = sl.l;
+
+        result_.log << "GetPlanningStart(): use motion extrapolation.\n";
         return ret;
     }
 
     // 3. 认为控制跟上了，直接从上一帧轨迹中去除对应点作为本帧规划起点
     // todo 上帧数据没有
+    result_.log << "GetPlanningStart(): use last planning result.\n";
     return curr_veh_state.pos;
 }
 
@@ -169,6 +178,7 @@ std::vector<Path::PathNode> LocalPlanner::SampleReferencePoints(const Path::Path
         points.push_back(point);
     }
     curr_s_interval_ = s_step;
+    result_.log << "SampleReferencePoints(): sample points num: " << points.size() << ", s_step: " << s_step << "\n";
     return points;
 }
 
@@ -198,7 +208,7 @@ Path::PathNode LocalPlanner::GetApproxNode(const Path::PathNode & original_node,
 }
 
 std::vector<std::array<std::pair<double, double>, 3>> LocalPlanner::GetBoundsByMap(
-    const std::vector<Path::PathNode> & ref_points) const
+    const std::vector<Path::PathNode> & ref_points)
 {
     // 在全局规划中，实在路径dp过程中开辟了凸空间，然后再这个凸空间中进行qp的
     // 因此，在局部规划中基于map探索上下边界时，一定已经在凸空间中，所以可以直接进行探索，不必考虑中间有障碍物的情况。
@@ -207,6 +217,7 @@ std::vector<std::array<std::pair<double, double>, 3>> LocalPlanner::GetBoundsByM
     std::vector<std::array<std::pair<double, double>, 3>> bounds;
     bounds.reserve(ref_points.size());
 
+    int idx = 0;
     // 对于整个局部路径的采样点进行遍历
     for (auto && point : ref_points)
     {
@@ -232,10 +243,13 @@ std::vector<std::array<std::pair<double, double>, 3>> LocalPlanner::GetBoundsByM
             params_.vehicle.COLLISION_SAFETY_MARGIN);
 
         // 得到该三碰撞圆组的上下边界
+        std::array<Path::PointXY, 3> lb_xy;
+        std::array<Path::PointXY, 3> ub_xy;
         auto bd = cc.GetCollisionBounds(
             params_.map.BOUND_SEARCH_RANGE,
             params_.map.BOUND_SEARCH_LARGE_RESOLUTION,
-            params_.map.BOUND_SEARCH_SMALL_RESOLUTION);
+            params_.map.BOUND_SEARCH_SMALL_RESOLUTION,
+            &lb_xy, &ub_xy);
 
         // ===============================================================================
         // 上面计算出的边界是相对于车辆中轴线的（尤其是c0,c2），而非相对于参考线的，因此存在误差，需要校正。
@@ -254,6 +268,14 @@ std::vector<std::array<std::pair<double, double>, 3>> LocalPlanner::GetBoundsByM
         bd[2].first += dis;     bd[2].second += dis;
 
         bounds.push_back(bd);
+
+        // 输出调试信息
+        result_.log << "point idx: " << idx++ << "\n"
+            << "\tc0: (lb, ub), (lb_x, lb_y), (ub_x, ub_y) : (" << bd[0].first << ", " << bd[0].second << "), (" << lb_xy[0].x << ", " << lb_xy[0].y << "), (" << ub_xy[0].x << ", " << ub_xy[0].y << ")\n"
+            << "\tc1: (lb, ub), (lb_x, lb_y), (ub_x, ub_y) : (" << bd[1].first << ", " << bd[1].second << "), (" << lb_xy[1].x << ", " << lb_xy[1].y << "), (" << ub_xy[1].x << ", " << ub_xy[1].y << ")\n"
+            << "\tc2: (lb, ub), (lb_x, lb_y), (ub_x, ub_y) : (" << bd[2].first << ", " << bd[2].second << "), (" << lb_xy[2].x << ", " << lb_xy[2].y << "), (" << ub_xy[2].x << ", " << ub_xy[2].y << ")\n";
+        result_.path_qp_lb.push_back(lb_xy);
+        result_.path_qp_ub.push_back(ub_xy);
     }
 
     return bounds;
@@ -285,7 +307,9 @@ bool LocalPlanner::PathQP(const std::vector<Path::PathNode> & ref_points,
         start_point_proj.theta, start_point_proj.kappa, start_point_proj.dkappa);
     std::array<double, 3> init_state = { start_point_sl.l, start_point_sl.l_prime, start_point_sl.l_double_prime };      // l, l', l"的参考值
     std::array<double, 3> end_state_ref = { 0.0, 0.0, 0.0 };      // l, l', l"的参考值
-    
+    result_.log << "PathQP(): start_point_sl (l, l', l\"): ("
+        << start_point_sl.l << ", " << start_point_sl.l_prime << ", " << start_point_sl.l_double_prime << ")\n";
+
     // 传入求解数据进行求解
     auto start_time = std::chrono::steady_clock::now();
     optimized_path.clear();
@@ -295,6 +319,7 @@ bool LocalPlanner::PathQP(const std::vector<Path::PathNode> & ref_points,
         return false;
     }
     auto end_time = std::chrono::steady_clock::now();
-    log_ += "PathQP time: " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count()) + " ms\n";
+
+    result_.log << "PathQP(): cost time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count() << " ms.\n";
     return true;
 }
