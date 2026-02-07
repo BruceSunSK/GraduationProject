@@ -270,10 +270,10 @@ std::vector<std::array<std::pair<double, double>, 3>> LocalPlanner::GetBoundsByM
         bounds.push_back(bd);
 
         // 输出调试信息
-        result_.log << "point idx: " << idx++ << "\n"
-            << "\tc0: (lb, ub), (lb_x, lb_y), (ub_x, ub_y) : (" << bd[0].first << ", " << bd[0].second << "), (" << lb_xy[0].x << ", " << lb_xy[0].y << "), (" << ub_xy[0].x << ", " << ub_xy[0].y << ")\n"
-            << "\tc1: (lb, ub), (lb_x, lb_y), (ub_x, ub_y) : (" << bd[1].first << ", " << bd[1].second << "), (" << lb_xy[1].x << ", " << lb_xy[1].y << "), (" << ub_xy[1].x << ", " << ub_xy[1].y << ")\n"
-            << "\tc2: (lb, ub), (lb_x, lb_y), (ub_x, ub_y) : (" << bd[2].first << ", " << bd[2].second << "), (" << lb_xy[2].x << ", " << lb_xy[2].y << "), (" << ub_xy[2].x << ", " << ub_xy[2].y << ")\n";
+        // result_.log << "point idx: " << idx++ << "\n"
+        //     << "\tc0: (lb, ub), (lb_x, lb_y), (ub_x, ub_y) : (" << bd[0].first << ", " << bd[0].second << "), (" << lb_xy[0].x << ", " << lb_xy[0].y << "), (" << ub_xy[0].x << ", " << ub_xy[0].y << ")\n"
+        //     << "\tc1: (lb, ub), (lb_x, lb_y), (ub_x, ub_y) : (" << bd[1].first << ", " << bd[1].second << "), (" << lb_xy[1].x << ", " << lb_xy[1].y << "), (" << ub_xy[1].x << ", " << ub_xy[1].y << ")\n"
+        //     << "\tc2: (lb, ub), (lb_x, lb_y), (ub_x, ub_y) : (" << bd[2].first << ", " << bd[2].second << "), (" << lb_xy[2].x << ", " << lb_xy[2].y << "), (" << ub_xy[2].x << ", " << ub_xy[2].y << ")\n";
         result_.path_qp_lb.push_back(lb_xy);
         result_.path_qp_ub.push_back(ub_xy);
     }

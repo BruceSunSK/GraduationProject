@@ -1,3 +1,10 @@
+/**
+ * @file test_path_planning.cpp
+ * @brief 局部规划测试节点 - Local Planning Test Node
+ * 此节点用于测试LocalPlanner的单帧或连续路径规划功能
+ * This node tests LocalPlanner's single-frame or continuous path planning
+ */
+
 #include <atomic>
 #include <chrono>
 
@@ -28,6 +35,9 @@
  /// @brief 测试数据命名空间
 namespace TestData
 {
+// 运行模式
+bool single_frame_mode = true;  // 默认单帧模式
+
 // 数据接收标志
 std::atomic<bool> map_received { false };
 std::atomic<bool> reference_path_received { false };
@@ -38,16 +48,16 @@ Map::MultiMap::Ptr map { nullptr };
 Path::ReferencePath::Ptr reference_path { nullptr };
 Vehicle::State::Ptr vehicle_state { nullptr };
 
-// 测试状态
-std::atomic<bool> test_executed { false };
-std::atomic<bool> test_success { false };
-
 // LocalPlanner实例
 std::unique_ptr<LocalPlanner> planner { nullptr };
 
 // 规划结果
 LocalPlanner::LocalPlannerResult planning_result;
 std::string error_msg;
+
+// 规划统计
+int planning_count { 0 };
+double total_planning_time { 0.0 };
 }
 
 // ============================================================================
@@ -114,8 +124,11 @@ void CostmapCallback(const nav_msgs::OccupancyGrid::ConstPtr & msg)
             TestData::planner->SetMap(TestData::map);
         }
 
-        ROS_INFO("Costmap received: %dx%d, resolution: %.2f",
-            msg->info.width, msg->info.height, msg->info.resolution);
+        if (TestData::single_frame_mode)
+        {
+            ROS_INFO("Costmap received: %dx%d, resolution: %.2f",
+                msg->info.width, msg->info.height, msg->info.resolution);
+        }
     }
     catch (const std::exception & e)
     {
@@ -129,7 +142,8 @@ void CostmapCallback(const nav_msgs::OccupancyGrid::ConstPtr & msg)
  */
 void ReferencePathCallback(const nav_msgs::Path::ConstPtr & msg)
 {
-    if (TestData::reference_path_received)
+    // 即使单帧，也需要测试多个参考线的结果
+    if (TestData::reference_path_received && TestData::single_frame_mode)
     {
         return;
     }
@@ -154,8 +168,14 @@ void ReferencePathCallback(const nav_msgs::Path::ConstPtr & msg)
             TestData::planner->SetReferencePath(TestData::reference_path);
         }
 
-        ROS_INFO("Reference path received: %lu points, length: %.2fm",
-            msg->poses.size(), TestData::reference_path->GetLength());
+        if (TestData::single_frame_mode)
+        {
+            ROS_INFO("Reference path received: %lu points, length: %.2fm",
+                msg->poses.size(), TestData::reference_path->GetLength());
+
+            TestData::vehicle_state_received = false;
+            ros::Duration(0.3).sleep();     // 确保订阅新的车辆位姿
+        }
     }
     catch (const std::exception & e)
     {
@@ -169,7 +189,7 @@ void ReferencePathCallback(const nav_msgs::Path::ConstPtr & msg)
  */
 void VehicleStateCallback(const nav_msgs::Odometry::ConstPtr & msg)
 {
-    if (TestData::vehicle_state_received)
+    if (TestData::vehicle_state_received && TestData::single_frame_mode)
     {
         return;
     }
@@ -206,11 +226,14 @@ void VehicleStateCallback(const nav_msgs::Odometry::ConstPtr & msg)
             TestData::planner->SetVehicleState(TestData::vehicle_state);
         }
 
-        ROS_INFO("Vehicle state received: x=%.2f, y=%.2f, theta=%.2f, v=%.2f",
-            TestData::vehicle_state->pos.x,
-            TestData::vehicle_state->pos.y,
-            TestData::vehicle_state->pos.theta,
-            TestData::vehicle_state->v);
+        if (TestData::single_frame_mode)
+        {
+            ROS_INFO("Vehicle state received: x=%.2f, y=%.2f, theta=%.2f, v=%.2f",
+                TestData::vehicle_state->pos.x,
+                TestData::vehicle_state->pos.y,
+                TestData::vehicle_state->pos.theta,
+                TestData::vehicle_state->v);
+        }
     }
     catch (const std::exception & e)
     {
@@ -228,10 +251,8 @@ void VehicleStateCallback(const nav_msgs::Odometry::ConstPtr & msg)
  * @param timeout_ms 超时时间（毫秒）
  * @return 如果所有数据就绪返回true，超时返回false
  */
-bool WaitForData(int timeout_ms = 10000)
+bool WaitForData()
 {
-    auto start_time = std::chrono::steady_clock::now();
-
     while (true)
     {
         // 处理回调
@@ -245,32 +266,20 @@ bool WaitForData(int timeout_ms = 10000)
             return true;
         }
 
-        // 检查是否超时
-        auto current_time = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-            current_time - start_time)
-            .count();
-
-        if (elapsed > timeout_ms)
-        {
-            ROS_WARN("Timeout waiting for data after %d ms", timeout_ms);
-            return false;
-        }
-
         // 每2秒显示一次状态
-        static int last_status_time = 0;
-        if (elapsed - last_status_time > 2000)
-        {
-            ROS_INFO("Waiting for data... Map: %s, RefPath: %s, Vehicle: %s, Elapsed: %ld ms",
-                TestData::map_received ? "YES" : "NO",
-                TestData::reference_path_received ? "YES" : "NO",
-                TestData::vehicle_state_received ? "YES" : "NO",
-                elapsed);
-            last_status_time = elapsed;
-        }
+        // static int last_status_time = 0;
+        // if (elapsed - last_status_time > 2000)
+        // {
+        //     ROS_INFO("Waiting for data... Map: %s, RefPath: %s, Vehicle: %s, Elapsed: %ld ms",
+        //         TestData::map_received ? "YES" : "NO",
+        //         TestData::reference_path_received ? "YES" : "NO",
+        //         TestData::vehicle_state_received ? "YES" : "NO",
+        //         elapsed);
+        //     last_status_time = elapsed;
+        // }
 
         // 短暂休眠，避免占用过多CPU
-        ros::Duration(0.01).sleep();
+        ros::Duration(0.05).sleep();
     }
 }
 
@@ -323,11 +332,13 @@ void PublishTrajectory(const std::vector<Path::TrajectoryPoint> & trajectory)
     nav_msgs::Path trajectory_msg = ConvertTrajectoryToPathMsg(trajectory);
     g_local_trajectory_pub.publish(trajectory_msg);
 
-    // 输出轨迹信息
-    ROS_INFO("Trajectory info: points=%lu, start=(%.2f, %.2f), end=(%.2f, %.2f)",
-        trajectory.size(),
-        trajectory.front().x, trajectory.front().y,
-        trajectory.back().x, trajectory.back().y);
+    if (TestData::single_frame_mode || TestData::planning_count % 10 == 0)
+    {
+        ROS_INFO("Trajectory published: points=%lu, start=(%.2f, %.2f), end=(%.2f, %.2f)",
+            trajectory.size(),
+            trajectory.front().x, trajectory.front().y,
+            trajectory.back().x, trajectory.back().y);
+    }
 }
 
 /**
@@ -361,7 +372,10 @@ void PublishQPBoundaryVisualization(
 {
     if (lower_bounds.empty() || upper_bounds.empty())
     {
-        ROS_WARN("QP boundaries are empty, nothing to visualize");
+        if (TestData::single_frame_mode)
+        {
+            ROS_WARN("QP boundaries are empty, nothing to visualize");
+        }
         return;
     }
 
@@ -582,40 +596,30 @@ void PublishQPBoundaryVisualization(
 
     // 5. 发布MarkerArray
     g_visualization_marker_array_pub.publish(marker_array);
-
-    ROS_INFO("Published QP boundary visualization with %lu markers", marker_array.markers.size());
 }
 
 /**
  * @brief 执行单次规划测试
  */
-void ExecuteTest()
+void ExecuteSingleFrameTest()
 {
-    if (TestData::test_executed)
-    {
-        ROS_WARN("Test already executed");
-        return;
-    }
-
     ROS_INFO("=======================================");
-    ROS_INFO("Starting single-frame planning test...");
+    ROS_INFO("Starting SINGLE-FRAME planning test...");
     ROS_INFO("=======================================");
 
     // 检查规划器是否初始化
     if (!TestData::planner)
     {
-        TestData::test_success = false;
         ROS_ERROR("Test failed: LocalPlanner not initialized");
         return;
     }
 
     // 执行规划
-    // 调用新的Plan函数，传入轨迹向量接收结果
     bool success = TestData::planner->Plan(TestData::planning_result, TestData::error_msg);
     if (success)
     {
-        TestData::test_success = true;
-        ROS_INFO("Planning successful, time: %ld ms", static_cast<long>(TestData::planning_result.planning_time));
+        TestData::planning_count = 1;
+        TestData::reference_path_received = false;
 
         if (!TestData::planning_result.log.str().empty())
         {
@@ -630,21 +634,72 @@ void ExecuteTest()
             TestData::planning_result.path_qp_lb,
             TestData::planning_result.path_qp_ub,
             TestData::planning_result.trajectory);
-
-        ROS_INFO("=======================================");
-        ROS_INFO("Test completed successfully!");
-        ROS_INFO("=======================================");
     }
     else
     {
-        TestData::test_success = false;
         ROS_ERROR("Planning failed, Error: %s", TestData::error_msg.c_str());
     }
+}
 
-    TestData::test_executed = true;
+/**
+ * @brief 执行持续规划的回调函数
+ * @param event 定时器事件
+ */
+void ContinuousPlanningCallback(const ros::TimerEvent & event)
+{
+    // 检查数据是否就绪
+    if (!TestData::map_received || !TestData::reference_path_received || !TestData::vehicle_state_received)
+    {
+        ROS_WARN_THROTTLE(5.0, "Waiting for data... Map: %s, RefPath: %s, Vehicle: %s",
+            TestData::map_received ? "YES" : "NO",
+            TestData::reference_path_received ? "YES" : "NO",
+            TestData::vehicle_state_received ? "YES" : "NO");
+        return;
+    }
 
-    ROS_INFO("Node will continue running for RViz visualization.");
-    ROS_INFO("Press Ctrl+C to exit.");
+    // 检查规划器是否初始化
+    if (!TestData::planner)
+    {
+        ROS_WARN_THROTTLE(5.0, "LocalPlanner not initialized");
+        return;
+    }
+
+    // 执行规划
+    bool success = TestData::planner->Plan(TestData::planning_result, TestData::error_msg);
+
+    TestData::planning_count++;
+    TestData::total_planning_time += TestData::planning_result.planning_time;
+
+    if (success)
+    {
+        // 每10次规划输出一次统计信息
+        if (TestData::planning_count % 10 == 0)
+        {
+            double avg_time = TestData::total_planning_time / TestData::planning_count;
+            ROS_INFO("Continuous planning #%d, time: %.2f ms, avg: %.2f ms",
+                TestData::planning_count,
+                TestData::planning_result.planning_time,
+                avg_time);
+        }
+
+        // 发布轨迹到ROS话题
+        PublishTrajectory(TestData::planning_result.trajectory);
+
+        // 发布QP边界可视化信息（每5次发布一次，避免过于频繁）
+        if (TestData::planning_count % 5 == 0)
+        {
+            PublishQPBoundaryVisualization(
+                TestData::planning_result.path_qp_lb,
+                TestData::planning_result.path_qp_ub,
+                TestData::planning_result.trajectory);
+        }
+    }
+    else
+    {
+        ROS_ERROR("Planning #%d failed, Error: %s",
+            TestData::planning_count,
+            TestData::error_msg.c_str());
+    }
 }
 
 // ============================================================================
@@ -656,11 +711,22 @@ void ExecuteTest()
 int main(int argc, char ** argv)
 {
     // 初始化ROS节点
-    ros::init(argc, argv, "test_path_planning_node");
+    ros::init(argc, argv, "test_path_planning");
     ros::NodeHandle nh("~");
 
-    ROS_INFO("Test Path Planning Node started");
-    ROS_INFO("Waiting for data from other nodes...");
+    // 读取运行模式参数
+    nh.param("single_frame_mode", TestData::single_frame_mode, true);
+
+    if (TestData::single_frame_mode)
+    {
+        ROS_INFO("Test Path Planning Node started (SINGLE-FRAME MODE)");
+        ROS_INFO("Waiting for data from other nodes...");
+    }
+    else
+    {
+        ROS_INFO("Test Path Planning Node started (CONTINUOUS MODE)");
+        ROS_INFO("Planning will run continuously at 10Hz");
+    }
 
     // 获取话题名称
     std::string ref_path_topic, costmap_topic, vehicle_state_topic;
@@ -674,7 +740,6 @@ int main(int argc, char ** argv)
 
     ROS_INFO("Publishers created:");
     ROS_INFO("  - Local trajectory: /trajectory");
-    ROS_INFO("  - Visualization marker: /visualization_marker");
     ROS_INFO("  - Visualization marker array: /visualization_marker_array");
 
     // 创建订阅者
@@ -693,19 +758,45 @@ int main(int argc, char ** argv)
     TestData::planner->InitParams(params);
     ROS_INFO("LocalPlanner initialized");
 
-    // 等待所有数据就绪 - 使用简化的等待函数
-    if (WaitForData(600000))
+    if (TestData::single_frame_mode)
     {
-        ROS_INFO("All required data received");
-        ExecuteTest();
+        while (true)    // 手动发布多次规划单帧
+        {
+            // 单帧模式：等待数据就绪后执行一次规划
+            if (WaitForData())
+            {
+                ExecuteSingleFrameTest();
+
+                ROS_INFO("=======================================");
+                ROS_INFO("Single-frame test completed!");
+                ROS_INFO("=======================================");
+            }
+            else
+            {
+                ROS_ERROR("Failed to receive all required data");
+                return 1;
+            }
+        }
     }
     else
     {
-        ROS_ERROR("Failed to receive all required data");
-        return 1;
+        // 持续规划模式：设置定时器进行连续规划
+        ROS_INFO("Starting continuous planning mode...");
+
+        // 设置规划频率（默认10Hz）
+        double planning_frequency = 10.0;
+        nh.param("planning_frequency", planning_frequency, 10.0);
+
+        ros::Timer continuous_timer = nh.createTimer(
+            ros::Duration(1.0 / planning_frequency),
+            ContinuousPlanningCallback);
+
+        ROS_INFO("Continuous planning timer started at %.1f Hz", planning_frequency);
+        ROS_INFO("Planning will start automatically when data is ready");
+
+        // 保持节点运行
+        ros::spin();
     }
 
-    // 保持节点运行以维持RViz可视化
-    ros::spin();
     return 0;
 }

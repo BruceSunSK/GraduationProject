@@ -1,4 +1,5 @@
 <launch>
+    <arg name="single_frame_mode"      default="false" />
     <arg name="global_ref_topic"       default="/test_global_planning/path" />
     <arg name="costmap_topic"          default="/test_global_planning/costmap" />
     <arg name="vehicle_state_topic"    default="/vehicle/odom" />
@@ -16,10 +17,11 @@
 
     <!-- 2. 测试局部规划中的路径规划 -->
     <node pkg="local_planning" name="test_path_planning" type="test_path_planning" output="screen">
-        <param name="input_global_ref_topic"        type="str" value="$(arg global_ref_topic)" />
-        <param name="input_costmap_topic"           type="str" value="$(arg costmap_topic)" />
-        <param name="input_vehicle_state_topic"     type="str" value="$(arg vehicle_state_topic)" />
-        <param name="output_local_trajectory_topic" type="str" value="$(arg local_trajectory_topic)" />
+        <param name="single_frame_mode"             type="bool" value="$(arg single_frame_mode)" />
+        <param name="input_global_ref_topic"        type="str"  value="$(arg global_ref_topic)" />
+        <param name="input_costmap_topic"           type="str"  value="$(arg costmap_topic)" />
+        <param name="input_vehicle_state_topic"     type="str"  value="$(arg vehicle_state_topic)" />
+        <param name="output_local_trajectory_topic" type="str"  value="$(arg local_trajectory_topic)" />
     </node>
 
     <!-- 3. 启动仿真，用于提供车辆位置 -->
@@ -44,7 +46,7 @@
         <param name="initial_position/theta"    value="0.0" />
         
         <!-- 噪声参数 -->
-        <param name="noise/add_noise"           value="true" />
+        <param name="noise/add_noise"           value="false" />
         <param name="noise/linear_stddev"       value="0.0002" />
         <param name="noise/angular_stddev"      value="0.0005" />
         <param name="noise/position_stddev"     value="0.00005" />
@@ -56,7 +58,33 @@
         <remap from="vehicle_marker" to="/vehicle/vehicle_marker" />    <!-- 发布车辆形状可视化marker -->
     </node>
 
-    <!-- 4. 启动 rviz -->
+    <!-- 4. 根据运行模式决定是否启动control节点 -->
+    <group unless="$(arg single_frame_mode)">
+        <!-- 持续规划模式需要启动control节点 -->
+        <node pkg="control" type="control" name="control" output="screen">
+            <!-- 基本控制参数 -->
+            <param name="lookahead_distance"    value="1.5" />
+            <param name="max_linear_vel"        value="2.0" />
+            <param name="max_angular_vel"       value="1.0" />
+            <param name="control_frequency"     value="50.0" />
+            <param name="goal_tolerance"        value="0.1" />
+            
+            <!-- PID控制器参数 -->
+            <param name="pid/linear/kp"         value="0.3" />
+            <param name="pid/linear/ki"         value="0.01" />
+            <param name="pid/linear/kd"         value="0.01" />
+            <param name="pid/angular/kp"        value="0.2" />
+            <param name="pid/angular/ki"        value="0.0" />
+            <param name="pid/angular/kd"        value="0.5" />
+            
+            <!-- 话题重映射 -->
+            <remap from="/control/trajectory" to="$(arg local_trajectory_topic)" />  <!-- 订阅轨迹 -->
+            <remap from="/control/odom"       to="$(arg vehicle_state_topic)" />     <!-- 订阅车辆位姿和速度 -->
+            <remap from="/control/cmd_vel"    to="/control/cmd_vel" />               <!-- 发布控制指令 -->
+        </node>
+    </group>
+
+    <!-- 5. 启动 rviz -->
     <node pkg="rviz" name="rviz" type="rviz" args="-d $(find local_planning)/rviz/test_path_planning.rviz" />
 
     

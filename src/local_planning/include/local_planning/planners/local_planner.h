@@ -62,9 +62,9 @@ public:
         struct
         {
             double WEIGHT_L = 1.0;                      // 在路径qp过程中，路径点在参考线上L项的权重。
-            double WEIGHT_DL = 500.0;                   // 在路径qp过程中，路径点在参考线上L'项的权重。
-            double WEIGHT_DDL = 3000.0;                 // 在路径qp过程中，路径点在参考线上L''项的权重。
-            double WEIGHT_DDDL = 70000.0;                // 在路径qp过程中，路径点在参考线上L'''项的权重。
+            double WEIGHT_DL = 20.0;                   // 在路径qp过程中，路径点在参考线上L'项的权重。
+            double WEIGHT_DDL = 500.0;                 // 在路径qp过程中，路径点在参考线上L''项的权重。
+            double WEIGHT_DDDL = 500.0;                // 在路径qp过程中，路径点在参考线上L'''项的权重。
             double WEIGHT_END_STATE_L = 1.0;           // 在路径qp过程中，靠近给定终点L项的权重。
             double WEIGHT_END_STATE_DL = 5.0;          // 在路径qp过程中，靠近给定终点L'项的权重。
             double WEIGHT_END_STATE_DDL = 50.0;        // 在路径qp过程中，靠近给定终点L''项的权重。

@@ -187,10 +187,6 @@ void Control::computeControlOutput(const geometry_msgs::PoseStamped & target_pos
         angle_error = target_yaw - yaw;
     }
 
-    // 计算角度误差（归一化到[-pi, pi]）
-    while (angle_error > M_PI) angle_error -= 2.0 * M_PI;
-    while (angle_error < -M_PI) angle_error += 2.0 * M_PI;
-
     // 获取目标速度（从轨迹点中提取）
     // 这里假设轨迹点的速度存储在pose的position.z中
     double target_vel = target_pose.pose.position.z;
@@ -198,6 +194,25 @@ void Control::computeControlOutput(const geometry_msgs::PoseStamped & target_pos
     // 使用PID计算控制输出
     v = linear_pid_->compute(target_vel, current_odom.twist.twist.linear.x)
         + current_odom.twist.twist.linear.x;
+
+
+    // 计算角度误差（归一化到[-pi, pi]）
+    while (angle_error > M_PI) angle_error -= 2.0 * M_PI;
+    while (angle_error < -M_PI) angle_error += 2.0 * M_PI;
+
+    // ****************** 添加死区控制 ******************
+    const double dead_zone = 0.05;  // 约2.9度，可根据需要调整
+    if (std::fabs(angle_error) < dead_zone)
+    {
+        angle_error = 0.0;
+    }
+
+    // ****************** 添加低通滤波 ******************
+    static double filtered_angle_error = 0.0;
+    double filter_coeff = 0.3;  // 滤波系数，0-1，越小滤波越强
+    filtered_angle_error = filter_coeff * angle_error +
+        (1.0 - filter_coeff) * filtered_angle_error;
+
 
     // 根据角度误差和距离误差计算角速度
     // 当距离较近时，减小角速度增益
