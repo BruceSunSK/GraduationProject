@@ -7,6 +7,8 @@
         <param name="robot_frame"               value="/veh" />
         
         <!-- 车辆参数 -->
+        <param name="vehicle/length"            value="3.8" />
+        <param name="vehicle/width"             value="2.0" />
         <param name="vehicle/max_linear_vel"    value="4.0" />
         <param name="vehicle/max_angular_vel"   value="1.5" />
         <param name="vehicle/max_linear_acc"    value="2.0" />
@@ -25,7 +27,8 @@
         <param name="noise/velocity_stddev"     value="0.001" />
         
         <!-- 话题重映射 -->
-        <remap from="cmd_vel" to="/control/cmd_vel" />  <!-- 订阅车辆控制指令 -->
-        <remap from="odom"    to="/vehicle/odom" />     <!-- 发布车辆位姿和速度 -->
+        <remap from="cmd_vel"        to="/control/cmd_vel" />       <!-- 订阅车辆控制指令 -->
+        <remap from="odom"           to="/vehicle/odom" />          <!-- 发布车辆位姿和速度 -->
+        <remap from="vehicle_marker" to="/vehicle/vehicle_marker" /><!-- 发布车辆形状可视化marker -->
     </node>
 </launch>

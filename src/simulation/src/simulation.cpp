@@ -13,6 +13,10 @@ Simulation::Simulation(ros::NodeHandle & private_nh) :
     private_nh_.param<std::string>("world_frame", world_frame_, "/map");
     private_nh_.param<std::string>("robot_frame", robot_frame_, "/veh");
 
+    // 获取车辆尺寸参数
+    private_nh_.param<double>("vehicle/length", vehicle_length_, 3.8);
+    private_nh_.param<double>("vehicle/width", vehicle_width_, 2.0);
+
     // 获取车辆速度、加速度参数
     double max_linear_vel, max_angular_vel;
     private_nh_.param<double>("vehicle/max_linear_vel", max_linear_vel, 4.0);
@@ -46,8 +50,10 @@ Simulation::Simulation(ros::NodeHandle & private_nh) :
     last_cmd_vel_time_ = ros::Time::now();
 
     // 初始化订阅者和发布者
-    cmd_vel_sub_ = private_nh.subscribe("/cmd_vel", 1, &Simulation::cmdVelCallback, this);
-    odom_pub_    = private_nh.advertise<nav_msgs::Odometry>("/odom", 10);
+    cmd_vel_sub_      = private_nh.subscribe("/cmd_vel", 1, &Simulation::cmdVelCallback, this);
+    initial_pose_sub_ = private_nh.subscribe("/initialpose", 1, &Simulation::initialPoseCallback, this);
+    odom_pub_         = private_nh.advertise<nav_msgs::Odometry>("/odom", 10);
+    marker_pub_       = private_nh.advertise<visualization_msgs::Marker>("/vehicle_marker", 10);
 
     // 初始化服务
     reset_service_ = private_nh.advertiseService("reset_simulation", &Simulation::resetCallback, this);
@@ -55,6 +61,7 @@ Simulation::Simulation(ros::NodeHandle & private_nh) :
     ROS_INFO("[Simulation]: Simulation module initialized");
     ROS_INFO("[Simulation]:   Simulation frequency: %.1f Hz", simulation_frequency_);
     ROS_INFO("[Simulation]:   Cmd_vel timeout: %.2f s", cmd_vel_timeout_);
+    ROS_INFO("[Simulation]:   Vehicle size: %.2f x %.2f m", vehicle_length_, vehicle_width_);
     ROS_INFO("[Simulation]:   Max linear velocity: %.2f m/s", max_linear_vel);
     ROS_INFO("[Simulation]:   Max angular velocity: %.2f rad/s", max_angular_vel);
     if (max_linear_acc < std::numeric_limits<double>::max())
@@ -88,6 +95,20 @@ void Simulation::cmdVelCallback(const geometry_msgs::Twist::ConstPtr & msg)
     last_cmd_vel_time_ = ros::Time::now();
 }
 
+void Simulation::initialPoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr & msg)
+{
+    // 从消息中提取位置和朝向
+    double x = msg->pose.pose.position.x;
+    double y = msg->pose.pose.position.y;
+    double theta = getYawFromQuaternion(msg->pose.pose.orientation);
+
+    // 设置新的初始状态
+    vehicle_model_.setInitialState(x, y, theta);
+    vehicle_model_.reset();
+
+    ROS_INFO("[Simulation]: Vehicle initial pose set to: x=%.2f, y=%.2f, theta=%.2f", x, y, theta);
+}
+
 bool Simulation::resetCallback(std_srvs::Empty::Request & req,
     std_srvs::Empty::Response & res)
 {
@@ -96,6 +117,15 @@ bool Simulation::resetCallback(std_srvs::Empty::Request & req,
 
     ROS_INFO("[Simulation]: Simulation reset to initial state");
     return true;
+}
+
+double Simulation::getYawFromQuaternion(const geometry_msgs::Quaternion & q)
+{
+    tf2::Quaternion tf_q(q.x, q.y, q.z, q.w);
+    tf2::Matrix3x3 m(tf_q);
+    double roll, pitch, yaw;
+    m.getRPY(roll, pitch, yaw);
+    return yaw;
 }
 
 ros::Time Simulation::chronoToRosTime(const std::chrono::steady_clock::time_point & tp)
@@ -127,12 +157,6 @@ nav_msgs::Odometry Simulation::stateToOdometry(const VehicleState & state,
     q.setRPY(0, 0, state.theta);
     odom_msg.pose.pose.orientation = tf2::toMsg(q);
 
-    // 设置协方差矩阵
-    // for (int i = 0; i < 6; ++i)
-    // {
-    //     odom_msg.pose.covariance[i * 6 + i] = 0.01;
-    // }
-
     // 设置速度
     odom_msg.twist.twist.linear.x = state.v;
     odom_msg.twist.twist.linear.y = 0.0;
@@ -141,13 +165,42 @@ nav_msgs::Odometry Simulation::stateToOdometry(const VehicleState & state,
     odom_msg.twist.twist.angular.y = 0.0;
     odom_msg.twist.twist.angular.z = state.w;
 
-    // 速度协方差
-    // for (int i = 0; i < 6; ++i)
-    // {
-    //     odom_msg.twist.covariance[i * 6 + i] = 0.01;
-    // }
-
     return odom_msg;
+}
+
+void Simulation::publishVehicleMarker(const VehicleState & state)
+{
+    visualization_msgs::Marker marker;
+    marker.header.frame_id = world_frame_;
+    marker.header.stamp = chronoToRosTime(state.timestamp);
+    marker.ns = "vehicle";
+    marker.id = 0;
+    marker.type = visualization_msgs::Marker::CUBE;
+    marker.action = visualization_msgs::Marker::ADD;
+
+    // 设置位置和朝向
+    marker.pose.position.x = state.x;
+    marker.pose.position.y = state.y;
+    marker.pose.position.z = 0.0;
+
+    tf2::Quaternion q;
+    q.setRPY(0, 0, state.theta);
+    marker.pose.orientation = tf2::toMsg(q);
+
+    // 设置尺寸（长、宽、高）
+    marker.scale.x = vehicle_length_;  // 长度
+    marker.scale.y = vehicle_width_;   // 宽度
+    marker.scale.z = 0.5;              // 高度（固定值）
+
+    // 设置颜色（RGBA）
+    marker.color.r = 0.2;   // 红色分量
+    marker.color.g = 0.6;   // 绿色分量
+    marker.color.b = 1.0;   // 蓝色分量
+    marker.color.a = 0.8;   // 透明度
+
+    marker.lifetime = ros::Duration(0.1);  // 标记的存活时间
+
+    marker_pub_.publish(marker);
 }
 
 void Simulation::updateSimulation()
@@ -210,6 +263,9 @@ void Simulation::publishVehicleState()
     transform_stamped.transform.rotation = tf2::toMsg(q);
 
     tf_broadcaster_.sendTransform(transform_stamped);
+
+    // 发布车辆可视化标记
+    publishVehicleMarker(state);
 }
 
 void Simulation::run()

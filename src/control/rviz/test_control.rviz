@@ -3,7 +3,8 @@ Panels:
     Help Height: 78
     Name: Displays
     Property Tree Widget:
-      Expanded: ~
+      Expanded:
+        - /VehiclePos1/Shape1
       Splitter Ratio: 0.5
     Tree Height: 574
   - Class: rviz/Selection
@@ -121,14 +122,22 @@ Visualization Manager:
         Alpha: 1
         Axes Length: 1
         Axes Radius: 0.10000000149011612
-        Color: 52; 101; 164
+        Color: 239; 41; 41
         Head Length: 0.30000001192092896
         Head Radius: 0.30000001192092896
-        Shaft Length: 0.20000000298023224
+        Shaft Length: 1
         Shaft Radius: 0.20000000298023224
         Value: Arrow
       Topic: /vehicle/odom
       Unreliable: false
+      Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /vehicle/vehicle_marker
+      Name: VehicleMarker
+      Namespaces:
+        vehicle: true
+      Queue Size: 100
       Value: true
   Enabled: true
   Global Options:
@@ -167,7 +176,7 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: 63.6844596862793
+      Scale: 77.60163879394531
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz)
       X: 0.9746381044387817

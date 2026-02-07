@@ -6,9 +6,11 @@
 #include <std_msgs/Bool.h>
 #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/Twist.h>
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <visualization_msgs/Marker.h>
 #include <std_srvs/Empty.h>
 
 #include "simulation/model/differential_model.h"
@@ -26,11 +28,14 @@ public:
 private:
     // ROS回调函数
     void cmdVelCallback(const geometry_msgs::Twist::ConstPtr & msg);
-    bool resetCallback(std_srvs::Empty::Request & req,
-        std_srvs::Empty::Response & res);
+    void initialPoseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr & msg);
+    bool resetCallback(std_srvs::Empty::Request & req, std_srvs::Empty::Response & res);
 
     // 发布车辆状态
     void publishVehicleState();
+
+    // 发布车辆可视化标记
+    void publishVehicleMarker(const VehicleState & state);
 
     // 更新仿真
     void updateSimulation();
@@ -43,10 +48,15 @@ private:
     // 转换时间戳
     ros::Time chronoToRosTime(const std::chrono::steady_clock::time_point & tp);
 
+    // 从四元数获取偏航角
+    double getYawFromQuaternion(const geometry_msgs::Quaternion & q);
+
     // ROS相关
     ros::NodeHandle private_nh_;
     ros::Subscriber cmd_vel_sub_;
+    ros::Subscriber initial_pose_sub_;
     ros::Publisher odom_pub_;
+    ros::Publisher marker_pub_;
     ros::ServiceServer reset_service_;
     tf2_ros::TransformBroadcaster tf_broadcaster_;
 
@@ -64,6 +74,10 @@ private:
     double cmd_vel_timeout_;
     std::string world_frame_;
     std::string robot_frame_;
+
+    // 车辆尺寸参数
+    double vehicle_length_;
+    double vehicle_width_;
 
     // 仿真状态
     bool is_running_;

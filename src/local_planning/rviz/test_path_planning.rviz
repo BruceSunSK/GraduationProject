@@ -4,6 +4,7 @@ Panels:
     Name: Displays
     Property Tree Widget:
       Expanded:
+        - /Vehicle1/VehicleOdometry1/Shape1
         - /Planning1
         - /Planning1/GlobalPlanning1
         - /Planning1/GlobalPlanning1/GlobalPlanningAuxiliaryInfo1/Namespaces1
@@ -44,6 +45,52 @@ Visualization Manager:
       Radius: 1
       Reference Frame: map
       Value: true
+    - Class: rviz/Group
+      Displays:
+        - Angle Tolerance: 0.10000000149011612
+          Class: rviz/Odometry
+          Covariance:
+            Orientation:
+              Alpha: 0.5
+              Color: 255; 255; 127
+              Color Style: Unique
+              Frame: Local
+              Offset: 1
+              Scale: 1
+              Value: true
+            Position:
+              Alpha: 0.30000001192092896
+              Color: 204; 51; 204
+              Scale: 1
+              Value: true
+            Value: true
+          Enabled: true
+          Keep: 1
+          Name: VehicleOdometry
+          Position Tolerance: 0.10000000149011612
+          Shape:
+            Alpha: 1
+            Axes Length: 1
+            Axes Radius: 0.10000000149011612
+            Color: 117; 80; 123
+            Head Length: 1
+            Head Radius: 1
+            Shaft Length: 4
+            Shaft Radius: 0.5
+            Value: Arrow
+          Topic: /vehicle/odom
+          Unreliable: false
+          Value: true
+        - Class: rviz/Marker
+          Enabled: true
+          Marker Topic: /vehicle/vehicle_marker
+          Name: VehicleShape
+          Namespaces:
+            vehicle: true
+          Queue Size: 100
+          Value: true
+      Enabled: true
+      Name: Vehicle
     - Class: rviz/Group
       Displays:
         - Class: rviz/Group
@@ -198,11 +245,11 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: 12.232244491577148
+      Scale: 14.824865341186523
       Target Frame: body
       Value: TopDownOrtho (rviz)
-      X: 68.83228302001953
-      Y: 175.53892517089844
+      X: 68.9729995727539
+      Y: 181.2337188720703
     Saved: ~
 Window Geometry:
   Displays:
