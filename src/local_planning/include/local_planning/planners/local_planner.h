@@ -10,6 +10,7 @@
 #include "global_planning/smoothers/piecewise_jerk_smoother2.h"
 #include "local_planning/vehicle/data_type.h"
 #include "local_planning/vehicle/collision.h"
+#include "local_planning/obstacles/obstacle.h"
 
 
 /// @brief 局部规划器
@@ -119,9 +120,11 @@ private:
     Map::MultiMap::Ptr map_;
     Path::ReferencePath::Ptr reference_path_;
     Vehicle::State::Ptr vehicle_state_;
+    Obstacle::Obstacle::List obstacles_;
     bool flag_map_ = false;
     bool flag_reference_path_ = false;
     bool flag_vehicle_state_ = false;
+    bool has_obstacles_ = false;
 
     // 上帧规划结果
     bool has_last_trajectory_ = false;  // 是否有上一帧轨迹
@@ -131,7 +134,7 @@ private:
     int last_veh_proj_nearest_idx_;
     double last_planning_cycle_time_ = 0.1;  // 上一帧规划周期，默认0.1s
 
-    //
+    // 本帧中间变量
     double curr_s_interval_;
 
     /// @brief 检查算法所需数据是否准备好
@@ -179,7 +182,7 @@ private:
     /// @param start_point 规划起点位置
     /// @param optimized_path 最优路径
     /// @return 是否成功进行路径QP优化
-    bool PathQP(const std::vector<Path::PathNode> & ref_points,
+    bool PathPlanning(const std::vector<Path::PathNode> & ref_points,
         const std::vector<std::array<std::pair<double, double>, 3>> & bounds,
         const Path::PathNode & start_point,
         std::vector<Path::PointXY> & optimized_path);

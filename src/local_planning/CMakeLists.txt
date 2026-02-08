@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf2
   tf2_ros
   tf2_geometry_msgs
+  perception
   global_planning
 )
 
@@ -110,7 +111,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES local_planning
-  CATKIN_DEPENDS roscpp std_msgs nav_msgs geometry_msgs tf2 tf2_ros tf2_geometry_msgs global_planning
+  CATKIN_DEPENDS roscpp std_msgs nav_msgs geometry_msgs tf2 tf2_ros tf2_geometry_msgs perception global_planning
 #  DEPENDS system_lib
 )
 
@@ -128,14 +129,27 @@ include_directories(
 ## Declare a C++ library
 add_library(vehicle        SHARED src/vehicle/data_type.cpp
                                   src/vehicle/collision.cpp)
+add_library(obstacles      SHARED src/obstacles/obstacle.cpp)
+add_library(decision       SHARED src/decision/ignore_state.cpp
+                                  src/decision/follow_state.cpp
+                                  src/decision/overtake_state.cpp
+                                  src/decision/yield_state.cpp
+                                  src/decision/stop_state.cpp
+                                  src/decision/decision_state_factory.cpp
+                                  src/decision/decision_maker.cpp)
 add_library(local_planners SHARED src/planners/local_planner.cpp)
 
 target_link_libraries(vehicle        map 
+                                     path)
+target_link_libraries(obstacles      path)
+target_link_libraries(decision       obstacles
                                      path)
 target_link_libraries(local_planners map 
                                      curve 
                                      path
                                      vehicle
+                                     obstacles
+                                     decision
                                      smoothers)
 
 ## Add cmake target dependencies of the library

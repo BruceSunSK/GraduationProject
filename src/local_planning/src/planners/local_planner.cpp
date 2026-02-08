@@ -86,9 +86,9 @@ bool LocalPlanner::Plan(LocalPlannerResult & result, std::string & error_msg)
 
     // 5. 进行路径规划，QP优化
     std::vector<Path::PointXY> optimized_path;
-    if (!PathQP(ref_points, map_bounds, planning_start_point, optimized_path))
+    if (!PathPlanning(ref_points, map_bounds, planning_start_point, optimized_path))
     {
-        error_msg = "LocalPlanner::Plan() failed: PathQP failed.";
+        error_msg = "LocalPlanner::Plan() failed: PathPlanning failed.";
         return false;
     }
 
@@ -477,7 +477,7 @@ std::vector<std::array<std::pair<double, double>, 3>> LocalPlanner::GetBoundsByM
     return bounds;
 }
 
-bool LocalPlanner::PathQP(const std::vector<Path::PathNode> & ref_points,
+bool LocalPlanner::PathPlanning(const std::vector<Path::PathNode> & ref_points,
     const std::vector<std::array<std::pair<double, double>, 3>> & bounds,
     const Path::PathNode & start_point,
     std::vector<Path::PointXY> & optimized_path)
@@ -503,7 +503,7 @@ bool LocalPlanner::PathQP(const std::vector<Path::PathNode> & ref_points,
         start_point_proj.theta, start_point_proj.kappa, start_point_proj.dkappa);
     std::array<double, 3> init_state = { start_point_sl.l, start_point_sl.l_prime, start_point_sl.l_double_prime };      // l, l', l"的参考值
     std::array<double, 3> end_state_ref = { 0.0, 0.0, 0.0 };      // l, l', l"的参考值
-    result_.log << "PathQP(): start_point_sl (l, l', l\"): ("
+    result_.log << "PathPlanning(): start_point_sl (l, l', l\"): ("
         << start_point_sl.l << ", " << start_point_sl.l_prime << ", " << start_point_sl.l_double_prime << ")\n";
 
     // 传入求解数据进行求解
@@ -516,6 +516,6 @@ bool LocalPlanner::PathQP(const std::vector<Path::PathNode> & ref_points,
     }
     auto end_time = std::chrono::steady_clock::now();
 
-    result_.log << "PathQP(): cost time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count() << " ms.\n";
+    result_.log << "PathPlanning(): cost time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count() << " ms.\n";
     return true;
 }

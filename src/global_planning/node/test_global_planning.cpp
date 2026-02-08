@@ -87,7 +87,7 @@ void pub_path()
         m.header = path_msg.header;
         m.pose.position.x = p.x;
         m.pose.position.y = p.y;
-        m.pose.position.z = 10;
+        m.pose.position.z = 0.01;
         path_msg.poses.push_back(std::move(m));
     }
 

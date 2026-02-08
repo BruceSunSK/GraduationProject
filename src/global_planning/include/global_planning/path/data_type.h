@@ -47,16 +47,18 @@ struct PathNode : public PointXY, public PointSL
 };
 std::ostream & operator<<(std::ostream & os, const PathNode & point);
 
-struct TrajectoryPoint : public PointXY
+struct TrajectoryPoint
 {
-    TrajectoryPoint() : PointXY(), t(0), v(0), a(0), j(0) {}
-    TrajectoryPoint(const double x, const double y, const double t, const double v, const double a, const double j)
-        : PointXY(x, y), t(t), v(v), a(a), j(j) {}
-    
-    double t;
-    double v;
-    double a;
-    double j;
+    TrajectoryPoint() : x(0), y(0), theta(0), kappa(0), v(0), a(0), j(0), t(0) {}
+
+    double x;
+    double y;
+    double theta;  // 航向角
+    double kappa;  // 曲率
+    double v;      // 速度
+    double a;      // 加速度
+    double j;      // 加加速度
+    double t;      // 时间戳（相对于轨迹起点）
 };
 
 } // namespace Path
