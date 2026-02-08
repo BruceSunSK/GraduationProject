@@ -1,0 +1,26 @@
+<launch>
+    <!-- Perception Simulator Node -->
+    <node pkg="perception" type="perception_simulator" name="perception_simulator" output="screen">
+        <!-- 配置文件路径，使用绝对路径或相对于包的路径 -->
+        <param name="config_file" value="$(find perception)/config/obstacles.yaml" />
+        
+        <!-- 仿真参数 -->
+        <param name="simulation_rate" value="10.0" />
+        <param name="prediction_time_step" value="0.5" />
+        <param name="prediction_points" value="10" />
+        
+        <!-- 可视化参数 -->
+        <param name="marker_lifetime" value="0.2" />
+        <param name="enable_visualization" value="true" />
+        
+        <!-- 日志级别 -->
+        <env name="ROSCONSOLE_CONFIG_FILE" value="$(find perception)/config/rosconsole.config" />
+    </node>
+
+    <!-- RViz for Visualization -->
+    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find perception)/rviz/test_perception_simulator.rviz" />
+    
+    <!-- Static Transform Publisher (map to world if needed) -->
+    <node pkg="tf2_ros" type="static_transform_publisher" name="map_to_world" 
+          args="0 0 0 0 0 0 world map" />
+</launch>

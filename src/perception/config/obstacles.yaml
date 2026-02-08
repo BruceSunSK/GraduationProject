@@ -1,0 +1,53 @@
+# 障碍物配置文件
+obstacles:
+  - id: 1
+    name: "vehicle_ahead"
+    type: 1  # VEHICLE
+    init_x: 5.0
+    init_y: 1.8
+    init_yaw: 0.0
+    length: 4.8
+    width: 2.0
+    height: 1.6
+    speed: 5.0  # m/s
+    use_noise: false
+    noise_stddev: 0.05
+  
+  - id: 2
+    name: "pedestrian_crossing"
+    type: 2  # PEDESTRIAN
+    init_x: 8.0
+    init_y: -1.0
+    init_yaw: 1.57
+    length: 0.5
+    width: 0.5
+    height: 1.7
+    speed: 1.2  # m/s
+    use_noise: false
+    noise_stddev: 0.1
+  
+  - id: 3
+    name: "bicycle_side"
+    type: 3  # BICYCLE
+    init_x: 12.0
+    init_y: 1.5
+    init_yaw: 0.0
+    length: 1.8
+    width: 0.7
+    height: 1.2
+    speed: 3.5  # m/s
+    use_noise: false
+    noise_stddev: 0.08
+  
+  - id: 4
+    name: "static_vehicle"
+    type: 1  # VEHICLE
+    init_x: 15.0
+    init_y: -1.5
+    init_yaw: 0.0
+    length: 4.5
+    width: 1.8
+    height: 1.5
+    speed: 0.0  # 静止障碍物
+    use_noise: false
+    noise_stddev: 0.0
