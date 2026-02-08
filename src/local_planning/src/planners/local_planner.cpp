@@ -22,12 +22,22 @@ void LocalPlanner::SetVehicleState(const Vehicle::State::Ptr & vehicle_state)
 {
     vehicle_state_ = vehicle_state;
     flag_vehicle_state_ = true;
+
+    // 记录当前时间戳
+    auto now = std::chrono::steady_clock::now();
+
+    // 如果是第一次收到车辆状态，初始化时间戳
+    if (last_planning_time_ == std::chrono::steady_clock::time_point())
+    {
+        last_planning_time_ = now;
+    }
 }
 
 bool LocalPlanner::Plan(LocalPlannerResult & result, std::string & error_msg)
 {
     result_.Clear();
     error_msg.clear();
+    has_last_trajectory_ = false;
 
     // 0. 判断当前帧数据是否完整
     if (!IsDataReady())
@@ -83,22 +93,98 @@ bool LocalPlanner::Plan(LocalPlannerResult & result, std::string & error_msg)
     }
 
     // 6. 转换为TrajectoryPoint类型
-    for (const auto & point : optimized_path)
+    double current_t = 0.0;
+    for (size_t i = 0; i < optimized_path.size(); ++i)
     {
         Path::TrajectoryPoint traj_point;
-        traj_point.x = point.x;
-        traj_point.y = point.y;
-        traj_point.t = 0.0;
-        traj_point.v = 0.0;
+        traj_point.x = optimized_path[i].x;
+        traj_point.y = optimized_path[i].y;
+
+        // 计算航向角（使用差分，除了第一个点）
+        if (i == 0)
+        {
+            traj_point.theta = planning_start_point.theta;
+        }
+        else
+        {
+            double dx = optimized_path[i].x - optimized_path[i - 1].x;
+            double dy = optimized_path[i].y - optimized_path[i - 1].y;
+            if (std::sqrt(dx * dx + dy * dy) > 1e-6)
+            {
+                traj_point.theta = std::atan2(dy, dx);
+            }
+            else
+            {
+                traj_point.theta = (i > 1) ? result_.trajectory[i - 1].theta : planning_start_point.theta;
+            }
+        }
+
+        // 计算曲率（使用三点法，除了端点）
+        if (i > 0 && i < optimized_path.size() - 1)
+        {
+            const auto & p0 = optimized_path[i - 1];
+            const auto & p1 = optimized_path[i];
+            const auto & p2 = optimized_path[i + 1];
+
+            double dx1 = p1.x - p0.x;
+            double dy1 = p1.y - p0.y;
+            double dx2 = p2.x - p1.x;
+            double dy2 = p2.y - p1.y;
+
+            double cross = dx1 * dy2 - dy1 * dx2;
+            double dot = dx1 * dx2 + dy1 * dy2;
+
+            if (std::abs(cross) > 1e-6)
+            {
+                double ds1 = std::sqrt(dx1 * dx1 + dy1 * dy1);
+                double ds2 = std::sqrt(dx2 * dx2 + dy2 * dy2);
+                double ds = std::min(ds1, ds2);
+
+                traj_point.kappa = 2.0 * cross / (ds * ds);
+            }
+            else
+            {
+                traj_point.kappa = 0.0;
+            }
+        }
+        else
+        {
+            traj_point.kappa = 0.0;
+        }
+
+        // 时间和运动状态（需要根据速度规划来确定，这里先给默认值）
+        traj_point.t = current_t;
+        traj_point.v = 2.0;  // 使用当前速度，后续需要速度规划
         traj_point.a = 0.0;
         traj_point.j = 0.0;
+
         result_.trajectory.push_back(traj_point);
+
+        // 更新时间（假设恒定速度）
+        if (i < optimized_path.size() - 1)
+        {
+            double dx = optimized_path[i + 1].x - optimized_path[i].x;
+            double dy = optimized_path[i + 1].y - optimized_path[i].y;
+            double ds = std::sqrt(dx * dx + dy * dy);
+            current_t += ds / std::max(0.1, traj_point.v);  // 防止除零
+        }
     }
 
-    auto end_time = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
-    result_.planning_time = end_time - result_.timestamp;
+    // 99. 记录结果
+    // 保存当前帧的规划起点和轨迹
+    last_start_point_ = planning_start_point;
+    last_trajectory_ = result_.trajectory;
+    has_last_trajectory_ = true;
+
+    // 记录规划时间
+    auto current_time = std::chrono::steady_clock::now();
+    last_planning_cycle_time_ = std::chrono::duration<double>(current_time - last_planning_time_).count();
+    last_planning_time_ = current_time;
+
+    
+    result_.planning_cost_time = std::chrono::duration<double>(current_time.time_since_epoch()).count() - result_.timestamp;
     result_.log << "LocalPlanner::Plan() end.\n"
-                << "LocalPlanner::Plan() elapsed time: " << result_.planning_time * 1000.0 << " ms.\n";
+                << "LocalPlanner::Plan() elapsed time: " << result_.planning_cost_time * 1000.0 << " ms.\n";
     result = std::move(result_);
     return true;
 }
@@ -109,10 +195,103 @@ bool LocalPlanner::IsDataReady() const
     return flag_map_ && flag_reference_path_ && flag_vehicle_state_;
 }
 
+bool LocalPlanner::MatchLastTrajectory(const Path::PathNode & current_pos,
+    Path::TrajectoryPoint & matched_point,
+    double & lateral_error,
+    double & longitudinal_error)
+{
+    if (last_trajectory_.empty())
+    {
+        return false;
+    }
+
+    // 1. 寻找最近点（基于欧氏距离）
+    double min_dis_sq = std::numeric_limits<double>::max();
+    size_t min_index = 0;
+
+    for (size_t i = 0; i < last_trajectory_.size(); ++i)
+    {
+        const auto & point = last_trajectory_[i];
+        double dx = point.x - current_pos.x;
+        double dy = point.y - current_pos.y;
+        double dis_sq = dx * dx + dy * dy;
+
+        if (dis_sq < min_dis_sq)
+        {
+            min_dis_sq = dis_sq;
+            min_index = i;
+        }
+    }
+
+    // 2. 使用最近点作为匹配点
+    matched_point = last_trajectory_[min_index];
+
+    // 3. 计算横向和纵向误差
+    // 在匹配点的frenet坐标系下计算误差
+    double cos_theta = std::cos(matched_point.theta);
+    double sin_theta = std::sin(matched_point.theta);
+
+    // 相对位置向量
+    double dx = current_pos.x - matched_point.x;
+    double dy = current_pos.y - matched_point.y;
+
+    // 纵向误差（沿着轨迹方向）
+    longitudinal_error = dx * cos_theta + dy * sin_theta;
+
+    // 横向误差（垂直轨迹方向）
+    lateral_error = -dx * sin_theta + dy * cos_theta;
+
+    double total_error = std::sqrt(lateral_error * lateral_error + longitudinal_error * longitudinal_error);
+
+    result_.log << "MatchLastTrajectory(): matched point index: " << min_index
+                << ", total error: " << total_error << " m\n";
+    return true;
+}
+
+Path::PathNode LocalPlanner::GetMotionExtrapolationStart(const Vehicle::State & curr_veh_state)
+{
+    Path::PathNode ret;
+    const double w = curr_veh_state.w;
+    const double v = curr_veh_state.v;
+    const double dt = params_.common.PLANNING_CYCLE_TIME;
+
+    if (std::abs(w) < 1e-6)
+    {
+        // 直线运动
+        ret.x = curr_veh_state.pos.x + v * std::cos(curr_veh_state.pos.theta) * dt;
+        ret.y = curr_veh_state.pos.y + v * std::sin(curr_veh_state.pos.theta) * dt;
+        ret.theta = curr_veh_state.pos.theta;
+    }
+    else
+    {
+        // 圆弧运动
+        double r = v / w;
+        double delta_theta = w * dt;
+
+        ret.x = curr_veh_state.pos.x + r * (std::sin(curr_veh_state.pos.theta + delta_theta) -
+            std::sin(curr_veh_state.pos.theta));
+        ret.y = curr_veh_state.pos.y + -r * (std::cos(curr_veh_state.pos.theta + delta_theta) -
+            std::cos(curr_veh_state.pos.theta));
+        ret.theta = curr_veh_state.pos.theta + delta_theta;
+    }
+    ret.kappa = curr_veh_state.pos.kappa;
+
+    // 获取在参考线上的投影
+    auto [proj_node, proj_idx] = reference_path_->GetProjection(
+        { ret.x, ret.y }, last_veh_proj_nearest_idx_);
+
+    Path::PointSL sl = Path::Utils::XYtoSL({ ret.x, ret.y }, { proj_node.x, proj_node.y },
+        proj_node.s, proj_node.theta);
+
+    ret.s = sl.s;
+    ret.l = sl.l;
+
+    return ret;
+}
+
 Path::PathNode LocalPlanner::GetPlanningStart(const Vehicle::State & curr_veh_state, const Path::PathNode & veh_proj_point)
 {
-    // 1. 车速为0，直接认为当前车辆位置就是规划起点情形
-    // todo 上一帧无规划结果
+    // 1. 车速为0，直接认为当前车辆位置就是规划起点
     if (curr_veh_state.v < params_.start_point.V_TOLERANCE &&
         curr_veh_state.w < params_.start_point.W_TOLERANCE)
     {
@@ -120,47 +299,64 @@ Path::PathNode LocalPlanner::GetPlanningStart(const Vehicle::State & curr_veh_st
         return curr_veh_state.pos;
     }
 
-    // 2. 当前位置与上一帧规划结果偏移过大（控制没跟上），则使用运动学外推
-    // todo 目前用l距离偏差简单代替
-    if (curr_veh_state.pos.l > params_.start_point.POS_TOLERANCE)
+    // 2. 检查是否有上一帧轨迹可用
+    if (!has_last_trajectory_ || last_trajectory_.empty())
     {
-        Path::PathNode ret;
-        const double w = curr_veh_state.w;
-        const double v = curr_veh_state.v;
-        const double dt = params_.common.PLANNING_CYCLE_TIME;
-        if (std::abs(w) < 1e-6)
+        // 没有上一帧轨迹，使用运动学外推
+        return GetMotionExtrapolationStart(curr_veh_state);
+    }
+
+    // 3. 检查当前位置与上一帧轨迹的匹配度
+    Path::TrajectoryPoint matched_point;
+    double lateral_error, longitudinal_error;
+    if (MatchLastTrajectory(curr_veh_state.pos, matched_point, lateral_error, longitudinal_error))
+    {
+        // 判断是否控制跟上（误差在容忍范围内）
+        double pos_error = std::sqrt(lateral_error * lateral_error + longitudinal_error * longitudinal_error);
+        if (pos_error <= params_.start_point.POS_TOLERANCE)
         {
-            // 直线运动
-            ret.x = curr_veh_state.pos.x + v * std::cos(curr_veh_state.pos.theta) * dt;
-            ret.y = curr_veh_state.pos.y + v * std::sin(curr_veh_state.pos.theta) * dt;
-            ret.theta = curr_veh_state.pos.theta;
+            // 控制跟上了，使用上一帧轨迹中的匹配点作为规划起点
+            result_.log << "GetPlanningStart(): control is following, using matched point from last trajectory.\n";
+            result_.log << "  Position error: " << pos_error << " m (lateral: " << lateral_error
+                << " m, longitudinal: " << longitudinal_error << " m)\n";
+
+            // 将匹配点转换为PathNode
+            Path::PathNode planning_start;
+            planning_start.x = matched_point.x;
+            planning_start.y = matched_point.y;
+            planning_start.theta = matched_point.theta;
+            planning_start.kappa = matched_point.kappa;
+
+            // 计算在参考线上的投影获取s和l
+            auto [proj_node, proj_idx] = reference_path_->GetProjection(
+                { planning_start.x, planning_start.y }, last_veh_proj_nearest_idx_);
+
+            Path::PointSL sl = Path::Utils::XYtoSL(
+                { planning_start.x, planning_start.y },
+                { proj_node.x, proj_node.y },
+                proj_node.s,
+                proj_node.theta);
+
+            planning_start.s = sl.s;
+            planning_start.l = sl.l;
+
+            return planning_start;
         }
         else
         {
-            // 圆弧运动
-            double r = v / w;
-            double delta_theta = w * dt;
-
-            ret.x = curr_veh_state.pos.x + r * (std::sin(curr_veh_state.pos.theta + delta_theta) -
-                std::sin(curr_veh_state.pos.theta));
-            ret.y = curr_veh_state.pos.y + -r * (std::cos(curr_veh_state.pos.theta + delta_theta) -
-                std::cos(curr_veh_state.pos.theta));
-            ret.theta = curr_veh_state.pos.theta + delta_theta;
+            // 误差过大，控制没跟上，使用运动学外推
+            result_.log << "GetPlanningStart(): control is NOT following, using motion extrapolation.\n";
+            result_.log << "  Position error: " << pos_error << " m (exceeds tolerance: "
+                << params_.start_point.POS_TOLERANCE << " m)\n";
+            return GetMotionExtrapolationStart(curr_veh_state);
         }
-
-        auto [proj_node, _] = reference_path_->GetProjection({ ret.x, ret.y }, last_veh_proj_nearest_idx_);   // warmup实际用的是本帧的nearest结果
-        Path::PointSL sl = Path::Utils::XYtoSL({ ret.x, ret.y }, { proj_node.x, proj_node.y }, proj_node.s, proj_node.theta);
-        ret.s = sl.s;
-        ret.l = sl.l;
-
-        result_.log << "GetPlanningStart(): use motion extrapolation.\n";
-        return ret;
     }
-
-    // 3. 认为控制跟上了，直接从上一帧轨迹中去除对应点作为本帧规划起点
-    // todo 上帧数据没有
-    result_.log << "GetPlanningStart(): use last planning result.\n";
-    return curr_veh_state.pos;
+    else
+    {
+        // 无法匹配到上一帧轨迹，使用运动学外推
+        result_.log << "GetPlanningStart(): cannot match last trajectory, using motion extrapolation.\n";
+        return GetMotionExtrapolationStart(curr_veh_state);
+    }
 }
 
 std::vector<Path::PathNode> LocalPlanner::SampleReferencePoints(const Path::PathNode & planning_start_point)

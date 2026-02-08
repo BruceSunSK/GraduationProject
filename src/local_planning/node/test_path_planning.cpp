@@ -302,7 +302,7 @@ nav_msgs::Path ConvertTrajectoryToPathMsg(const std::vector<Path::TrajectoryPoin
         pose_stamped.header = path_msg.header;
         pose_stamped.pose.position.x = point.x;
         pose_stamped.pose.position.y = point.y;
-        pose_stamped.pose.position.z = 12.0;
+        pose_stamped.pose.position.z = 2.0;     // 参考速度
 
         // 使用默认朝向（可以后续根据轨迹点速度方向计算，目前使用单位四元数）
         pose_stamped.pose.orientation.w = 1.0;
@@ -668,7 +668,7 @@ void ContinuousPlanningCallback(const ros::TimerEvent & event)
     bool success = TestData::planner->Plan(TestData::planning_result, TestData::error_msg);
 
     TestData::planning_count++;
-    TestData::total_planning_time += TestData::planning_result.planning_time;
+    TestData::total_planning_time += TestData::planning_result.planning_cost_time;
 
     if (success)
     {
@@ -678,7 +678,7 @@ void ContinuousPlanningCallback(const ros::TimerEvent & event)
             double avg_time = TestData::total_planning_time / TestData::planning_count;
             ROS_INFO("Continuous planning #%d, time: %.2f ms, avg: %.2f ms",
                 TestData::planning_count,
-                TestData::planning_result.planning_time,
+                TestData::planning_result.planning_cost_time,
                 avg_time);
         }
 

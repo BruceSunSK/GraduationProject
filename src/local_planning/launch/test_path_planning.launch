@@ -73,9 +73,9 @@
             <param name="pid/linear/kp"         value="0.3" />
             <param name="pid/linear/ki"         value="0.01" />
             <param name="pid/linear/kd"         value="0.01" />
-            <param name="pid/angular/kp"        value="0.2" />
+            <param name="pid/angular/kp"        value="0.4" />
             <param name="pid/angular/ki"        value="0.0" />
-            <param name="pid/angular/kd"        value="0.5" />
+            <param name="pid/angular/kd"        value="0.8" />
             
             <!-- 话题重映射 -->
             <remap from="/control/trajectory" to="$(arg local_trajectory_topic)" />  <!-- 订阅轨迹 -->

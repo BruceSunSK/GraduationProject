@@ -35,7 +35,7 @@ public:
         {
             double V_TOLERANCE = 0.1;  // m/s
             double W_TOLERANCE = 0.001;  // rad/s
-            double POS_TOLERANCE = 0.5;  // m
+            double POS_TOLERANCE = 0.1;  // m
         } start_point;
 
         struct
@@ -62,9 +62,9 @@ public:
         struct
         {
             double WEIGHT_L = 1.0;                      // 在路径qp过程中，路径点在参考线上L项的权重。
-            double WEIGHT_DL = 20.0;                   // 在路径qp过程中，路径点在参考线上L'项的权重。
-            double WEIGHT_DDL = 500.0;                 // 在路径qp过程中，路径点在参考线上L''项的权重。
-            double WEIGHT_DDDL = 500.0;                // 在路径qp过程中，路径点在参考线上L'''项的权重。
+            double WEIGHT_DL = 50.0;                   // 在路径qp过程中，路径点在参考线上L'项的权重。
+            double WEIGHT_DDL = 1000.0;                 // 在路径qp过程中，路径点在参考线上L''项的权重。
+            double WEIGHT_DDDL = 1000.0;                // 在路径qp过程中，路径点在参考线上L'''项的权重。
             double WEIGHT_END_STATE_L = 1.0;           // 在路径qp过程中，靠近给定终点L项的权重。
             double WEIGHT_END_STATE_DL = 5.0;          // 在路径qp过程中，靠近给定终点L'项的权重。
             double WEIGHT_END_STATE_DDL = 50.0;        // 在路径qp过程中，靠近给定终点L''项的权重。
@@ -76,7 +76,7 @@ public:
     {
         // 规划结果
         double timestamp = 0.0;                             // 规划时间戳，单位：秒
-        double planning_time = 0.0;                         // 规划耗时，单位：秒
+        double planning_cost_time = 0.0;                         // 规划耗时，单位：秒
         std::vector<Path::TrajectoryPoint> trajectory;
 
         // 附加信息
@@ -87,7 +87,7 @@ public:
         void Clear()
         {
             timestamp = 0.0;
-            planning_time = 0.0;
+            planning_cost_time = 0.0;
             trajectory.clear();
 
             log.str("");
@@ -123,12 +123,34 @@ private:
     bool flag_reference_path_ = false;
     bool flag_vehicle_state_ = false;
 
+    // 上帧规划结果
+    bool has_last_trajectory_ = false;  // 是否有上一帧轨迹
+    Path::PathNode last_start_point_;   // 上一帧的规划起点
+    std::vector<Path::TrajectoryPoint> last_trajectory_;  // 上一帧轨迹
+    std::chrono::steady_clock::time_point last_planning_time_;  // 上一帧规划时间
     int last_veh_proj_nearest_idx_;
+    double last_planning_cycle_time_ = 0.1;  // 上一帧规划周期，默认0.1s
+
+    //
     double curr_s_interval_;
 
     /// @brief 检查算法所需数据是否准备好
     /// @return 是否可以进行算法部分
     bool IsDataReady() const;
+    /// @brief 匹配上一帧轨迹中的对应点
+    /// @param current_pos 当前车辆位置
+    /// @param matched_point 输出的匹配点
+    /// @param lateral_error 横向误差
+    /// @param longitudinal_error 纵向误差
+    /// @return 是否成功匹配
+    bool MatchLastTrajectory(const Path::PathNode & current_pos,
+        Path::TrajectoryPoint & matched_point,
+        double & lateral_error,
+        double & longitudinal_error);
+    /// @brief 使用运动学外推获取规划起点
+    /// @param curr_veh_state 当前车辆状态
+    /// @return 外推后的规划起点
+    Path::PathNode GetMotionExtrapolationStart(const Vehicle::State & curr_veh_state);
     /// @brief 根据车辆当前速度信息、与上帧规划结果的信息，得到当前规划起点位置
     /// @param curr_veh_state 本帧车辆状态
     /// @param veh_proj_point 本帧车辆在参考线上的投影点
