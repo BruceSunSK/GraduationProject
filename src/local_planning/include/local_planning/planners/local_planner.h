@@ -10,6 +10,7 @@
 #include "global_planning/path/utils.h"
 #include "global_planning/path/reference_path.h"
 #include "global_planning/smoothers/piecewise_jerk_smoother2.h"
+#include "global_planning/smoothers/piecewise_jerk_speed_smoother.h"
 #include "local_planning/vehicle/data_type.h"
 #include "local_planning/vehicle/collision.h"
 #include "local_planning/obstacles/obstacle.h"
@@ -171,6 +172,9 @@ private:
 
     // 本帧中间变量
     double curr_s_interval_;
+    std::vector<double> path_s_ref_;      // 优化路径点在参考线上的s坐标
+    std::vector<double> path_l_;          // 优化路径点在参考线上的l坐标
+    std::vector<double> path_l_prime_;    // 优化路径点在参考线上的l' (dl/ds)
 
     /// @brief 检查算法所需数据是否准备好
     /// @return 是否可以进行算法部分
@@ -182,9 +186,9 @@ private:
     /// @param longitudinal_error 纵向误差
     /// @return 是否成功匹配
     bool MatchLastTrajectory(const Path::PathNode & current_pos,
-        Path::TrajectoryPoint & matched_point,
-        double & lateral_error,
-        double & longitudinal_error);
+                             Path::TrajectoryPoint & matched_point,
+                             double & lateral_error,
+                             double & longitudinal_error);
     /// @brief 使用运动学外推获取规划起点
     /// @param curr_veh_state 当前车辆状态
     /// @return 外推后的规划起点
@@ -194,7 +198,7 @@ private:
     /// @param veh_proj_point 本帧车辆在参考线上的投影点
     /// @return 本帧规划起点位置
     Path::PathNode GetPlanningStart(const Vehicle::State & curr_veh_state, 
-        const Path::PathNode & veh_proj_point);
+                                    const Path::PathNode & veh_proj_point);
     /// @brief 根据车辆规划起点位置，得到局部采样点，截取车辆周围的参考线，以PathNode的形式返回。
     /// @param planning_start_point 规划起点位置
     /// @return 车辆周围的参考线采样点，即局部采样点，也是本帧局部规划的范围
@@ -205,19 +209,19 @@ private:
     /// @param len 当前碰撞圆圆心到车辆几何中心的距离，有正负planning_start_point
     /// @return 偏移后的碰撞圆圆心
     Path::PathNode GetApproxNode(const Path::PathNode & original_node, 
-        const Path::PathNode & actual_node, double len) const;
+                                 const Path::PathNode & actual_node, double len) const;
     /// @brief 根据代价地图计算当前所有碰撞圆的边界
     /// @param ref_points 局部采样点
     /// @return 所有碰撞圆的边界
     std::vector<std::array<std::pair<double, double>, 3>> GetBoundsByMap(
-        const std::vector<Path::PathNode> & ref_points);
+                    const std::vector<Path::PathNode> & ref_points);
     /// @brief 合并地图边界和决策边界
     /// @param map_bounds 地图边界
     /// @param decision_bounds 决策边界
     /// @return 合并后的边界
     std::vector<std::array<std::pair<double, double>, 3>> MergeBounds(
-        const std::vector<std::array<std::pair<double, double>, 3>> & map_bounds,
-        const Decision::DecisionMaker::PathBoundary & decision_bounds);
+                    const std::vector<std::array<std::pair<double, double>, 3>> & map_bounds,
+                    const Decision::DecisionMaker::PathBoundary & decision_bounds);
     /// @brief 进行路径QP优化，得到最优路径
     /// @param ref_points 局部采样点
     /// @param bounds 优化边界，包括碰撞圆边界与障碍物边界
@@ -225,7 +229,32 @@ private:
     /// @param optimized_path 最优路径
     /// @return 是否成功进行路径QP优化
     bool PathPlanning(const std::vector<Path::PathNode> & ref_points,
-        const std::vector<std::array<std::pair<double, double>, 3>> & bounds,
-        const Path::PathNode & start_point,
-        std::vector<Path::PointXY> & optimized_path);
+                      const std::vector<std::array<std::pair<double, double>, 3>> & bounds,
+                      const Path::PathNode & start_point,
+                      std::vector<Path::PointXY> & optimized_path);
+    
+    /// @brief 计算路径点的s坐标（累积距离）
+    /// @param path_points 路径点
+    /// @param s_coordinates 输出的s坐标
+    void CalculatePathSCoordinates(const std::vector<Path::PointXY> & path_points,
+                                   std::vector<double> & s_coordinates);
+    
+    /// @brief 进行速度QP优化
+    /// @param s_coordinates 路径点的s坐标
+    /// @param decision_maker 决策模块
+    /// @param optimized_speed_profile 优化的速度剖面
+    /// @return 是否成功进行速度QP优化
+    bool SpeedPlanning(const std::vector<double> & s_coordinates,
+                      const std::shared_ptr<Decision::DecisionMaker> & decision_maker,
+                      std::vector<Path::TrajectoryPoint> & optimized_speed_profile);
+    void ComputePathSL(const std::vector<Path::PointXY> & optimized_path,
+        const Path::PathNode & planning_start_point,
+        std::vector<double> & s_ref,
+        std::vector<double> & l,
+        std::vector<double> & l_prime);
+    /// @brief 合并路径和速度规划结果，生成最终轨迹
+    /// @param speed_profile 速度剖面
+    /// @param trajectory 最终轨迹
+    void GenerateTrajectory(const std::vector<Path::TrajectoryPoint> & speed_profile,
+                            std::vector<Path::TrajectoryPoint> & trajectory);
 };

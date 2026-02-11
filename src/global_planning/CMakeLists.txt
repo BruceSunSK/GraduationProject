@@ -144,7 +144,8 @@ add_library(path                SHARED  src/path/data_type.cpp
                                         src/path/simplification.cpp)
 add_library(smoothers           SHARED  src/smoothers/discrete_point_smoother.cpp
                                         src/smoothers/piecewise_jerk_smoother.cpp
-                                        src/smoothers/piecewise_jerk_smoother2.cpp)
+                                        src/smoothers/piecewise_jerk_smoother2.cpp
+                                        src/smoothers/piecewise_jerk_speed_smoother.cpp)
 add_library(planners            SHARED  src/planners/TSHAstar.cpp
                                         src/planners/QHAstar.cpp
                                         src/planners/astar.cpp

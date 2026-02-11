@@ -49,7 +49,7 @@ std::ostream & operator<<(std::ostream & os, const PathNode & point);
 
 struct TrajectoryPoint
 {
-    TrajectoryPoint() : x(0), y(0), theta(0), kappa(0), v(0), a(0), j(0), t(0) {}
+    TrajectoryPoint() : x(0), y(0), theta(0), kappa(0), v(0), a(0), j(0), s(0), l(0), t(0) {}
 
     double x;
     double y;
@@ -58,6 +58,8 @@ struct TrajectoryPoint
     double v;      // 速度
     double a;      // 加速度
     double j;      // 加加速度
+    double s;      // 路径长度
+    double l;      // 车辆位置
     double t;      // 时间戳（相对于轨迹起点）
 };
 
