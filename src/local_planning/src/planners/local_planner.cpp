@@ -1,9 +1,14 @@
+// local_planner.cpp
 #include "local_planning/planners/local_planner.h"
 
 
 void LocalPlanner::InitParams(const LocalPlannerParams & params)
 {
     params_ = params;
+    
+    // 初始化决策模块
+    decision_maker_ = std::make_shared<Decision::DecisionMaker>();
+    decision_maker_->Initialize(params_.decision_params);
 }
 
 void LocalPlanner::SetMap(const Map::MultiMap::Ptr & map)
@@ -31,6 +36,12 @@ void LocalPlanner::SetVehicleState(const Vehicle::State::Ptr & vehicle_state)
     {
         last_planning_time_ = now;
     }
+}
+
+void LocalPlanner::SetObstacles(const Obstacle::Obstacle::List & obstacles)
+{
+    obstacles_ = obstacles;
+    flag_obstacles_ = true;
 }
 
 bool LocalPlanner::Plan(LocalPlannerResult & result, std::string & error_msg)
@@ -76,24 +87,60 @@ bool LocalPlanner::Plan(LocalPlannerResult & result, std::string & error_msg)
     // ref_points: 在参考线上，只在车辆附近采样得到的点
     const auto ref_points = SampleReferencePoints(planning_start_point);
 
-    // 3. 决策
-    // todo
+    // 4. 执行决策
+    result_.log << "Starting decision making...\n";
+    if (flag_obstacles_ && !obstacles_.empty())
+    {
+        decision_maker_->UpdateAndDecide(obstacles_, reference_path_, 
+                                         planning_start_point, 
+                                         curr_veh_state.v, 
+                                         0.0);  // 暂时使用0加速度
+        
+        // 输出决策结果
+        result_.log << "Decision results:\n";
+        result_.log << decision_maker_->GetDebugInfo();
+    }
+    else
+    {
+        result_.log << "No obstacles to make decisions for.\n";
+    }
 
-    // 4. 确定路径规划的上下边界
+    // 5. 确定路径规划的上下边界
     // 包括两部分：①代价地图确定的边界；②决策部分给出的每辆车的边界。两部分每个点都是三碰撞圆的边界，两部分求交集得到最终上下边界。
-    // 对于起点和终点，三碰撞圆也许会超出参考线的范围，没事，因为：参考线使用三次样条，能够外推一部分距离，够用了
+    result_.log << "Calculating map boundaries...\n";
     auto map_bounds = GetBoundsByMap(ref_points);
+    
+    // 合并边界
+    std::vector<std::array<std::pair<double, double>, 3>> final_bounds;
+    if (flag_obstacles_ && !obstacles_.empty())
+    {
+        // 生成决策边界
+        result_.log << "Generating decision boundaries...\n";
+        auto decision_boundary = decision_maker_->GeneratePathBoundary(ref_points);
+        
+        // 合并地图边界和决策边界
+        final_bounds = MergeBounds(map_bounds, decision_boundary);
+        result_.log << "Merged " << map_bounds.size() << " map bounds with " 
+                    << decision_boundary.bounds.size() << " decision bounds.\n";
+    }
+    else
+    {
+        // 没有障碍物，直接使用地图边界
+        final_bounds = map_bounds;
+        result_.log << "No decision boundaries, using map bounds only.\n";
+    }
 
-    // 5. 进行路径规划，QP优化
+    // 6. 进行路径规划，QP优化
     std::vector<Path::PointXY> optimized_path;
-    if (!PathPlanning(ref_points, map_bounds, planning_start_point, optimized_path))
+    if (!PathPlanning(ref_points, final_bounds, planning_start_point, optimized_path))
     {
         error_msg = "LocalPlanner::Plan() failed: PathPlanning failed.";
         return false;
     }
 
-    // 6. 转换为TrajectoryPoint类型
+    // 7. 转换为TrajectoryPoint类型（注意：这部分是临时代码，后续需要根据速度规划重新实现）
     double current_t = 0.0;
+    double current_s = planning_start_point.s;
     for (size_t i = 0; i < optimized_path.size(); ++i)
     {
         Path::TrajectoryPoint traj_point;
@@ -152,9 +199,17 @@ bool LocalPlanner::Plan(LocalPlannerResult & result, std::string & error_msg)
             traj_point.kappa = 0.0;
         }
 
-        // 时间和运动状态（需要根据速度规划来确定，这里先给默认值）
+        // 计算s坐标（累积距离）
+        if (i > 0)
+        {
+            double dx = optimized_path[i].x - optimized_path[i - 1].x;
+            double dy = optimized_path[i].y - optimized_path[i - 1].y;
+            current_s += std::sqrt(dx * dx + dy * dy);
+        }
+
+        // 时间和运动状态（暂时使用固定值，后续需要根据速度规划确定）
         traj_point.t = current_t;
-        traj_point.v = 2.0;  // 使用当前速度，后续需要速度规划
+        traj_point.v = curr_veh_state.v;  // 使用当前速度作为临时值
         traj_point.a = 0.0;
         traj_point.j = 0.0;
 
@@ -185,6 +240,10 @@ bool LocalPlanner::Plan(LocalPlannerResult & result, std::string & error_msg)
     result_.planning_cost_time = std::chrono::duration<double>(current_time.time_since_epoch()).count() - result_.timestamp;
     result_.log << "LocalPlanner::Plan() end.\n"
                 << "LocalPlanner::Plan() elapsed time: " << result_.planning_cost_time * 1000.0 << " ms.\n";
+    
+    // 保存决策模块到结果中
+    result_.decision_maker = decision_maker_;
+    
     result = std::move(result_);
     return true;
 }
@@ -475,6 +534,53 @@ std::vector<std::array<std::pair<double, double>, 3>> LocalPlanner::GetBoundsByM
     }
 
     return bounds;
+}
+
+std::vector<std::array<std::pair<double, double>, 3>> LocalPlanner::MergeBounds(
+    const std::vector<std::array<std::pair<double, double>, 3>> & map_bounds,
+    const Decision::DecisionMaker::PathBoundary & decision_bounds)
+{
+    std::vector<std::array<std::pair<double, double>, 3>> merged_bounds;
+    
+    // 确保地图边界和决策边界的大小一致
+    size_t num_points = std::min(map_bounds.size(), decision_bounds.bounds.size());
+    merged_bounds.reserve(num_points);
+    
+    for (size_t i = 0; i < num_points; ++i)
+    {
+        std::array<std::pair<double, double>, 3> merged_point_bounds;
+        
+        for (int j = 0; j < 3; ++j)  // 遍历三个碰撞圆
+        {
+            // 取交集：下界取较大值，上界取较小值
+            double lower_bound = std::max(map_bounds[i][j].first, decision_bounds.bounds[i][j].first);
+            double upper_bound = std::min(map_bounds[i][j].second, decision_bounds.bounds[i][j].second);
+            
+            // 确保边界有效性
+            if (lower_bound > upper_bound)
+            {
+                // 如果边界冲突，进行适当调整（取中间值）
+                double mid = (lower_bound + upper_bound) / 2.0;
+                lower_bound = mid - 0.1;  // 稍微缩小范围
+                upper_bound = mid + 0.1;
+                
+                result_.log << "Warning: Bound conflict at point " << i 
+                            << ", circle " << j << ". Adjusted bounds to [" 
+                            << lower_bound << ", " << upper_bound << "]\n";
+            }
+            merged_point_bounds[j] = std::make_pair(lower_bound, upper_bound);
+        }
+        merged_bounds.push_back(merged_point_bounds);
+    }
+    
+    // 如果决策边界比地图边界少，补足剩余点
+    for (size_t i = num_points; i < map_bounds.size(); ++i)
+    {
+        merged_bounds.push_back(map_bounds[i]);
+    }
+    
+    result_.log << "Merged bounds: " << merged_bounds.size() << " points.\n";
+    return merged_bounds;
 }
 
 bool LocalPlanner::PathPlanning(const std::vector<Path::PathNode> & ref_points,

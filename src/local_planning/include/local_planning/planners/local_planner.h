@@ -1,8 +1,10 @@
+// local_planner.h
 #pragma once
 #include <vector>
 #include <string>
 #include <sstream>
 #include <chrono>
+#include <memory>
 
 #include "global_planning/map/distance_map.h"
 #include "global_planning/path/utils.h"
@@ -11,6 +13,7 @@
 #include "local_planning/vehicle/data_type.h"
 #include "local_planning/vehicle/collision.h"
 #include "local_planning/obstacles/obstacle.h"
+#include "local_planning/decision/decision_maker.h"
 
 
 /// @brief 局部规划器
@@ -71,19 +74,47 @@ public:
             double WEIGHT_END_STATE_DDL = 50.0;        // 在路径qp过程中，靠近给定终点L''项的权重。
             double DL_LIMIT = 2.0;                      // 在路径qp过程中，l'绝对值的最大值约束。
         } path_qp;
+
+        struct
+        {
+            double PLANNING_TIME_HORIZON = 5.0;  // 规划时间长度(s)
+            double TIME_RESOLUTION = 0.1;        // 时间分辨率(s)
+            double MIN_SPEED = 0.0;              // 最小速度(m/s)
+            double MAX_SPEED = 4.0;             // 最大速度(m/s)
+            double MAX_ACCELERATION = 2.0;       // 最大加速度(m/s²)
+            double MAX_DECELERATION = -3.0;      // 最大减速度(m/s²)
+            double MAX_JERK = 1.0;               // 最大加加速度(m/s³)
+
+            // ST图边界参数
+            double SAFETY_TIME_HEADWAY = 2.0;    // 安全时距(s)
+            double SAFETY_DISTANCE = 2.0;        // 安全距离(m)
+            double MIN_FOLLOW_DISTANCE = 5.0;    // 最小跟车距离(m)
+
+            // QP权重
+            double WEIGHT_SPEED_DEVIATION = 1.0;     // 速度偏差权重
+            double WEIGHT_ACCELERATION = 2.0;        // 加速度权重
+            double WEIGHT_JERK = 5.0;                // 加加速度权重
+            double WEIGHT_COMFORT = 0.1;             // 舒适性权重
+        } speed_qp;
+        
+        // 决策参数
+        Decision::DecisionMaker::DecisionMakerParams decision_params;
     };
 
     struct LocalPlannerResult
     {
         // 规划结果
         double timestamp = 0.0;                             // 规划时间戳，单位：秒
-        double planning_cost_time = 0.0;                         // 规划耗时，单位：秒
+        double planning_cost_time = 0.0;                    // 规划耗时，单位：秒
         std::vector<Path::TrajectoryPoint> trajectory;
 
         // 附加信息
         std::stringstream log;
         std::vector<std::array<Path::PointXY, 3>> path_qp_lb;
         std::vector<std::array<Path::PointXY, 3>> path_qp_ub;
+        
+        // 决策结果
+        std::shared_ptr<Decision::DecisionMaker> decision_maker;
 
         void Clear()
         {
@@ -94,6 +125,7 @@ public:
             log.str("");
             path_qp_lb.clear();
             path_qp_ub.clear();
+            decision_maker.reset();
         }
     };
 
@@ -109,8 +141,8 @@ public:
     void SetMap(const Map::MultiMap::Ptr & map);
     void SetReferencePath(const Path::ReferencePath::Ptr & reference_path);
     void SetVehicleState(const Vehicle::State::Ptr & vehicle_state);
+    void SetObstacles(const Obstacle::Obstacle::List & obstacles);
     bool Plan(LocalPlannerResult & result, std::string & error_msg);
-
 
 private:
     LocalPlannerParams params_;
@@ -124,7 +156,10 @@ private:
     bool flag_map_ = false;
     bool flag_reference_path_ = false;
     bool flag_vehicle_state_ = false;
-    bool has_obstacles_ = false;
+    bool flag_obstacles_ = false;
+
+    // 决策模块
+    std::shared_ptr<Decision::DecisionMaker> decision_maker_;
 
     // 上帧规划结果
     bool has_last_trajectory_ = false;  // 是否有上一帧轨迹
@@ -176,6 +211,13 @@ private:
     /// @return 所有碰撞圆的边界
     std::vector<std::array<std::pair<double, double>, 3>> GetBoundsByMap(
         const std::vector<Path::PathNode> & ref_points);
+    /// @brief 合并地图边界和决策边界
+    /// @param map_bounds 地图边界
+    /// @param decision_bounds 决策边界
+    /// @return 合并后的边界
+    std::vector<std::array<std::pair<double, double>, 3>> MergeBounds(
+        const std::vector<std::array<std::pair<double, double>, 3>> & map_bounds,
+        const Decision::DecisionMaker::PathBoundary & decision_bounds);
     /// @brief 进行路径QP优化，得到最优路径
     /// @param ref_points 局部采样点
     /// @param bounds 优化边界，包括碰撞圆边界与障碍物边界
