@@ -1,14 +1,12 @@
 // piecewise_jerk_speed_smoother.h
 #pragma once
 #include <vector>
-#include <array>
-#include <cmath>
-#include <algorithm>
-#include <limits>
-#include <iostream>
-#include <memory>
 
-#include "global_planning/path/utils.h"
+#include <Eigen/Dense>
+#include <Eigen/Sparse>
+#include <OsqpEigen/OsqpEigen.h>
+
+#include "global_planning/path/data_type.h"
 
 
 namespace Smoother
@@ -16,63 +14,61 @@ namespace Smoother
 class PiecewiseJerkSpeedSmoother
 {
 public:
-    struct SpeedOptimizerParams
+    struct Weights
     {
-        // 权重参数
-        double weight_speed_deviation = 1.0;     // 速度偏差权重
-        double weight_acceleration = 2.0;        // 加速度权重
-        double weight_jerk = 5.0;                // 加加速度权重
-        double weight_comfort = 0.1;             // 舒适性权重
-        
-        // 约束参数
-        double max_speed = 4.0;                  // 最大速度(m/s)
-        double min_speed = 0.0;                  // 最小速度(m/s)
-        double max_acceleration = 2.0;           // 最大加速度(m/s²)
-        double max_deceleration = -3.0;          // 最大减速度(m/s²)
-        double max_jerk = 1.0;                   // 最大加加速度(m/s³)
-        
-        // 优化参数
-        int max_iterations = 1000;               // 最大迭代次数
-        double tolerance = 1e-6;                 // 收敛容忍度
+        double w_speed_deviation;       // 速度偏差权重 (v - v_ref)
+        double w_acceleration;          // 加速度权重 (s'')
+        double w_jerk;                  // 加加速度权重 (s''')
+        double w_lateral_acceleration;  // 横向加速度权重 (v * kappa)^2
     };
-    
+
 public:
-    PiecewiseJerkSpeedSmoother() = default;
-    PiecewiseJerkSpeedSmoother(const SpeedOptimizerParams & params) : params_(params) {}
-    PiecewiseJerkSpeedSmoother(const PiecewiseJerkSpeedSmoother&) = delete;
-    PiecewiseJerkSpeedSmoother(PiecewiseJerkSpeedSmoother&&) = delete;
+    PiecewiseJerkSpeedSmoother() = delete;
+    /**
+     * @brief 构造函数，传入通用不变的参数
+     * @param dt 时间步长（秒），假设均匀采样
+     * @param weights 权重结构
+     */
+    PiecewiseJerkSpeedSmoother(double dt, const Weights & weights) : dt_(dt), weights_(weights) {}
+    PiecewiseJerkSpeedSmoother(const PiecewiseJerkSpeedSmoother &) = delete;
+    PiecewiseJerkSpeedSmoother(PiecewiseJerkSpeedSmoother &&) = delete;
     PiecewiseJerkSpeedSmoother & operator=(const PiecewiseJerkSpeedSmoother &) = delete;
-    PiecewiseJerkSpeedSmoother & operator=(PiecewiseJerkSpeedSmoother&&) = delete;
+    PiecewiseJerkSpeedSmoother & operator=(PiecewiseJerkSpeedSmoother &&) = delete;
     ~PiecewiseJerkSpeedSmoother() = default;
-    
-    void SetParams(const SpeedOptimizerParams & params) { params_ = params; }
-    
-    bool Solve(double init_s, double init_v, double init_a,
-               const std::vector<double> & time_points,
-               const std::vector<std::pair<double, double>> & st_lower_bound,
-               const std::vector<std::pair<double, double>> & st_upper_bound,
-               const std::vector<double> & s_reference,
-               std::vector<Path::TrajectoryPoint> & speed_profile);
-    
+
+    /**
+      * @brief 求解速度规划问题
+      * @param s0 初始位置
+      * @param v0 初始速度
+      * @param a0 初始加速度
+      * @param s_lower 位置下界数组（长度为N）
+      * @param s_upper 位置上界数组（长度为N）
+      * @param v_lower 速度下界数组（长度为N）
+      * @param v_upper 速度上界数组（长度为N）
+      * @param a_lower 加速度下界数组（长度为N）
+      * @param a_upper 加速度上界数组（长度为N）
+      * @param v_ref 参考速度数组（长度为N）
+      * @param kappa_ref 参考曲率数组（长度为N），用于横向加速度代价
+      * @param s_end 终点最大允许位置（约束 s_{N-1} <= s_end）
+      * @param result 输出轨迹点，每个点包含 t, s, v, a（t 根据 dt 自动生成）
+      * @return 是否求解成功
+      */
+    bool Solve(
+        double s0, double v0, double a0,
+        const std::vector<double> & s_lower,
+        const std::vector<double> & s_upper,
+        const std::vector<double> & v_lower,
+        const std::vector<double> & v_upper,
+        const std::vector<double> & a_lower,
+        const std::vector<double> & a_upper,
+        const std::vector<double> & v_ref,
+        const std::vector<double> & kappa_ref,
+        double s_end,
+        std::vector<Path::TrajectoryPoint> & result) const;
+
 private:
-    SpeedOptimizerParams params_;
-    
-    // 检查边界有效性
-    bool ValidateBoundaries(const std::vector<double>& time_points,
-                            const std::vector<std::pair<double, double>>& st_lower_bound,
-                            const std::vector<std::pair<double, double>>& st_upper_bound) const;
-    
-    // 构建二次规划问题
-    bool BuildQPProblem(const std::vector<double>& time_points,
-                        const std::vector<std::pair<double, double>>& st_lower_bound,
-                        const std::vector<std::pair<double, double>>& st_upper_bound,
-                        const std::vector<double>& s_reference,
-                        std::vector<double>& solution);
-    
-    // 解析解向量
-    void ParseSolution(const std::vector<double>& solution,
-                       const std::vector<double>& time_points,
-                       std::vector<Path::TrajectoryPoint>& speed_profile);
+    double dt_;                     // 时间步长
+    Weights weights_;               // 权重
 };
 
 } // namespace Smoother

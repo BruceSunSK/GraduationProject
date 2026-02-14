@@ -526,17 +526,22 @@ bool LocalPlanner::PathPlanning(const std::vector<Path::PathNode> & ref_points,
     std::vector<Path::PointXY> & optimized_path)
 {
     // 设置权重等参数
-    const static std::array<double, 4> lateral_weights   = { params_.path_qp.WEIGHT_L,
-                                                             params_.path_qp.WEIGHT_DL,
-                                                             params_.path_qp.WEIGHT_DDL,
-                                                             params_.path_qp.WEIGHT_DDDL };
-    const static std::array<double, 3> end_state_weights = { params_.path_qp.WEIGHT_END_STATE_L,
-                                                             params_.path_qp.WEIGHT_END_STATE_DL,
-                                                             params_.path_qp.WEIGHT_END_STATE_DDL };
-    const static double dl_limit = params_.path_qp.DL_LIMIT;
-    const static double vehicle_kappa_max = params_.vehicle.MAX_KAPPA;
+    const static Smoother::PiecewiseJerkPathSmoother2::Weights weights {
+        params_.path_qp.WEIGHT_L,
+        params_.path_qp.WEIGHT_DL,
+        params_.path_qp.WEIGHT_DDL,
+        params_.path_qp.WEIGHT_DDDL,
+        params_.path_qp.WEIGHT_END_STATE_L,
+        params_.path_qp.WEIGHT_END_STATE_DL,
+        params_.path_qp.WEIGHT_END_STATE_DDL
+    };
+    const static Smoother::PiecewiseJerkPathSmoother2::Params params {
+        params_.path_qp.DL_LIMIT,
+        params_.vehicle.MAX_KAPPA
+    };
 
-    Smoother::PiecewiseJerkSmoother2 smoother(lateral_weights, end_state_weights, dl_limit, vehicle_kappa_max);
+    // 优化器
+    const static Smoother::PiecewiseJerkPathSmoother2 smoother(weights, params);
 
     // 起点和终点sl位姿
     const auto & start_point_proj = ref_points.front();
@@ -590,8 +595,6 @@ bool LocalPlanner::SpeedPlanning(const std::vector<double> & s_coordinates,
     const std::shared_ptr<Decision::DecisionMaker> & decision_maker,
     std::vector<Path::TrajectoryPoint> & optimized_speed_profile)
 {
-    optimized_speed_profile.clear();
-    
     if (s_coordinates.empty())
     {
         result_.log << "SpeedPlanning failed: s_coordinates is empty.\n";
@@ -608,52 +611,46 @@ bool LocalPlanner::SpeedPlanning(const std::vector<double> & s_coordinates,
         result_.log << "SpeedPlanning failed: no speed boundary generated.\n";
         return false;
     }
+
+    // 设置权重等参数
+    const static Smoother::PiecewiseJerkSpeedSmoother::Weights weights {
+        params_.speed_qp.WEIGHT_SPEED_DEVIATION,
+        params_.speed_qp.WEIGHT_ACCELERATION,
+        params_.speed_qp.WEIGHT_JERK,
+        params_.speed_qp.WEIGHT_LATERAL_ACCELERATION
+    };
+
+    // 速度优化器
+    const static Smoother::PiecewiseJerkSpeedSmoother optimizer(params_.speed_qp.TIME_RESOLUTION, weights);
     
-    // 创建速度优化器
-    Smoother::PiecewiseJerkSpeedSmoother optimizer;
+    // // 设置初始状态
+    // double init_s = s_coordinates.front();
+    // double init_v = vehicle_state_->v;
+    // double init_a = 0.0;  // 假设初始加速度为0
     
-    // 设置权重参数
-    Smoother::PiecewiseJerkSpeedSmoother::SpeedOptimizerParams speed_params;
-    speed_params.weight_speed_deviation = params_.speed_qp.WEIGHT_SPEED_DEVIATION;
-    speed_params.weight_acceleration = params_.speed_qp.WEIGHT_ACCELERATION;
-    speed_params.weight_jerk = params_.speed_qp.WEIGHT_JERK;
-    speed_params.weight_comfort = params_.speed_qp.WEIGHT_COMFORT;
+    // // 进行速度优化
+    // auto start_time = std::chrono::steady_clock::now();
+    optimized_speed_profile.clear();
+
+    // if (!optimizer.Solve(init_s, init_v, init_a,
+    //                     speed_boundary.time_points,
+    //                     speed_boundary.st_lower_bound,
+    //                     speed_boundary.st_upper_bound,
+    //                     s_coordinates,
+    //                     optimized_speed_profile))
+    // {
+    //     result_.log << "SpeedPlanning: optimizer failed.\n";
+    //     return false;
+    // }
+    // auto end_time = std::chrono::steady_clock::now();
     
-    // 设置约束参数
-    speed_params.max_speed = params_.speed_qp.MAX_SPEED;
-    speed_params.min_speed = params_.speed_qp.MIN_SPEED;
-    speed_params.max_acceleration = params_.speed_qp.MAX_ACCELERATION;
-    speed_params.max_deceleration = params_.speed_qp.MAX_DECELERATION;
-    speed_params.max_jerk = params_.speed_qp.MAX_JERK;
+    // result_.log << "SpeedPlanning(): cost time: " 
+    //             << std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count() 
+    //             << " ms.\n";
     
-    optimizer.SetParams(speed_params);
-    
-    // 设置初始状态
-    double init_s = s_coordinates.front();
-    double init_v = vehicle_state_->v;
-    double init_a = 0.0;  // 假设初始加速度为0
-    
-    // 进行速度优化
-    auto start_time = std::chrono::steady_clock::now();
-    if (!optimizer.Solve(init_s, init_v, init_a,
-                        speed_boundary.time_points,
-                        speed_boundary.st_lower_bound,
-                        speed_boundary.st_upper_bound,
-                        s_coordinates,
-                        optimized_speed_profile))
-    {
-        result_.log << "SpeedPlanning: optimizer failed.\n";
-        return false;
-    }
-    auto end_time = std::chrono::steady_clock::now();
-    
-    result_.log << "SpeedPlanning(): cost time: " 
-                << std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count() 
-                << " ms.\n";
-    
-    result_.log << "SpeedPlanning: generated " << optimized_speed_profile.size() 
-                << " speed points, final speed: " << optimized_speed_profile.back().v 
-                << " m/s, final s: " << optimized_speed_profile.back().s << " m.\n";
+    // result_.log << "SpeedPlanning: generated " << optimized_speed_profile.size() 
+    //             << " speed points, final speed: " << optimized_speed_profile.back().v 
+    //             << " m/s, final s: " << optimized_speed_profile.back().s << " m.\n";
     
     return true;
 }

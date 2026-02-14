@@ -1,4 +1,4 @@
-#include "global_planning/smoothers/piecewise_jerk_smoother.h"
+#include "global_planning/smoothers/piecewise_jerk_path_smoother.h"
 
 
 namespace Smoother
@@ -7,7 +7,7 @@ namespace Smoother
 /// 代价函数由以下几部分组成：1.偏离代价(l要小)，2.平滑代价(l', l''，l'''要小)，3.居中代价(l要接近上下边界中央)，4.终点代价(l(n - 1)要接近终点)
 /// 约束条件：1.边界约束(包含起点约束)，2.连续性约束。
 /// 公式参考：https://zhuanlan.zhihu.com/p/480298921
-bool PiecewiseJerkSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path, const std::vector<std::pair<double, double>> & bounds,
+bool PiecewiseJerkPathSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path, const std::vector<std::pair<double, double>> & bounds,
     const std::array<double, 3> & init_state, const std::array<double, 3> & end_state_ref, std::vector<cv::Point2d> & optimized_path) const
 {
     // 0. 变量个数、约束个数
@@ -28,68 +28,72 @@ bool PiecewiseJerkSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path,
 
     // 2. 设置Hessian矩阵 H/Q
     Eigen::SparseMatrix<double> hessian(variable_num, variable_num);
+    // 预估非零元数量：l项n个，l'项n个对角线，l"项n-1个对角线上方 n个对角线，总共约 (4n-1) 个
+    hessian.reserve(4 * point_num - 1);
     // 2.1 l部分系数
     for (size_t i = 0; i < point_num - 1; ++i)
     {
-        hessian.insert(i, i) = weight_l_ + weight_center_;
+        hessian.insert(i, i) = weights_.w_l + weights_.w_center;
     }
-    hessian.insert(point_num - 1, point_num - 1) = weight_l_ + weight_center_ + weight_end_state_[0];
+    hessian.insert(point_num - 1, point_num - 1) = weights_.w_l + weights_.w_center + weights_.w_end_state_l;
     // 2.2 l'部分系数
     for (size_t i = point_num; i < 2 * point_num - 1; ++i)
     {
-        hessian.insert(i, i) = weight_dl_;
+        hessian.insert(i, i) = weights_.w_dl;
     }
-    hessian.insert(2 * point_num - 1, 2 * point_num - 1) = weight_dl_ + weight_end_state_[1];
+    hessian.insert(2 * point_num - 1, 2 * point_num - 1) = weights_.w_dl + weights_.w_end_state_dl;
     // 2.3 l''部分系数
     const double ds_square = ds * ds;
     const double ds_square_inv = 1.0 / ds_square;
     // 2.3.1 第一列对角线
-    hessian.insert(2 * point_num, 2 * point_num) = weight_ddl_ + weight_dddl_ * ds_square_inv;
+    hessian.insert(2 * point_num, 2 * point_num) = weights_.w_ddl + weights_.w_dddl * ds_square_inv;
     // 2.3.2 中间列对角线
     for (size_t i = 2 * point_num + 1; i < 3 * point_num - 1; ++i)
     {
-        hessian.insert(i, i) = weight_ddl_ + 2 * weight_dddl_ * ds_square_inv;
+        hessian.insert(i, i) = weights_.w_ddl + 2 * weights_.w_dddl * ds_square_inv;
     }
     // 2.3.3 最后一列对角线
-    hessian.insert(3 * point_num - 1, 3 * point_num - 1) = weight_ddl_ + weight_dddl_ * ds_square_inv + weight_end_state_[2];
+    hessian.insert(3 * point_num - 1, 3 * point_num - 1) = weights_.w_ddl + weights_.w_dddl * ds_square_inv + weights_.w_end_state_ddl;
     // 2.3.4 对角线上方元素
     for (size_t i = 2 * point_num; i < 3 * point_num - 1; ++i)
     {
         // apollo 在这里要*2？
-        hessian.insert(i, i + 1) = -weight_dddl_ * ds_square_inv;
+        hessian.insert(i, i + 1) = -weights_.w_dddl * ds_square_inv;
     }
     hessian *= 2;
     if (!solver.data()->setHessianMatrix(hessian))
         return false;
 
-    // 3.设置梯度向量 f/q
+    // 3. 设置梯度向量 f/q
     Eigen::VectorXd gradient = Eigen::VectorXd::Zero(variable_num);
     // 3.1 居中代价带来的梯度
     for (size_t i = 0; i < point_num; ++i)
     {
         const double center_l = (bounds[i].first + bounds[i].second) * 0.5;
-        if (std::abs(center_l) > center_deviation_thres_ &&
-            (-bounds[i].first  < center_bounds_thres_ ||
-              bounds[i].second < center_bounds_thres_))
+        if (std::abs(center_l) > params_.center_deviation_thres &&
+            (-bounds[i].first  < params_.center_bounds_thres ||
+              bounds[i].second < params_.center_bounds_thres))
         {
-            double w_c = Math::Lerp(0.0, weight_center_, std::abs(center_l) / lateral_sample_range_);
+            double w_c = Math::Lerp(0.0, weights_.w_center, std::abs(center_l) / params_.lateral_sample_range);
             if (bounds[i].first > 0 || bounds[i].second < 0)
             {
-                w_c *= center_obs_coeff_;
+                w_c *= params_.center_obs_coeff;
             }
             
             gradient(i) += -2.0 * w_c * center_l;
         }
     }
     // 3.2 终点代价带来的梯度
-    gradient(point_num - 1) += -2.0 * weight_end_state_[0] * end_state_ref[0];
-    gradient(point_num - 1) += -2.0 * weight_end_state_[1] * end_state_ref[1];
-    gradient(point_num - 1) += -2.0 * weight_end_state_[2] * end_state_ref[2];
+    gradient(    point_num - 1) += -2.0 * weights_.w_end_state_l * end_state_ref[0];
+    gradient(2 * point_num - 1) += -2.0 * weights_.w_end_state_dl * end_state_ref[1];
+    gradient(3 * point_num - 1) += -2.0 * weights_.w_end_state_ddl * end_state_ref[2];
     if (!solver.data()->setGradient(gradient))
         return false;
 
     // 4. 设置约束矩阵 A 和 上下线性边界 lb, ub
     Eigen::SparseMatrix<double> linear_matrix(constraint_num, variable_num);
+    // 预估非零元：边界约束l项n个，l'项n个，l"项n个；连续性约束l'项4*(n-1)个，l项5*(n-1)个。总共约12n-9个
+    linear_matrix.reserve(12 * point_num - 9);
     Eigen::VectorXd lower_bound = Eigen::VectorXd::Zero(constraint_num);
     Eigen::VectorXd upper_bound = Eigen::VectorXd::Zero(constraint_num);
     const size_t vari_l = 0;
@@ -116,8 +120,8 @@ bool PiecewiseJerkSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path,
     for (size_t i = 1; i < point_num; ++i)
     {
         linear_matrix.insert(cons_bound_dl + i, vari_dl + i) = 1.0;
-        lower_bound(cons_bound_dl + i) = -dl_limit_;
-        upper_bound(cons_bound_dl + i) = dl_limit_;
+        lower_bound(cons_bound_dl + i) = -params_.dl_limit;
+        upper_bound(cons_bound_dl + i) =  params_.dl_limit;
     }
     // 4.1.3 l''项
     linear_matrix.insert(cons_bound_ddl, vari_ddl) = 1.0;
@@ -127,8 +131,8 @@ bool PiecewiseJerkSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path,
     {
         linear_matrix.insert(cons_bound_ddl + i, vari_ddl + i) = 1.0;
         const Path::PathNode ref_node = raw_ref_path->GetPathNode(i * ds);
-        lower_bound(cons_bound_ddl + i) = -vehicle_kappa_max_ - ref_node.kappa;
-        upper_bound(cons_bound_ddl + i) =  vehicle_kappa_max_ - ref_node.kappa;
+        lower_bound(cons_bound_ddl + i) = -params_.vehicle_kappa_max - ref_node.kappa;
+        upper_bound(cons_bound_ddl + i) =  params_.vehicle_kappa_max - ref_node.kappa;
     }
     // 4.2 连续性约束。理论上还有l"的连续性约束，需要传入l'''的上下边界，我偷懒直接省略掉这个了。
     const size_t cons_continuity_dl = cons_bound_ddl + point_num;           // dl连续性约束在A矩阵中的起始行号
@@ -170,6 +174,7 @@ bool PiecewiseJerkSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path,
     // 6. 保存数据
     const Eigen::VectorXd & solution = solver.getSolution();
     optimized_path.clear();
+    optimized_path.reserve(point_num);
     for (size_t i = 0; i < point_num; ++i)
     {
         const Path::PathNode ref_node = raw_ref_path->GetPathNode(i * ds);
@@ -179,6 +184,5 @@ bool PiecewiseJerkSmoother::Solve(const Path::ReferencePath::Ptr & raw_ref_path,
     }
     return true;
 }
-
 
 } // namespace Smoother

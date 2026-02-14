@@ -18,7 +18,7 @@
 #include "global_planning/path/simplification.h"
 #include "global_planning/path/reference_path.h"
 #include "global_planning/smoothers/discrete_point_smoother.h"
-#include "global_planning/smoothers/piecewise_jerk_smoother.h"
+#include "global_planning/smoothers/piecewise_jerk_path_smoother.h"
 
 
 /// @brief Two-Stage Hybird Astar (TSHAstar)，总共可以分为预处理、搜索、采样三个步骤

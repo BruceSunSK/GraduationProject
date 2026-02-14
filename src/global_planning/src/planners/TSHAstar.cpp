@@ -1236,25 +1236,27 @@ bool TSHAstar::findPathTunnel(const Path::ReferencePath::Ptr & reference_path, s
 bool TSHAstar::optimizePiecewiseJerkPath(const Path::ReferencePath::Ptr & reference_path, const std::vector<std::pair<double, double>> & bounds, std::vector<cv::Point2d> & optimized_path)
 {
     // 设置权重等参数
-    const static std::array<double, 4> lateral_weights   = { params_.sample.path_qp.WEIGHT_L,
-                                                             params_.sample.path_qp.WEIGHT_DL,
-                                                             params_.sample.path_qp.WEIGHT_DDL,
-                                                             params_.sample.path_qp.WEIGHT_DDDL };
-    const static double center_weight                    =   params_.sample.path_qp.WEIGHT_CENTER;
-    const static std::array<double, 3> end_state_weights = { params_.sample.path_qp.WEIGHT_END_STATE_L,
-                                                             params_.sample.path_qp.WEIGHT_END_STATE_DL,
-                                                             params_.sample.path_qp.WEIGHT_END_STATE_DDL };
+    const static Smoother::PiecewiseJerkPathSmoother::Weights weights {
+        params_.sample.path_qp.WEIGHT_L,
+        params_.sample.path_qp.WEIGHT_DL,
+        params_.sample.path_qp.WEIGHT_DDL,
+        params_.sample.path_qp.WEIGHT_DDDL,
+        params_.sample.path_qp.WEIGHT_CENTER,
+        params_.sample.path_qp.WEIGHT_END_STATE_L,
+        params_.sample.path_qp.WEIGHT_END_STATE_DL,
+        params_.sample.path_qp.WEIGHT_END_STATE_DDL
+    };
+    const static Smoother::PiecewiseJerkPathSmoother::Params params {
+        params_.sample.path_sample.LATERAL_SAMPLE_RANGE / res_,
+        params_.sample.path_qp.DL_LIMIT,
+        params_.sample.path_qp.VEHICLE_KAPPA_MAX * res_,
+        params_.sample.path_qp.CENTER_DEVIATION_THRESHOLD / res_,
+        params_.sample.path_qp.CENTER_BOUNDS_THRESHOLD / res_,
+        params_.sample.path_qp.CENTER_OBS_COEFFICIENT
+    };
 
-    const static double lateral_sample_range   = params_.sample.path_sample.LATERAL_SAMPLE_RANGE / res_;
-    const static double dl_limit               = params_.sample.path_qp.DL_LIMIT;
-    const static double vehicle_kappa_max      = params_.sample.path_qp.VEHICLE_KAPPA_MAX * res_;
-    const static double center_deviation_thres = params_.sample.path_qp.CENTER_DEVIATION_THRESHOLD / res_;
-    const static double center_bounds_thres    = params_.sample.path_qp.CENTER_BOUNDS_THRESHOLD / res_;
-    const static double center_obs_coeff       = params_.sample.path_qp.CENTER_OBS_COEFFICIENT;
-
-    Smoother::PiecewiseJerkSmoother smoother(lateral_weights, center_weight, end_state_weights,
-                                             lateral_sample_range, dl_limit, vehicle_kappa_max,
-                                             center_deviation_thres, center_bounds_thres, center_obs_coeff);
+    // 优化器
+    const static Smoother::PiecewiseJerkPathSmoother smoother(weights, params);
 
     // 起点和终点sl位姿
     const Path::PathNode & start_node = reference_path->GetPathNodes().front();

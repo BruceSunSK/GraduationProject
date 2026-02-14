@@ -9,7 +9,7 @@
 #include "global_planning/map/distance_map.h"
 #include "global_planning/path/utils.h"
 #include "global_planning/path/reference_path.h"
-#include "global_planning/smoothers/piecewise_jerk_smoother2.h"
+#include "global_planning/smoothers/piecewise_jerk_path_smoother2.h"
 #include "global_planning/smoothers/piecewise_jerk_speed_smoother.h"
 #include "local_planning/vehicle/data_type.h"
 #include "local_planning/vehicle/collision.h"
@@ -92,12 +92,12 @@ public:
             double MIN_FOLLOW_DISTANCE = 5.0;    // 最小跟车距离(m)
 
             // QP权重
-            double WEIGHT_SPEED_DEVIATION = 1.0;     // 速度偏差权重
-            double WEIGHT_ACCELERATION = 2.0;        // 加速度权重
-            double WEIGHT_JERK = 5.0;                // 加加速度权重
-            double WEIGHT_COMFORT = 0.1;             // 舒适性权重
+            double WEIGHT_SPEED_DEVIATION = 1.0;        // 速度偏差权重
+            double WEIGHT_ACCELERATION = 2.0;           // 加速度权重
+            double WEIGHT_JERK = 5.0;                   // 加加速度权重
+            double WEIGHT_LATERAL_ACCELERATION = 0.1;   // 横向加速度权重
         } speed_qp;
-        
+
         // 决策参数
         Decision::DecisionMaker::DecisionMakerParams decision_params;
     };
