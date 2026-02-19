@@ -1,0 +1,20 @@
+<launch>
+    <node pkg="local_planning" name="test_speed_planning" type="test_speed_planning" output="screen">
+        <!-- 通用参数 -->
+        <param name="dt"    value="0.1" />
+        <param name="N"     value="150" />
+        <param name="s_end" value="80.0" />
+        <param name="scenario" value="two_dynamic" />   <!-- multiple, static_obstacle, dynamic_obstacle, two_dynamic -->
+
+        <!-- 权重参数 -->
+        <param name="w_acceleration"    value="1.0" />
+        <param name="w_jerk"            value="5.0" />
+        <param name="w_speed_deviation" value="10.0" />
+        <param name="w_lateral_accel"   value="2.0" />
+
+        <!-- 初始状态 -->
+        <param name="s0" value="0.0" />
+        <param name="v0" value="5.0" />
+        <param name="a0" value="1.0" />
+    </node>
+</launch>

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.5)
 project(grid_cost_map)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
@@ -27,6 +27,9 @@ find_package(catkin REQUIRED QUIET COMPONENTS
 )
 
 find_package(Eigen3 REQUIRED QUIET COMPONENTS system)
+if(NOT DEFINED CMAKE_SUPPRESS_DEVELOPER_WARNINGS)
+    set(CMAKE_SUPPRESS_DEVELOPER_WARNINGS 1 CACHE INTERNAL "No dev warnings")
+endif()
 find_package(PCL REQUIRED QUIET)
 
 ## System dependencies are found with CMake's conventions
