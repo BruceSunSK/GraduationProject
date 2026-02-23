@@ -12,7 +12,6 @@ namespace Decision
 class IgnoreState : public DecisionState
 {
 public:
-    // 忽略状态的评估参数
     struct IgnoreParams
     {
         double max_ignore_distance = 50.0;        // 最大忽略距离(m)
@@ -44,7 +43,7 @@ public:
 private:
     IgnoreParams params_;
 
-    // 评估辅助函数
+    // 辅助判断函数
     bool ShouldIgnoreByDistance(double distance) const;
     bool ShouldIgnoreByLateralOffset(double lateral_offset) const;
     bool ShouldIgnoreBySpeedDifference(double speed_diff) const;

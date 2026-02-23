@@ -29,29 +29,21 @@ DecisionType FollowState::Evaluate(DecisionContext & context)
 
     // 1. 检查是否需要停车
     if (ShouldStop(distance))
-    {
         return DecisionType::STOP;
-    }
 
     // 2. 检查是否可以超车
     if (CanOvertake(context))
-    {
         return DecisionType::OVERTAKE;
-    }
 
     // 3. 检查是否需要让行
     if (ShouldYield(context))
-    {
         return DecisionType::YIELD;
-    }
 
     // 4. 检查是否可以忽略
     if (CanIgnore(context))
-    {
         return DecisionType::IGNORE;
-    }
 
-    // 5. 保持跟车状态
+    // 5. 保持跟车
     return DecisionType::FOLLOW;
 }
 
@@ -64,8 +56,7 @@ double FollowState::CalculateSafeFollowingDistance(double ego_speed, double obst
 
     double relative_speed = ego_speed - obstacle_speed;
     double stopping_distance = ego_speed * reaction_time +
-        (ego_speed * ego_speed) / (2 * 3.0);  // 假设减速度为3m/s²
-
+        (ego_speed * ego_speed) / (2 * 3.0);   // 假设减速度3m/s²
     return std::max(params_.min_follow_distance, stopping_distance + safety_margin);
 }
 
@@ -78,7 +69,7 @@ bool FollowState::CanOvertake(const DecisionContext & context) const
 {
     double distance = context.projection.s - context.ego_position.s;
     double lateral_offset = std::abs(context.projection.l);
-    double speed_diff = context.ego_speed - context.obstacle_speed;  // 使用context.obstacle_speed
+    double speed_diff = context.ego_speed - context.obstacle_speed;
 
     // 超车条件：
     // 1. 自车比前车快
@@ -89,26 +80,22 @@ bool FollowState::CanOvertake(const DecisionContext & context) const
     bool distance_condition = distance < params_.min_follow_distance * 1.5;
     bool lateral_condition = lateral_offset > params_.lateral_follow_threshold &&
         lateral_offset < 3.0;
-    bool emergency_condition = context.projection.time_to_collision > 1.0;
+    bool ttc_condition = context.projection.time_to_collision > 1.0;
 
-    return speed_condition && distance_condition && lateral_condition && emergency_condition;
+    return speed_condition && distance_condition && lateral_condition && ttc_condition;
 }
 
 bool FollowState::ShouldYield(const DecisionContext & context) const
 {
-    double time_to_collision = context.projection.time_to_collision;
-
-    // 让行条件：碰撞时间过短
-    return time_to_collision < params_.safe_time_headway / 2.0;
+    double ttc = context.projection.time_to_collision;
+    return ttc < params_.safe_time_headway / 2.0;
 }
 
 bool FollowState::CanIgnore(const DecisionContext & context) const
 {
     double distance = context.projection.s - context.ego_position.s;
-    double time_to_collision = context.projection.time_to_collision;
-
-    // 忽略条件：距离过远或碰撞时间过长
-    return distance > params_.max_follow_distance || time_to_collision > 10.0;
+    double ttc = context.projection.time_to_collision;
+    return distance > params_.max_follow_distance || ttc > 10.0;
 }
 
 } // namespace Decision

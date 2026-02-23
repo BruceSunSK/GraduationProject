@@ -48,7 +48,6 @@ public:
 private:
     FollowParams params_;
 
-    // 评估辅助函数
     bool ShouldStop(double distance) const;
     bool CanOvertake(const DecisionContext & context) const;
     bool ShouldYield(const DecisionContext & context) const;

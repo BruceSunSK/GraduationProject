@@ -13,7 +13,7 @@ IgnoreState::IgnoreState()
     params_.lateral_ignore_threshold = 3.0;
     params_.speed_difference_threshold = 5.0;
 
-    // 初始化状态转移
+    // 初始化状态转移（忽略状态下可以转移到其他状态）
     AddTransition(DecisionType::FOLLOW, DecisionStateFactory::CreateState(DecisionType::FOLLOW));
     AddTransition(DecisionType::OVERTAKE, DecisionStateFactory::CreateState(DecisionType::OVERTAKE));
     AddTransition(DecisionType::YIELD, DecisionStateFactory::CreateState(DecisionType::YIELD));
@@ -22,7 +22,7 @@ IgnoreState::IgnoreState()
 
 DecisionType IgnoreState::Evaluate(DecisionContext & context)
 {
-    // 如果障碍物不在前方，保持忽略
+    // 如果障碍物不在前方，直接忽略
     if (!context.projection.is_ahead)
     {
         return DecisionType::IGNORE;
@@ -30,45 +30,36 @@ DecisionType IgnoreState::Evaluate(DecisionContext & context)
 
     double distance = context.projection.s - context.ego_position.s;
     double lateral_offset = std::abs(context.projection.l);
-    double speed_diff = std::abs(context.ego_speed - context.obstacle_speed);  // 使用context.obstacle_speed
-    double time_to_collision = context.projection.time_to_collision;
+    double speed_diff = std::abs(context.ego_speed - context.obstacle_speed);
+    double ttc = context.projection.time_to_collision;
 
-    // 检查是否应该继续忽略
+    // 判断是否应该继续忽略
     bool should_ignore = true;
-
     if (!ShouldIgnoreByDistance(distance))
         should_ignore = false;
     else if (!ShouldIgnoreByLateralOffset(lateral_offset))
         should_ignore = false;
     else if (!ShouldIgnoreBySpeedDifference(speed_diff))
         should_ignore = false;
-    else if (!ShouldIgnoreByTTC(time_to_collision))
+    else if (!ShouldIgnoreByTTC(ttc))
         should_ignore = false;
 
     if (should_ignore)
-    {
         return DecisionType::IGNORE;
-    }
 
-    // 需要从忽略状态转移，根据场景选择下一个状态
-    if (time_to_collision < 2.0)  // 紧急情况
+    // 需要转移：根据紧急程度选择下一个状态
+    if (ttc < 2.0)
     {
         return DecisionType::STOP;
     }
-    else if (time_to_collision < 5.0)  // 需要关注
+    else if (ttc < 5.0)
     {
-        if (lateral_offset < 1.0)  // 同车道
-        {
+        if (lateral_offset < 1.0)          // 同车道
             return DecisionType::FOLLOW;
-        }
-        else if (lateral_offset < 2.5)  // 相邻车道
-        {
+        else if (lateral_offset < 2.5)      // 相邻车道
             return DecisionType::OVERTAKE;
-        }
-        else  // 对向或交叉
-        {
+        else                                // 对向或交叉
             return DecisionType::YIELD;
-        }
     }
     else if (distance < params_.min_attention_distance)
     {

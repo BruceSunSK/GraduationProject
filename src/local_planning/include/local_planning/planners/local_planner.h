@@ -26,34 +26,39 @@ public:
     {
         struct
         {
-            double PLANNING_CYCLE_TIME = 0.1;  // s
+            double PLANNING_CYCLE_TIME = 0.1;   // s
         } common;
 
         struct
         {
-            double S_INTERVAL = 0.5;   // m
+            double S_INTERVAL = 0.5;            // m
             double TRUNCATED_BACKWARD_S = 5.0;  // m
-            double TRUNCATED_FORWARD_S = 20.0;   // m
+            double TRUNCATED_FORWARD_S = 20.0;  // m
         } reference_path;
 
         struct
         {
-            double V_TOLERANCE = 0.1;  // m/s
-            double W_TOLERANCE = 0.001;  // rad/s
-            double POS_TOLERANCE = 0.1;  // m
+            double V_TOLERANCE = 0.1;           // m/s
+            double W_TOLERANCE = 0.001;         // rad/s
+            double POS_TOLERANCE = 0.1;         // m
         } start_point;
 
         struct
         {
             // 几何参数
-            double LENGTH = 3.8; // m
-            double WIDTH = 2.0; // m
+            double LENGTH = 3.8;                // m
+            double WIDTH = 2.0;                 // m
             double CENTER_TO_COLLISION_CENTER = LENGTH / 3; // m，车辆几何中心到前后碰撞圆中心的距离。 = l/3
             double COLLISION_CIRCLE_RADIUS = std::sqrt( LENGTH*LENGTH/36 + WIDTH*WIDTH/4 );
                                                             // m，碰撞圆半径，车辆使用三碰撞圆检测时的半径。 =sqrt( (l/6)^2 + (w/2)^2 )
             double COLLISION_SAFETY_MARGIN = 0.1;           // m，冗余安全距离，在三碰撞圆和OBB碰撞检测时都使用
 
             // 运动学参数
+            double MIN_SPEED = 0.0;                         // 最小速度(m/s)
+            double MAX_SPEED = 4.0;                         // 最大速度(m/s)
+            double MAX_ACCELERATION = 2.0;                  // 最大加速度(m/s²)
+            double MAX_DECELERATION = -3.0;                 // 最大减速度(m/s²)
+            double MAX_JERK = 1.0;                          // 最大加加速度(m/s³)
             double MAX_KAPPA = 0.5;                         // 1/m，车辆最大曲率。路径qp过程中l''约束用到。
         } vehicle;
 
@@ -81,13 +86,6 @@ public:
             double PLANNING_TIME_HORIZON = 5.0;  // 规划时间长度(s)
             double TIME_RESOLUTION = 0.1;        // 时间分辨率(s)
 
-            // todo 应该是车辆参数
-            double MIN_SPEED = 0.0;              // 最小速度(m/s)
-            double MAX_SPEED = 4.0;             // 最大速度(m/s)
-            double MAX_ACCELERATION = 2.0;       // 最大加速度(m/s²)
-            double MAX_DECELERATION = -3.0;      // 最大减速度(m/s²)
-            double MAX_JERK = 1.0;               // 最大加加速度(m/s³)
-
             // ST图边界参数
             double SAFETY_TIME_HEADWAY = 2.0;    // 安全时距(s)
             double SAFETY_DISTANCE = 2.0;        // 安全距离(m)
@@ -101,7 +99,7 @@ public:
         } speed_qp;
 
         // 决策参数
-        Decision::DecisionMaker::DecisionMakerParams decision_params;
+        Decision::DecisionMakerParams decision_params;
     };
 
     struct LocalPlannerResult
@@ -181,6 +179,7 @@ private:
     /// @brief 检查算法所需数据是否准备好
     /// @return 是否可以进行算法部分
     bool IsDataReady() const;
+
     /// @brief 匹配上一帧轨迹中的对应点
     /// @param current_pos 当前车辆位置
     /// @param matched_point 输出的匹配点
@@ -191,39 +190,46 @@ private:
                              Path::TrajectoryPoint & matched_point,
                              double & lateral_error,
                              double & longitudinal_error);
+
     /// @brief 使用运动学外推获取规划起点
     /// @param curr_veh_state 当前车辆状态
     /// @return 外推后的规划起点
     Path::PathNode GetMotionExtrapolationStart(const Vehicle::State & curr_veh_state);
+
     /// @brief 根据车辆当前速度信息、与上帧规划结果的信息，得到当前规划起点位置
     /// @param curr_veh_state 本帧车辆状态
     /// @param veh_proj_point 本帧车辆在参考线上的投影点
     /// @return 本帧规划起点位置
     Path::PathNode GetPlanningStart(const Vehicle::State & curr_veh_state, 
                                     const Path::PathNode & veh_proj_point);
+
     /// @brief 根据车辆规划起点位置，得到局部采样点，截取车辆周围的参考线，以PathNode的形式返回。
     /// @param planning_start_point 规划起点位置
     /// @return 车辆周围的参考线采样点，即局部采样点，也是本帧局部规划的范围
     std::vector<Path::PathNode> SampleReferencePoints(const Path::PathNode & planning_start_point);
+
     /// @brief 将碰撞圆圆心进行偏移，偏移后的位置是由参考线上的点投影而来
     /// @param original_node 车辆几何中心
     /// @param actual_node 当前碰撞圆圆心
-    /// @param len 当前碰撞圆圆心到车辆几何中心的距离，有正负planning_start_point
+    /// @param len 当前碰撞圆圆心到车辆几何中心的距离，有正负
     /// @return 偏移后的碰撞圆圆心
     Path::PathNode GetApproxNode(const Path::PathNode & original_node, 
                                  const Path::PathNode & actual_node, double len) const;
+
     /// @brief 根据代价地图计算当前所有碰撞圆的边界
     /// @param ref_points 局部采样点
     /// @return 所有碰撞圆的边界
     std::vector<std::array<std::pair<double, double>, 3>> GetBoundsByMap(
                     const std::vector<Path::PathNode> & ref_points);
+
     /// @brief 合并地图边界和决策边界
     /// @param map_bounds 地图边界
     /// @param decision_bounds 决策边界
     /// @return 合并后的边界
     std::vector<std::array<std::pair<double, double>, 3>> MergeBounds(
                     const std::vector<std::array<std::pair<double, double>, 3>> & map_bounds,
-                    const Decision::DecisionMaker::PathBoundary & decision_bounds);
+                    const Decision::PathBoundary & decision_bounds);
+
     /// @brief 进行路径QP优化，得到最优路径
     /// @param ref_points 局部采样点
     /// @param bounds 优化边界，包括碰撞圆边界与障碍物边界
@@ -241,6 +247,14 @@ private:
     void CalculatePathSCoordinates(const std::vector<Path::PointXY> & path_points,
                                    std::vector<double> & s_coordinates);
     
+    /// @brief 从决策模块的速度边界中提取时间序列和上下界
+    /// @param sb 决策模块生成的速度边界
+    /// @param s_lower 输出的下界序列
+    /// @param s_upper 输出的上界序列
+    void ExtractSpeedBoundary(const Decision::SpeedBoundary & sb,
+                                     std::vector<double> & s_lower,
+                                     std::vector<double> & s_upper) const;
+
     /// @brief 进行速度QP优化
     /// @param s_coordinates 路径点的s坐标
     /// @param decision_maker 决策模块
@@ -249,14 +263,23 @@ private:
     bool SpeedPlanning(const std::vector<double> & s_coordinates,
                       const std::shared_ptr<Decision::DecisionMaker> & decision_maker,
                       std::vector<Path::TrajectoryPoint> & optimized_speed_profile);
+
+    /// @brief 计算路径点在参考线上的投影（s, l, l'）
+    /// @param optimized_path 优化后的路径点
+    /// @param planning_start_point 规划起点（用于参考）
+    /// @param s_ref 输出的s坐标
+    /// @param l 输出的l坐标
+    /// @param l_prime 输出的l' (dl/ds)
     void ComputePathSL(const std::vector<Path::PointXY> & optimized_path,
         const Path::PathNode & planning_start_point,
         std::vector<double> & s_ref,
         std::vector<double> & l,
         std::vector<double> & l_prime);
+
     /// @brief 合并路径和速度规划结果，生成最终轨迹
     /// @param speed_profile 速度剖面
     /// @param trajectory 最终轨迹
     void GenerateTrajectory(const std::vector<Path::TrajectoryPoint> & speed_profile,
                             std::vector<Path::TrajectoryPoint> & trajectory);
+
 };

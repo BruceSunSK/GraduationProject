@@ -25,35 +25,26 @@ DecisionType OvertakeState::Evaluate(DecisionContext & context)
 {
     // 1. 检查是否完成超车
     if (IsOvertakeCompleted(context))
-    {
         return DecisionType::IGNORE;
-    }
 
     // 2. 检查是否需要放弃超车
     if (ShouldAbortOvertake(context))
-    {
         return DecisionType::FOLLOW;
-    }
 
-    // 3. 检查是否有紧急情况
+    // 3. 紧急情况
     if (context.projection.time_to_collision < params_.emergency_abort_ttc)
-    {
         return DecisionType::STOP;
-    }
 
     // 4. 检查是否安全
     if (!IsSafeToOvertake(context))
-    {
         return DecisionType::YIELD;
-    }
 
-    // 5. 检查是否超车时间过长
-    if (context.state_count * 0.1 > params_.max_overtake_time)  // 假设每帧0.1秒
-    {
+    // 5. 超时检查（简单用计数模拟时间）
+    double elapsed = context.state_count * 0.1;  // 假设每帧0.1s
+    if (elapsed > params_.max_overtake_time)
         return DecisionType::FOLLOW;
-    }
 
-    // 6. 保持超车状态
+    // 6. 保持超车
     return DecisionType::OVERTAKE;
 }
 
