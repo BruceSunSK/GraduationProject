@@ -59,27 +59,29 @@ public:
 
         struct
         {
-            double BOUND_SEARCH_RANGE = 10.0;  // m， 在sl坐标系下，搜索上下边界时的单边范围
-            double BOUND_SEARCH_LARGE_RESOLUTION = 0.5;  // m， 在sl坐标系下，搜索上下边界时的粗分辨率
-            double BOUND_SEARCH_SMALL_RESOLUTION = 0.1;  // m， 在sl坐标系下，搜索上下边界时的细分辨率
+            double BOUND_SEARCH_RANGE = 10.0;               // m， 在sl坐标系下，搜索上下边界时的单边范围
+            double BOUND_SEARCH_LARGE_RESOLUTION = 0.5;     // m， 在sl坐标系下，搜索上下边界时的粗分辨率
+            double BOUND_SEARCH_SMALL_RESOLUTION = 0.1;     // m， 在sl坐标系下，搜索上下边界时的细分辨率
         } map;
 
         struct
         {
-            double WEIGHT_L = 1.0;                      // 在路径qp过程中，路径点在参考线上L项的权重。
-            double WEIGHT_DL = 50.0;                   // 在路径qp过程中，路径点在参考线上L'项的权重。
-            double WEIGHT_DDL = 1000.0;                 // 在路径qp过程中，路径点在参考线上L''项的权重。
-            double WEIGHT_DDDL = 1000.0;                // 在路径qp过程中，路径点在参考线上L'''项的权重。
-            double WEIGHT_END_STATE_L = 1.0;           // 在路径qp过程中，靠近给定终点L项的权重。
-            double WEIGHT_END_STATE_DL = 5.0;          // 在路径qp过程中，靠近给定终点L'项的权重。
-            double WEIGHT_END_STATE_DDL = 50.0;        // 在路径qp过程中，靠近给定终点L''项的权重。
-            double DL_LIMIT = 2.0;                      // 在路径qp过程中，l'绝对值的最大值约束。
+            double WEIGHT_L = 1.0;                          // 在路径qp过程中，路径点在参考线上L项的权重。
+            double WEIGHT_DL = 50.0;                        // 在路径qp过程中，路径点在参考线上L'项的权重。
+            double WEIGHT_DDL = 1000.0;                     // 在路径qp过程中，路径点在参考线上L''项的权重。
+            double WEIGHT_DDDL = 1000.0;                    // 在路径qp过程中，路径点在参考线上L'''项的权重。
+            double WEIGHT_END_STATE_L = 1.0;                // 在路径qp过程中，靠近给定终点L项的权重。
+            double WEIGHT_END_STATE_DL = 5.0;               // 在路径qp过程中，靠近给定终点L'项的权重。
+            double WEIGHT_END_STATE_DDL = 50.0;             // 在路径qp过程中，靠近给定终点L''项的权重。
+            double DL_LIMIT = 2.0;                          // 在路径qp过程中，l'绝对值的最大值约束。
         } path_qp;
 
         struct
         {
             double PLANNING_TIME_HORIZON = 5.0;  // 规划时间长度(s)
             double TIME_RESOLUTION = 0.1;        // 时间分辨率(s)
+
+            // todo 应该是车辆参数
             double MIN_SPEED = 0.0;              // 最小速度(m/s)
             double MAX_SPEED = 4.0;             // 最大速度(m/s)
             double MAX_ACCELERATION = 2.0;       // 最大加速度(m/s²)
@@ -92,10 +94,10 @@ public:
             double MIN_FOLLOW_DISTANCE = 5.0;    // 最小跟车距离(m)
 
             // QP权重
-            double WEIGHT_SPEED_DEVIATION = 1.0;        // 速度偏差权重
-            double WEIGHT_ACCELERATION = 2.0;           // 加速度权重
+            double WEIGHT_ACCELERATION = 1.0;           // 加速度权重
             double WEIGHT_JERK = 5.0;                   // 加加速度权重
-            double WEIGHT_LATERAL_ACCELERATION = 0.1;   // 横向加速度权重
+            double WEIGHT_SPEED_DEVIATION = 10.0;       // 速度偏差权重
+            double WEIGHT_LATERAL_ACCELERATION = 2.0;   // 横向加速度权重
         } speed_qp;
 
         // 决策参数

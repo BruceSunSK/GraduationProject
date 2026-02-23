@@ -1,0 +1,37 @@
+<launch>
+    <arg name="global_ref_topic"       default="/test_global_planning/path" />
+    <arg name="costmap_topic"          default="/test_global_planning/costmap" />
+    <arg name="vehicle_state_topic"    default="/initialpose" />
+    <arg name="local_trajectory_topic" default="/test_local_planning/trajectory" />
+
+
+    <!-- 1. 启动全局规划，用于提供地图、参考线 -->
+    <node pkg="global_planning" name="test_global_planning" type="test_global_planning" output="screen" >
+        <param name="planner_name"  type="str"  value="TSHAstar"/>
+        <param name="load_map"      type="bool" value="true"/> <!-- 手动加载现有png地图 -->
+        <param name="map_file"      type="str"  value="$(find grid_cost_map)/map/XG_map.png"/> <!-- 地图文件路径 -->
+
+        <remap from="/test_global_planning/path"          to="$(arg global_ref_topic)"/>
+        <remap from="/test_global_planning/processed_map" to="$(arg costmap_topic)"/>
+    </node>
+
+    <!-- 2. 测试局部规划中的路径规划 -->
+    <node pkg="local_planning" name="test_path_planning" type="test_path_planning" output="screen">
+        <param name="input_global_ref_topic"    type="str" value="$(arg global_ref_topic)"/>
+        <param name="input_costmap_topic"       type="str" value="$(arg costmap_topic)"/>
+        <param name="input_initial_pose_topic"  type="str" value="$(arg vehicle_state_topic)"/>
+
+        <param name="w_l"        type="double"  value="1.0" />
+        <param name="w_dl"       type="double"  value="50.0" />
+        <param name="w_ddl"      type="double"  value="1000.0" />
+        <param name="w_dddl"     type="double"  value="1000.0" />
+        <param name="w_end_l"    type="double"  value="1.0" />
+        <param name="w_end_dl"   type="double"  value="5.0" />
+        <param name="w_end_ddl"  type="double"  value="50.0" />
+    </node>
+
+    <!-- 3. 启动 rviz -->
+    <node pkg="rviz" name="rviz" type="rviz" args="-d $(find local_planning)/rviz/test_path_planning.rviz" />
+
+    
+</launch>
