@@ -22,7 +22,7 @@ void ObstacleDecisionHistory::UpdateState(DecisionType new_state)
     state_history.push_back(new_state);
     if (state_history.size() > 10)
     {
-        state_history.erase(state_history.begin());
+        state_history.pop_front();
     }
 }
 
@@ -34,13 +34,22 @@ double ObstacleDecisionHistory::GetStateDuration() const
 
 double ObstacleDecisionHistory::GetStateConfidence() const
 {
+    // 指数加权置信度，近期权重高
     if (state_history.empty()) return 0.0;
-    int consistent = 0;
-    for (auto s : state_history)
+    const double alpha = 0.7;
+    double weight_sum = 0.0;
+    double consistent_weight = 0.0;
+    double weight = 1.0;
+    for (auto it = state_history.rbegin(); it != state_history.rend(); ++it)
     {
-        if (s == current_state) ++consistent;
+        if (*it == current_state)
+        {
+            consistent_weight += weight;
+        }
+        weight_sum += weight;
+        weight *= alpha;
     }
-    return static_cast<double>(consistent) / state_history.size();
+    return consistent_weight / weight_sum;
 }
 
 std::string ObstacleDecisionHistory::GetHistoryString() const
@@ -67,11 +76,11 @@ std::string DecisionResult::ToString() const
 // ==================== DecisionMaker 实现 ====================
 DecisionMaker::DecisionMaker()
 {
-    state_machines_[DecisionType::IGNORE] = DecisionStateFactory::CreateState(DecisionType::IGNORE);
-    state_machines_[DecisionType::FOLLOW] = DecisionStateFactory::CreateState(DecisionType::FOLLOW);
+    state_machines_[DecisionType::IGNORE]   = DecisionStateFactory::CreateState(DecisionType::IGNORE);
+    state_machines_[DecisionType::FOLLOW]   = DecisionStateFactory::CreateState(DecisionType::FOLLOW);
     state_machines_[DecisionType::OVERTAKE] = DecisionStateFactory::CreateState(DecisionType::OVERTAKE);
-    state_machines_[DecisionType::YIELD] = DecisionStateFactory::CreateState(DecisionType::YIELD);
-    state_machines_[DecisionType::STOP] = DecisionStateFactory::CreateState(DecisionType::STOP);
+    state_machines_[DecisionType::YIELD]    = DecisionStateFactory::CreateState(DecisionType::YIELD);
+    state_machines_[DecisionType::STOP]     = DecisionStateFactory::CreateState(DecisionType::STOP);
     last_update_time_ = std::chrono::steady_clock::now();
 }
 
@@ -87,10 +96,9 @@ void DecisionMaker::Initialize(const DecisionMakerParams & params)
 }
 
 void DecisionMaker::UpdateAndDecide(const Obstacle::Obstacle::List & obstacles,
-    const Path::ReferencePath::Ptr & reference_path,
-    const Path::PathNode & ego_position,
-    double ego_speed,
-    double ego_acceleration)
+                                    const Path::PathNode & ego_position,
+                                    double ego_speed,
+                                    double ego_acceleration)
 {
     if (!is_initialized_)
     {
@@ -99,7 +107,6 @@ void DecisionMaker::UpdateAndDecide(const Obstacle::Obstacle::List & obstacles,
     }
     std::lock_guard<std::mutex> lock(debug_mutex_);
 
-    reference_path_ = reference_path;
     ego_position_ = ego_position;
     ego_speed_ = ego_speed;
     ego_acceleration_ = ego_acceleration;
@@ -136,7 +143,7 @@ void DecisionMaker::UpdateAndDecide(const Obstacle::Obstacle::List & obstacles,
             else if (result.decision_state == DecisionType::YIELD && global_intention_ != DecisionType::STOP)
                 global_intention_ = DecisionType::YIELD;
             else if (result.decision_state == DecisionType::OVERTAKE &&
-                global_intention_ != DecisionType::STOP && global_intention_ != DecisionType::YIELD)
+                     global_intention_ != DecisionType::STOP && global_intention_ != DecisionType::YIELD)
                 global_intention_ = DecisionType::OVERTAKE;
             else if (result.decision_state == DecisionType::FOLLOW && global_intention_ == DecisionType::IGNORE)
                 global_intention_ = DecisionType::FOLLOW;
@@ -157,26 +164,41 @@ DecisionResult DecisionMaker::ProcessObstacle(const Obstacle::Obstacle::Ptr & ob
     DecisionResult result;
 
     auto obstacle_copy = std::make_shared<Obstacle::Obstacle>(*obstacle);
+
+    // 1. 获取障碍物投影信息
     CalculateObstacleInfo(obstacle_copy);
 
-    DecisionContext context = CreateDecisionContext(obstacle_copy);
+    // 2. 获取历史记录
+    int id = obstacle->GetId();
+    bool is_new_obstacle = (obstacle_histories_.find(id) == obstacle_histories_.end());
+    auto & history = obstacle_histories_[id];
 
-    auto & history = obstacle_histories_[obstacle->GetId()];
+    // 3. 创建上下文
+    DecisionContext context = CreateDecisionContext(obstacle_copy);
     context.last_state = history.current_state;
     context.state_count = history.state_count;
     context.state_time = history.GetStateDuration();
 
-    DecisionType new_state = ExecuteStateMachine(obstacle_copy, context);
+    // 4. 识别当前场景
+    TrafficScenario current_scenario = IdentifyScenario(obstacle_copy);
+    bool scenario_changed = (!is_new_obstacle &&
+        history.last_scenario != TrafficScenario::UNKNOWN &&
+        history.last_scenario != current_scenario);
+    history.last_scenario = current_scenario;
 
-    DecisionType filtered_state = ApplyDecisionFilter(obstacle->GetId(), new_state);
-    filtered_state = ApplyHysteresis(obstacle->GetId(), filtered_state);
+    // 5. 执行状态机（根据是否为新建/场景变化选择入口）
+    DecisionType new_state = ExecuteStateMachine(obstacle_copy, context, is_new_obstacle, scenario_changed);
 
+    // 6. 迟滞滤波
+    DecisionType filtered_state = ApplyHysteresis(id, new_state);
+
+    // 7. 更新最终状态历史
     history.UpdateState(filtered_state);
 
     result.decision_state = filtered_state;
     result.confidence = history.GetStateConfidence();
 
-    // 填充决策信息（简化版本）
+    // 8. 填充决策信息（简化版本，实际应由状态机内部决定）
     switch (filtered_state)
     {
     case DecisionType::FOLLOW:
@@ -217,8 +239,7 @@ DecisionResult DecisionMaker::ProcessObstacle(const Obstacle::Obstacle::Ptr & ob
 
 void DecisionMaker::CalculateObstacleInfo(Obstacle::Obstacle::Ptr obstacle)
 {
-    obstacle->CalculateProjection(reference_path_, ego_position_);
-    obstacle->UpdateCollisionTime(ego_speed_, ego_acceleration_);
+    obstacle->CalculateProjection(reference_path_, ego_position_, ego_speed_, ego_acceleration_);
 }
 
 DecisionContext DecisionMaker::CreateDecisionContext(const Obstacle::Obstacle::Ptr & obstacle) const
@@ -248,7 +269,7 @@ DecisionContext DecisionMaker::CreateDecisionContext(const Obstacle::Obstacle::P
         ctx.curvature = 0.0;
     }
 
-    // 获取代价地图值
+    // todo 获取代价地图值
     if (cost_map_)
     {
         double mx = (obstacle->GetPose().position.x - cost_map_->origin_x) / cost_map_->resolution;
@@ -260,6 +281,7 @@ DecisionContext DecisionMaker::CreateDecisionContext(const Obstacle::Obstacle::P
         ctx.cost_value = 0.0;
     }
 
+    // todo
     ctx.lane_width = params_.default_lane_width;
     ctx.road_width = params_.default_lane_width * 2;
 
@@ -273,29 +295,55 @@ DecisionContext DecisionMaker::CreateDecisionContext(const Obstacle::Obstacle::P
 }
 
 DecisionType DecisionMaker::ExecuteStateMachine(const Obstacle::Obstacle::Ptr & obstacle,
-    DecisionContext & context)
+                                                DecisionContext & context,
+                                                bool is_new_obstacle,
+                                                bool scenario_changed)
 {
-    TrafficScenario scenario = IdentifyScenario(obstacle);
-    statistics_.scenario_counts[scenario]++;
-
-    DecisionType initial_state = DecisionType::IGNORE;
-    switch (scenario)
+    // 确定入口状态
+    DecisionType entry_state;
+    if (is_new_obstacle || scenario_changed)
     {
-    case TrafficScenario::SAME_DIRECTION:
-        initial_state = DecisionType::FOLLOW;
-        break;
-    case TrafficScenario::OPPOSITE_DIRECTION:
-        initial_state = DecisionType::YIELD;
-        break;
-    case TrafficScenario::CROSS_TRAFFIC:
-        initial_state = DecisionType::YIELD;
-        break;
-    default:
-        initial_state = DecisionType::IGNORE;
-        break;
+        // 根据当前场景选择初始状态
+        TrafficScenario current_scenario = IdentifyScenario(obstacle);
+        switch (current_scenario)
+        {
+        case TrafficScenario::SAME_DIRECTION:
+            entry_state = DecisionType::FOLLOW;
+            break;
+        case TrafficScenario::OPPOSITE_DIRECTION:
+        case TrafficScenario::CROSS_TRAFFIC:
+            entry_state = DecisionType::YIELD;
+            break;
+        default:
+            entry_state = DecisionType::IGNORE;
+            break;
+        }
+    }
+    else
+    {
+        // 使用上一帧的最终状态
+        entry_state = context.last_state;
+        // 若上一帧状态无效，也回退到初始状态
+        if (entry_state == DecisionType::UNKNOWN)
+        {
+            TrafficScenario current_scenario = IdentifyScenario(obstacle);
+            switch (current_scenario)
+            {
+            case TrafficScenario::SAME_DIRECTION:
+                entry_state = DecisionType::FOLLOW;
+                break;
+            case TrafficScenario::OPPOSITE_DIRECTION:
+            case TrafficScenario::CROSS_TRAFFIC:
+                entry_state = DecisionType::YIELD;
+                break;
+            default:
+                entry_state = DecisionType::IGNORE;
+                break;
+            }
+        }
     }
 
-    auto state_machine = state_machines_[initial_state];
+    auto state_machine = state_machines_[entry_state];
     if (!state_machine)
         return DecisionType::IGNORE;
 
@@ -303,61 +351,74 @@ DecisionType DecisionMaker::ExecuteStateMachine(const Obstacle::Obstacle::Ptr & 
 }
 
 void DecisionMaker::ApplyDecisionToObstacle(Obstacle::Obstacle::Ptr obstacle,
-    const DecisionResult & decision_result)
+                                            const DecisionResult & decision_result)
 {
     obstacle->SetDecision(decision_result.decision_info);
-}
-
-DecisionType DecisionMaker::ApplyDecisionFilter(int obstacle_id, DecisionType new_state)
-{
-    auto & history = obstacle_histories_[obstacle_id];
-    // 如果历史为空，直接返回新状态
-    if (history.state_history.empty())
-        return new_state;
-
-    // 简单滤波：如果最近3次中有2次相同，则采用该状态
-    int count = 0;
-    int n = std::min(3, static_cast<int>(history.state_history.size()));
-    for (int i = 0; i < n; ++i)
-    {
-        if (history.state_history[history.state_history.size() - 1 - i] == new_state)
-            ++count;
-    }
-    return (count >= 2) ? new_state : history.current_state;
 }
 
 DecisionType DecisionMaker::ApplyHysteresis(int obstacle_id, DecisionType new_state)
 {
     auto & history = obstacle_histories_[obstacle_id];
-    // 如果状态改变，需要满足迟滞计数
-    if (new_state != history.current_state)
+
+    // 记录原始建议
+    history.raw_state_history.push_back(new_state);
+    if (history.raw_state_history.size() > 10)
+        history.raw_state_history.pop_front();
+
+    // 如果新状态与当前最终状态相同，直接返回
+    if (new_state == history.current_state)
+        return new_state;
+
+    // 检查最近连续 need_count 帧原始建议是否全是 new_state
+    int need_count = params_.decision_hysteresis_count;
+    if (history.raw_state_history.size() < need_count)
+        return history.current_state;
+
+    bool all_same = true;
+    for (size_t i = history.raw_state_history.size() - need_count;
+        i < history.raw_state_history.size(); ++i)
     {
-        // 检查是否连续多次建议相同的新状态
-        if (history.state_count >= params_.decision_hysteresis_count)
+        if (history.raw_state_history[i] != new_state)
         {
-            return new_state;
-        }
-        else
-        {
-            return history.current_state;  // 保持原状态
+            all_same = false;
+            break;
         }
     }
-    return new_state;
+    return all_same ? new_state : history.current_state;
 }
 
 TrafficScenario DecisionMaker::IdentifyScenario(const Obstacle::Obstacle::Ptr & obstacle) const
 {
-    double l = obstacle->GetProjection().l;
-    // 同向交通：障碍物在自车前方或后方，横向偏移较小
-    if (l >= -params_.same_direction_threshold && l <= params_.same_direction_threshold)
+    // 如果障碍物不在自车前方，则视为未知场景
+    if (!obstacle->GetProjection().is_ahead)
+    {
+        return TrafficScenario::UNKNOWN;
+    }
+
+    // 获取参考线在障碍物投影点处的切线方向
+    double ref_theta = reference_path_->GetPathNode(obstacle->GetProjection().s).theta;
+
+    // 获取障碍物朝向（假设为其运动方向）
+    double obs_theta = tf2::getYaw(obstacle->GetPose().orientation);
+
+    // 计算角度差并归一化到 [0, π]
+    double angle_diff = std::abs(obs_theta - ref_theta);
+    while (angle_diff > M_PI)
+        angle_diff -= 2 * M_PI;
+    angle_diff = std::abs(angle_diff);
+
+    // 静止障碍物视为同向静态
+    if (obstacle->GetSpeed() < 0.1)
         return TrafficScenario::SAME_DIRECTION;
-    // 对向交通：障碍物在相反方向
-    if (l <= params_.opposite_direction_threshold)
+
+    if (angle_diff < params_.angle_same_threshold)
+        return TrafficScenario::SAME_DIRECTION;
+    else if (angle_diff > params_.angle_opposite_threshold)
         return TrafficScenario::OPPOSITE_DIRECTION;
-    // 交叉交通：障碍物从侧面接近
-    if (std::abs(l) <= params_.cross_traffic_threshold)
+    else if (angle_diff > params_.angle_cross_low && angle_diff < params_.angle_cross_high)
         return TrafficScenario::CROSS_TRAFFIC;
-    return TrafficScenario::UNKNOWN;
+    else
+        return TrafficScenario::UNKNOWN;
 }
 
 // ==================== 边界生成 ====================
@@ -370,18 +431,20 @@ PathBoundary DecisionMaker::GeneratePathBoundary(const std::vector<Path::PathNod
 
     for (const auto & ref_pt : ref_points)
     {
+        // 初始边界（大范围，可由道路宽度限制替代）
         std::array<std::pair<double, double>, 3> point_bounds = {
             std::make_pair(-10.0, 10.0),
             std::make_pair(-10.0, 10.0),
             std::make_pair(-10.0, 10.0)
         };
 
+        // 合并所有障碍物的边界影响
         for (const auto & obs : obstacles_with_decision_)
         {
             auto obs_bound = CalculateObstacleBoundary(obs, ref_pt);
             for (int i = 0; i < 3; ++i)
             {
-                point_bounds[i].first = std::max(point_bounds[i].first, obs_bound[i].first);
+                point_bounds[i].first  = std::max(point_bounds[i].first,  obs_bound[i].first);
                 point_bounds[i].second = std::min(point_bounds[i].second, obs_bound[i].second);
             }
         }
@@ -407,26 +470,30 @@ std::array<std::pair<double, double>, 3> DecisionMaker::CalculateObstacleBoundar
     double s_diff = ref_point.s - proj.s;
 
     // 根据决策类型和距离设置边界
+    // 注意：l < 0 表示右侧，l > 0 表示左侧
+    // bounds[i].first  = 下界（右侧边界，较小 l 值）
+    // bounds[i].second = 上界（左侧边界，较大 l 值）
     switch (decision.type)
     {
     case DecisionType::OVERTAKE:
     {
-        // 超车：在障碍物附近限制一侧的边界
-        if (std::abs(s_diff) < 20.0)
+        if (std::abs(s_diff) < 20.0)  // 在障碍物附近才施加约束
         {
-            if (proj.l > 0)  // 障碍物在右侧，左侧超车
+            if (proj.l > 0)   // 障碍物在左侧，应从右侧超车（自车 l 需小于障碍物）
             {
-                double left_bound = proj.l + params_.overtake_lateral_margin;
-                bounds[0].first = left_bound;
-                bounds[1].first = left_bound;
-                bounds[2].first = left_bound;
-            }
-            else  // 障碍物在左侧，右侧超车
-            {
+                // 限制上界，使 l <= proj.l - margin
                 double right_bound = proj.l - params_.overtake_lateral_margin;
-                bounds[0].second = right_bound;
-                bounds[1].second = right_bound;
-                bounds[2].second = right_bound;
+                bounds[0].second = std::min(bounds[0].second, right_bound);
+                bounds[1].second = std::min(bounds[1].second, right_bound);
+                bounds[2].second = std::min(bounds[2].second, right_bound);
+            }
+            else // if (proj.l < 0)  // 障碍物在右侧，应从左侧超车（自车 l 需大于障碍物）
+            {
+                // 限制下界，使 l >= proj.l + margin
+                double left_bound = proj.l + params_.overtake_lateral_margin;
+                bounds[0].first = std::max(bounds[0].first, left_bound);
+                bounds[1].first = std::max(bounds[1].first, left_bound);
+                bounds[2].first = std::max(bounds[2].first, left_bound);
             }
         }
         break;
@@ -434,16 +501,15 @@ std::array<std::pair<double, double>, 3> DecisionMaker::CalculateObstacleBoundar
 
     case DecisionType::FOLLOW:
     {
-        // 跟车：限制横向偏移范围
         if (std::abs(s_diff) < params_.min_follow_distance)
         {
-            double limit = 1.5;
-            bounds[0].first = -limit;
-            bounds[0].second = limit;
-            bounds[1].first = -limit;
-            bounds[1].second = limit;
-            bounds[2].first = -limit;
-            bounds[2].second = limit;
+            double limit = 1.5;  // 跟车横向限制
+            bounds[0].first  = std::max(bounds[0].first,  -limit);
+            bounds[0].second = std::min(bounds[0].second,  limit);
+            bounds[1].first  = std::max(bounds[1].first,  -limit);
+            bounds[1].second = std::min(bounds[1].second,  limit);
+            bounds[2].first  = std::max(bounds[2].first,  -limit);
+            bounds[2].second = std::min(bounds[2].second,  limit);
         }
         break;
     }
@@ -451,23 +517,21 @@ std::array<std::pair<double, double>, 3> DecisionMaker::CalculateObstacleBoundar
     case DecisionType::YIELD:
     case DecisionType::STOP:
     {
-        // 让行或停车：在障碍物前方严格限制边界
         if (s_diff > -params_.safe_distance && s_diff < proj.length)
         {
             double strict = 0.5;
-            bounds[0].first = -strict;
-            bounds[0].second = strict;
-            bounds[1].first = -strict;
-            bounds[1].second = strict;
-            bounds[2].first = -strict;
-            bounds[2].second = strict;
+            bounds[0].first  = std::max(bounds[0].first,  -strict);
+            bounds[0].second = std::min(bounds[0].second,  strict);
+            bounds[1].first  = std::max(bounds[1].first,  -strict);
+            bounds[1].second = std::min(bounds[1].second,  strict);
+            bounds[2].first  = std::max(bounds[2].first,  -strict);
+            bounds[2].second = std::min(bounds[2].second,  strict);
         }
         break;
     }
 
     case DecisionType::IGNORE:
     default:
-        // 忽略或未知决策，不添加额外限制
         break;
     }
 
@@ -475,60 +539,64 @@ std::array<std::pair<double, double>, 3> DecisionMaker::CalculateObstacleBoundar
 }
 
 SpeedBoundary DecisionMaker::GenerateSpeedBoundary(double planning_horizon,
-    double time_resolution) const
+                                                   double time_resolution) const
 {
     int num = static_cast<int>(planning_horizon / time_resolution) + 1;
     SpeedBoundary sb;
     sb.time_points.resize(num);
-    sb.s_points.resize(num);
-    sb.st_lower_bound.resize(num, { 0.0, std::numeric_limits<double>::max() });
-    sb.st_upper_bound.resize(num, { std::numeric_limits<double>::lowest(), 0.0 });
+    sb.bounds.resize(num, std::make_pair(0.0, std::numeric_limits<double>::max()));
 
+    // 生成时间点
     for (int i = 0; i < num; ++i)
     {
         double t = i * time_resolution;
         sb.time_points[i] = t;
-        sb.s_points[i] = ego_position_.s + ego_speed_ * t;
     }
 
-    // 如果没有障碍物，使用默认边界
+    // 如果没有障碍物，使用默认边界（下界为0，上界为无穷大，但实际规划中会由车辆动力学限制）
     if (obstacles_with_decision_.empty())
     {
         for (int i = 0; i < num; ++i)
         {
-            sb.st_lower_bound[i] = { sb.time_points[i], 0.0 };
-            sb.st_upper_bound[i] = { sb.time_points[i], sb.s_points.back() };
+            sb.bounds[i].first = 0.0;
+            sb.bounds[i].second = std::numeric_limits<double>::max();
         }
         return sb;
     }
 
-    // 计算每个障碍物的ST边界
+    // 初始化每个时间点的边界为默认值
+    for (int i = 0; i < num; ++i)
+    {
+        sb.bounds[i].first = 0.0;
+        sb.bounds[i].second = std::numeric_limits<double>::max();
+    }
+
+    // 合并每个障碍物的 ST 边界
     for (const auto & obs : obstacles_with_decision_)
     {
         auto decision = obs->GetDecision();
         auto proj = obs->GetProjection();
-        if (!proj.is_ahead) continue;
+        if (!proj.is_ahead) continue;  // 仅考虑前方障碍物
 
         for (int i = 0; i < num; ++i)
         {
             double t = sb.time_points[i];
             auto [rear_s, front_s] = CalculateSTBoundaryForObstacle(obs, t);
 
-            // 根据决策类型合并边界
             switch (decision.type)
             {
             case DecisionType::FOLLOW:
-                // 跟车：障碍物后方为下界
-                sb.st_lower_bound[i].second = std::min(sb.st_lower_bound[i].second, rear_s);
+                // 跟车：不能越过障碍物后方，即 s <= rear_s
+                sb.bounds[i].second = std::min(sb.bounds[i].second, rear_s);
                 break;
             case DecisionType::OVERTAKE:
-                // 超车：障碍物前方为上界
-                sb.st_upper_bound[i].first = std::max(sb.st_upper_bound[i].first, front_s);
+                // 超车：必须超过障碍物前方，即 s >= front_s
+                sb.bounds[i].first = std::max(sb.bounds[i].first, front_s);
                 break;
             case DecisionType::YIELD:
             case DecisionType::STOP:
-                // 让行或停车：障碍物前方严格限制
-                sb.st_upper_bound[i].second = std::min(sb.st_upper_bound[i].second, rear_s);
+                // 让行/停车：不能进入障碍物区域，即 s <= rear_s
+                sb.bounds[i].second = std::min(sb.bounds[i].second, rear_s);
                 break;
             case DecisionType::IGNORE:
             default:
@@ -540,14 +608,17 @@ SpeedBoundary DecisionMaker::GenerateSpeedBoundary(double planning_horizon,
     // 确保边界合理性
     for (int i = 0; i < num; ++i)
     {
-        // 下界不能超过上界
-        if (sb.st_lower_bound[i].second > sb.st_upper_bound[i].second)
+        if (sb.bounds[i].first > sb.bounds[i].second)
         {
-            sb.st_lower_bound[i].second = sb.st_upper_bound[i].second - 0.1;
+            // 若下界超过上界，取中点并收缩
+            double mid = (sb.bounds[i].first + sb.bounds[i].second) / 2.0;
+            sb.bounds[i].first = mid - 0.1;
+            sb.bounds[i].second = mid + 0.1;
         }
-        // 边界不能为负
-        sb.st_lower_bound[i].second = std::max(0.0, sb.st_lower_bound[i].second);
-        sb.st_upper_bound[i].second = std::max(0.0, sb.st_upper_bound[i].second);
+        // 下界不能为负
+        sb.bounds[i].first = std::max(0.0, sb.bounds[i].first);
+        // 上界不小于下界
+        sb.bounds[i].second = std::max(sb.bounds[i].second, sb.bounds[i].first);
     }
     return sb;
 }
@@ -557,7 +628,7 @@ std::pair<double, double> DecisionMaker::CalculateSTBoundaryForObstacle(
     double time) const
 {
     auto proj = obstacle->GetProjection();
-    // 障碍物预测位置
+    // 障碍物预测位置（匀速假设）
     double obstacle_s = proj.s + obstacle->GetSpeed() * time;
     double half_len = proj.length / 2.0;
 
@@ -581,7 +652,7 @@ void DecisionMaker::AddDebugInfo(const std::string & info)
 }
 
 void DecisionMaker::AddObstacleDebugInfo(const Obstacle::Obstacle::Ptr & obstacle,
-    const DecisionResult & result)
+                                         const DecisionResult & result)
 {
     auto proj = obstacle->GetProjection();
     auto & history = obstacle_histories_[obstacle->GetId()];

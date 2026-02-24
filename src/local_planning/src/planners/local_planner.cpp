@@ -25,6 +25,10 @@ void LocalPlanner::SetReferencePath(const Path::ReferencePath::Ptr & reference_p
 {
     reference_path_ = reference_path;
     flag_reference_path_ = true;
+    if (decision_maker_)
+    {
+        decision_maker_->SetReferencePath(reference_path_);
+    }
 }
 
 void LocalPlanner::SetVehicleState(const Vehicle::State::Ptr & vehicle_state)
@@ -92,7 +96,7 @@ bool LocalPlanner::Plan(LocalPlannerResult & result, std::string & error_msg)
     result_.log << "Starting decision making...\n";
     if (flag_obstacles_ && !obstacles_.empty())
     {
-        decision_maker_->UpdateAndDecide(obstacles_, reference_path_, 
+        decision_maker_->UpdateAndDecide(obstacles_, 
                                          planning_start_point, 
                                          curr_veh_state.v, 
                                          0.0);  // 暂时使用0加速度

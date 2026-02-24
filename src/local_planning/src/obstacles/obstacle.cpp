@@ -5,7 +5,7 @@ namespace Obstacle
 {
 // 获取障碍物在参考线上的投影（并计算相关信息）
 void Obstacle::CalculateProjection(const Path::ReferencePath::Ptr & reference_path,
-        const Path::PathNode & ego_position)
+    const Path::PathNode & ego_position, double ego_speed, double ego_acceleration = 0.0)
 {
     // 将障碍物中心投影到参考线
     auto [proj_point, proj_idx] = reference_path->GetProjection(
@@ -39,14 +39,16 @@ void Obstacle::CalculateProjection(const Path::ReferencePath::Ptr & reference_pa
     double dy = perception_obstacle_.pose.position.y - ego_position.y;
     projection_.distance = std::sqrt(dx * dx + dy * dy);
 
-    // 计算相对速度（需要自车速度，这里只设置占位符，实际由外部计算）
+    // 计算相对速度，碰撞时间
     projection_.relative_speed = 0.0;
     projection_.time_to_collision = 999.0;
+    UpdateCollisionTime(ego_position, ego_speed, ego_acceleration);
 }
 
 // 更新碰撞时间信息
-void Obstacle::UpdateCollisionTime(double ego_speed, double ego_acceleration)
+void Obstacle::UpdateCollisionTime(const Path::PathNode & ego_position, double ego_speed, double ego_acceleration)
 {
+    // todo 考虑加速度
     if (!projection_.is_ahead)
     {
         projection_.time_to_collision = 999.0;
@@ -57,7 +59,7 @@ void Obstacle::UpdateCollisionTime(double ego_speed, double ego_acceleration)
 
     if (std::abs(projection_.relative_speed) > 0.1)
     {
-        double distance_to_obstacle = std::max(0.0, projection_.s - projection_.length / 2.0);
+        double distance_to_obstacle = std::max(0.0, projection_.s - projection_.length / 2.0 - ego_position.s);
         projection_.time_to_collision = distance_to_obstacle / std::max(0.1, std::abs(projection_.relative_speed));
     }
     else

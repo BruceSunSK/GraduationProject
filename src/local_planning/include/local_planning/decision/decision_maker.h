@@ -1,6 +1,7 @@
 // decision_maker.h
 #pragma once
 #include <vector>
+#include <deque>
 #include <map>
 #include <string>
 #include <sstream>
@@ -18,17 +19,18 @@
 #include "local_planning/decision/decision_state_base.h"
 #include "local_planning/obstacles/obstacle.h"
 
-
 namespace Decision
 {
 // 单个障碍物的决策历史
 struct ObstacleDecisionHistory
 {
-    DecisionType current_state = DecisionType::IGNORE;
-    DecisionType previous_state = DecisionType::IGNORE;
-    int state_count = 0;
-    std::chrono::steady_clock::time_point state_start_time;
-    std::vector<DecisionType> state_history;
+    DecisionType current_state = DecisionType::IGNORE;          // 当前最终决策状态（经过迟滞）
+    DecisionType previous_state = DecisionType::IGNORE;         // 上一帧最终决策状态
+    int state_count = 0;                                        // 当前最终状态连续帧数
+    std::chrono::steady_clock::time_point state_start_time;     // 当前状态开始时间
+    std::deque<DecisionType> state_history;                     // 最终决策历史（用于置信度计算）
+    std::deque<DecisionType> raw_state_history;                 // 状态机原始输出历史（用于迟滞判断）
+    TrafficScenario last_scenario = TrafficScenario::UNKNOWN;   // 上一帧识别的场景
 
     void UpdateState(DecisionType new_state);
     double GetStateDuration() const;
@@ -51,17 +53,15 @@ struct DecisionResult
 // 路径边界（供路径QP使用）
 struct PathBoundary
 {
-    std::vector<std::array<std::pair<double, double>, 3>> bounds; // 三碰撞圆边界
     std::vector<double> s_coordinates;
+    std::vector<std::array<std::pair<double, double>, 3>> bounds; // 三碰撞圆边界
 };
 
 // 速度边界（供速度QP使用）
 struct SpeedBoundary
 {
-    std::vector<std::pair<double, double>> st_lower_bound; // (t, s) 下界
-    std::vector<std::pair<double, double>> st_upper_bound; // (t, s) 上界
-    std::vector<double> time_points;
-    std::vector<double> s_points;
+    std::vector<double> time_points;                       // 时间点序列 (s)
+    std::vector<std::pair<double, double>> bounds;         // 每个时间点的 (s_lower, s_upper)
 };
 
 // 决策器参数
@@ -80,15 +80,16 @@ struct DecisionMakerParams
     double speed_tolerance = 1.0;
     double min_overtake_speed_gain = 2.0;
     // 决策稳定性
-    int decision_hysteresis_count = 3;
+    int decision_hysteresis_count = 3;          // 迟滞计数（连续几帧原始建议一致才切换）
     double decision_filter_time = 0.5;
     // 道路参数
     double default_lane_width = 3.5;
     double road_boundary_margin = 0.5;
-    // 场景识别
-    double same_direction_threshold = 1.0;
-    double opposite_direction_threshold = -1.0;
-    double cross_traffic_threshold = 1.5;
+    // 场景识别（基于角度的阈值，在 IdentifyScenario 中使用）
+    double angle_same_threshold = 30.0 * M_PI / 180.0;      // 同向角度阈值
+    double angle_opposite_threshold = 150.0 * M_PI / 180.0; // 对向角度阈值
+    double angle_cross_low = 60.0 * M_PI / 180.0;           // 交叉角度下限
+    double angle_cross_high = 120.0 * M_PI / 180.0;         // 交叉角度上限
     // 调试
     bool enable_debug_output = true;
 };
@@ -110,15 +111,15 @@ public:
     void Initialize(const DecisionMakerParams & params);
     bool IsInitialized() const { return is_initialized_; }
 
-    // 设置代价地图（需要在决策前设置）
+    // 设置代价地图、参考线（需在决策前设置）
     void SetCostMap(const Map::MultiMap::Ptr & cost_map) { cost_map_ = cost_map; }
-
+    void SetReferencePath(const Path::ReferencePath::Ptr & reference_path) { reference_path_ = reference_path; }
+    
     // 更新并决策（核心入口）
     void UpdateAndDecide(const Obstacle::Obstacle::List & obstacles,
-        const Path::ReferencePath::Ptr & reference_path,
-        const Path::PathNode & ego_position,
-        double ego_speed,
-        double ego_acceleration = 0.0);
+                         const Path::PathNode & ego_position,
+                         double ego_speed,
+                         double ego_acceleration = 0.0);
 
     // 获取决策结果
     const Obstacle::Obstacle::List & GetObstaclesWithDecision() const { return obstacles_with_decision_; }
@@ -128,7 +129,7 @@ public:
     // 边界生成接口（供规划器调用）
     PathBoundary GeneratePathBoundary(const std::vector<Path::PathNode> & ref_points) const;
     SpeedBoundary GenerateSpeedBoundary(double planning_horizon = 5.0,
-        double time_resolution = 0.1) const;
+                                        double time_resolution = 0.1) const;
 
     // 调试
     std::string GetDebugInfo() const;
@@ -145,16 +146,17 @@ private:
     // 创建决策上下文
     DecisionContext CreateDecisionContext(const Obstacle::Obstacle::Ptr & obstacle) const;
 
-    // 状态机执行
+    // 状态机执行（根据场景和历史选择合适的状态机入口）
     DecisionType ExecuteStateMachine(const Obstacle::Obstacle::Ptr & obstacle,
-        DecisionContext & context);
+                                     DecisionContext & context,
+                                     bool is_new_obstacle,
+                                     bool scenario_changed);
 
     // 应用决策到障碍物
     void ApplyDecisionToObstacle(Obstacle::Obstacle::Ptr obstacle,
-        const DecisionResult & decision_result);
+                                 const DecisionResult & decision_result);
 
-    // 决策滤波与迟滞
-    DecisionType ApplyDecisionFilter(int obstacle_id, DecisionType new_state);
+    // 决策迟滞（基于原始建议的连续次数）
     DecisionType ApplyHysteresis(int obstacle_id, DecisionType new_state);
 
     // 场景识别
@@ -171,7 +173,7 @@ private:
     // 调试输出
     void AddDebugInfo(const std::string & info);
     void AddObstacleDebugInfo(const Obstacle::Obstacle::Ptr & obstacle,
-        const DecisionResult & result);
+                              const DecisionResult & result);
 
 private:
     DecisionMakerParams params_;

@@ -59,10 +59,10 @@ public:
 
     // 获取障碍物在参考线上的投影（并计算相关信息）
     void CalculateProjection(const Path::ReferencePath::Ptr & reference_path,
-        const Path::PathNode & ego_position);
+        const Path::PathNode & ego_position, double ego_speed, double ego_acceleration = 0.0);
 
     // 更新碰撞时间信息
-    void UpdateCollisionTime(double ego_speed, double ego_acceleration = 0.0);
+    void UpdateCollisionTime(const Path::PathNode & ego_position, double ego_speed, double ego_acceleration = 0.0);
 
     std::string ToString() const
     {
