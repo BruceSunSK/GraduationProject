@@ -1,10 +1,6 @@
 // stop_state.h
 #pragma once
-#include <cmath>
-#include <algorithm>
-
 #include "local_planning/decision/decision_state_base.h"
-#include "local_planning/decision/decision_state_factory.h"
 
 
 namespace Decision
@@ -21,7 +17,7 @@ public:
     };
 
 public:
-    StopState();
+    StopState() = default;
     ~StopState() override = default;
 
     // 禁止拷贝和移动
@@ -39,13 +35,11 @@ public:
     void SetParams(const StopParams & params) { params_ = params; }
     const StopParams & GetParams() const { return params_; }
 
-    // 状态检查
+private:
+    StopParams params_;
     bool IsObstacleCleared(const DecisionContext & context) const;
     bool CanPassSafely(const DecisionContext & context) const;
     bool ShouldChangeStrategy(const DecisionContext & context) const;
-
-private:
-    StopParams params_;
 };
 
 } // namespace Decision

@@ -11,6 +11,7 @@ PerceptionSimulator::PerceptionSimulator()
     , prediction_points_(10)
     , marker_lifetime_(0.2)
     , enable_visualization_(true)
+    , single_frame_mode_(false)
 {
     Initialize();
 }
@@ -44,6 +45,7 @@ void PerceptionSimulator::LoadParameters()
     private_nh_.param<double>("simulation_rate", simulation_rate_, 10.0);
     private_nh_.param<double>("prediction_time_step", prediction_time_step_, 0.5);
     private_nh_.param<int>("prediction_points", prediction_points_, 10);
+    private_nh_.param<bool>("single_frame_mode", single_frame_mode_, false);
     private_nh_.param<double>("marker_lifetime", marker_lifetime_, 0.2);
     private_nh_.param<bool>("enable_visualization", enable_visualization_, true);
 
@@ -52,6 +54,7 @@ void PerceptionSimulator::LoadParameters()
     ROS_INFO("[PerceptionSimulator]:   Simulation rate: %.1f Hz", simulation_rate_);
     ROS_INFO("[PerceptionSimulator]:   Prediction time step: %.1f s", prediction_time_step_);
     ROS_INFO("[PerceptionSimulator]:   Prediction points: %d", prediction_points_);
+    ROS_INFO("[PerceptionSimulator]:   Single frame mode: %s", single_frame_mode_ ? "true" : "false");
 }
 
 void PerceptionSimulator::InitializeColorMap()
@@ -175,6 +178,12 @@ void PerceptionSimulator::TimerCallback(const ros::TimerEvent & event)
 
 void PerceptionSimulator::UpdateObstacles(double dt)
 {
+    // 单帧模式：障碍物保持初始位置，不更新
+    if (single_frame_mode_)
+    {
+        return;
+    }
+
     for (auto & obstacle : obstacles_state_)
     {
         obstacle.Update(dt);

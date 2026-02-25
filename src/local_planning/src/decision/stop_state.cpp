@@ -4,21 +4,6 @@
 
 namespace Decision
 {
-StopState::StopState()
-{
-    // 设置默认参数
-    params_.safe_clear_distance = 10.0;
-    params_.max_stop_time = 3.0;
-    params_.min_passing_ttc = 5.0;
-    params_.lateral_passing_threshold = 1.0;
-
-    // 初始化状态转移
-    AddTransition(DecisionType::FOLLOW, DecisionStateFactory::CreateState(DecisionType::FOLLOW));
-    AddTransition(DecisionType::OVERTAKE, DecisionStateFactory::CreateState(DecisionType::OVERTAKE));
-    AddTransition(DecisionType::YIELD, DecisionStateFactory::CreateState(DecisionType::YIELD));
-    AddTransition(DecisionType::IGNORE, DecisionStateFactory::CreateState(DecisionType::IGNORE));
-}
-
 DecisionType StopState::Evaluate(DecisionContext & context)
 {
     double distance = context.projection.s - context.ego_position.s;

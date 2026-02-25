@@ -4,23 +4,6 @@
 
 namespace Decision
 {
-OvertakeState::OvertakeState()
-{
-    // 设置默认参数
-    params_.overtake_lateral_margin = 1.5;
-    params_.overtake_safety_distance = 3.0;
-    params_.overtake_completion_threshold = -5.0;
-    params_.max_overtake_time = 10.0;
-    params_.min_overtake_speed_gain = 2.0;
-    params_.emergency_abort_ttc = 1.0;
-
-    // 初始化状态转移
-    AddTransition(DecisionType::FOLLOW, DecisionStateFactory::CreateState(DecisionType::FOLLOW));
-    AddTransition(DecisionType::YIELD, DecisionStateFactory::CreateState(DecisionType::YIELD));
-    AddTransition(DecisionType::STOP, DecisionStateFactory::CreateState(DecisionType::STOP));
-    AddTransition(DecisionType::IGNORE, DecisionStateFactory::CreateState(DecisionType::IGNORE));
-}
-
 DecisionType OvertakeState::Evaluate(DecisionContext & context)
 {
     // 1. 检查是否完成超车

@@ -557,8 +557,8 @@ void LocalPlanner::ExtractSpeedBoundary(const Decision::SpeedBoundary & sb,
     s_upper.resize(sb.time_points.size());
     for (size_t i = 0; i < s_lower.size(); ++i)
     {
-        s_lower[i] = sb.st_lower_bound[i].second;
-        s_upper[i] = sb.st_upper_bound[i].second;
+        s_lower[i] = sb.bounds[i].first;
+        s_upper[i] = sb.bounds[i].second;
     }
 }
 

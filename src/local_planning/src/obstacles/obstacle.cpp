@@ -5,7 +5,7 @@ namespace Obstacle
 {
 // 获取障碍物在参考线上的投影（并计算相关信息）
 void Obstacle::CalculateProjection(const Path::ReferencePath::Ptr & reference_path,
-    const Path::PathNode & ego_position, double ego_speed, double ego_acceleration = 0.0)
+    const Path::PathNode & ego_position, double ego_speed, double ego_acceleration, double ego_half_length)
 {
     // 将障碍物中心投影到参考线
     auto [proj_point, proj_idx] = reference_path->GetProjection(
@@ -34,10 +34,8 @@ void Obstacle::CalculateProjection(const Path::ReferencePath::Ptr & reference_pa
     // 判断是否在自车前方
     projection_.is_ahead = (projection_.s > ego_position.s);
 
-    // 计算欧氏距离
-    double dx = perception_obstacle_.pose.position.x - ego_position.x;
-    double dy = perception_obstacle_.pose.position.y - ego_position.y;
-    projection_.distance = std::sqrt(dx * dx + dy * dy);
+    // 计算投影距离
+    projection_.distance = projection_.s - ego_position.s - projection_.length / 2.0 - ego_half_length;
 
     // 计算相对速度，碰撞时间
     projection_.relative_speed = 0.0;

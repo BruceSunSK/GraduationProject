@@ -4,22 +4,6 @@
 
 namespace Decision
 {
-IgnoreState::IgnoreState()
-{
-    // 设置默认参数
-    params_.max_ignore_distance = 50.0;
-    params_.min_attention_distance = 10.0;
-    params_.min_attention_ttc = 3.0;
-    params_.lateral_ignore_threshold = 3.0;
-    params_.speed_difference_threshold = 5.0;
-
-    // 初始化状态转移（忽略状态下可以转移到其他状态）
-    AddTransition(DecisionType::FOLLOW, DecisionStateFactory::CreateState(DecisionType::FOLLOW));
-    AddTransition(DecisionType::OVERTAKE, DecisionStateFactory::CreateState(DecisionType::OVERTAKE));
-    AddTransition(DecisionType::YIELD, DecisionStateFactory::CreateState(DecisionType::YIELD));
-    AddTransition(DecisionType::STOP, DecisionStateFactory::CreateState(DecisionType::STOP));
-}
-
 DecisionType IgnoreState::Evaluate(DecisionContext & context)
 {
     // 如果障碍物不在前方，直接忽略

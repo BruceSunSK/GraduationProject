@@ -4,22 +4,6 @@
 
 namespace Decision
 {
-YieldState::YieldState()
-{
-    // 设置默认参数
-    params_.yield_safety_distance = 3.0;
-    params_.max_yield_time = 5.0;
-    params_.clear_time_to_collision = 8.0;
-    params_.stop_distance_threshold = 2.0;
-    params_.min_passing_speed = 1.0;
-
-    // 初始化状态转移
-    AddTransition(DecisionType::FOLLOW, DecisionStateFactory::CreateState(DecisionType::FOLLOW));
-    AddTransition(DecisionType::OVERTAKE, DecisionStateFactory::CreateState(DecisionType::OVERTAKE));
-    AddTransition(DecisionType::STOP, DecisionStateFactory::CreateState(DecisionType::STOP));
-    AddTransition(DecisionType::IGNORE, DecisionStateFactory::CreateState(DecisionType::IGNORE));
-}
-
 DecisionType YieldState::Evaluate(DecisionContext & context)
 {
     double distance = context.projection.s - context.ego_position.s;

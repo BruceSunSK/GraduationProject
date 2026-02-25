@@ -1,10 +1,6 @@
 // yield_state.h
 #pragma once
-#include <cmath>
-#include <algorithm>
-
 #include "local_planning/decision/decision_state_base.h"
-#include "local_planning/decision/decision_state_factory.h"
 
 
 namespace Decision
@@ -22,7 +18,7 @@ public:
     };
 
 public:
-    YieldState();
+    YieldState() = default;
     ~YieldState() override = default;
 
     // 禁止拷贝和移动
@@ -40,13 +36,12 @@ public:
     void SetParams(const YieldParams & params) { params_ = params; }
     const YieldParams & GetParams() const { return params_; }
 
-    // 状态检查
+private:
+    YieldParams params_;
     bool IsClearToPass(const DecisionContext & context) const;
     bool ShouldStop(const DecisionContext & context) const;
     bool IsYieldTimeout(const DecisionContext & context) const;
 
-private:
-    YieldParams params_;
 };
 
 } // namespace Decision

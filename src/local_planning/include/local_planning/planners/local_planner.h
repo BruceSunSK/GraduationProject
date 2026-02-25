@@ -33,7 +33,7 @@ public:
         {
             double S_INTERVAL = 0.5;            // m
             double TRUNCATED_BACKWARD_S = 5.0;  // m
-            double TRUNCATED_FORWARD_S = 20.0;  // m
+            double TRUNCATED_FORWARD_S = 25.0;  // m
         } reference_path;
 
         struct

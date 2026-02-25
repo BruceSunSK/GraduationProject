@@ -1,0 +1,15 @@
+# 障碍物配置文件
+obstacles:
+  - id: 1
+    name: "vehicle_ahead"
+    type: 1  # VEHICLE
+    init_x: 60.0
+    init_y: 182.7
+    init_yaw: -0.16
+    length: 3.2
+    width: 1.8
+    height: 1.6
+    speed: 2.01  # m/s
+    use_noise: false
+    noise_stddev: 0.01
+  

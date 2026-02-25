@@ -1,10 +1,6 @@
 // overtake_state.h
 #pragma once
-#include <cmath>
-#include <algorithm>
-
 #include "local_planning/decision/decision_state_base.h"
-#include "local_planning/decision/decision_state_factory.h"
 
 
 namespace Decision
@@ -23,7 +19,7 @@ public:
     };
 
 public:
-    OvertakeState();
+    OvertakeState() = default;
     ~OvertakeState() override = default;
 
     // 禁止拷贝和移动
@@ -41,13 +37,12 @@ public:
     void SetParams(const OvertakeParams & params) { params_ = params; }
     const OvertakeParams & GetParams() const { return params_; }
 
-    // 状态检查
+private:
+    OvertakeParams params_;
     bool IsOvertakeCompleted(const DecisionContext & context) const;
     bool ShouldAbortOvertake(const DecisionContext & context) const;
     bool IsSafeToOvertake(const DecisionContext & context) const;
 
-private:
-    OvertakeParams params_;
 };
 
 } // namespace Decision

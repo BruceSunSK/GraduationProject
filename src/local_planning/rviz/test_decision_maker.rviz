@@ -4,11 +4,11 @@ Panels:
     Name: Displays
     Property Tree Widget:
       Expanded:
+        - /Vehicle1/VehicleOdometry1/Shape1
         - /Planning1
         - /Planning1/GlobalPlanning1
         - /Planning1/GlobalPlanning1/GlobalPlanningAuxiliaryInfo1/Namespaces1
         - /Planning1/LocalPlanning1
-        - /Planning1/LocalPlanning1/MarkerArray1/Namespaces1
       Splitter Ratio: 0.6038135886192322
     Tree Height: 574
   - Class: rviz/Selection
@@ -44,6 +44,44 @@ Visualization Manager:
       Radius: 1
       Reference Frame: map
       Value: true
+    - Class: rviz/Group
+      Displays:
+        - Angle Tolerance: 0.10000000149011612
+          Class: rviz/Odometry
+          Covariance:
+            Orientation:
+              Alpha: 0.5
+              Color: 255; 255; 127
+              Color Style: Unique
+              Frame: Local
+              Offset: 1
+              Scale: 1
+              Value: true
+            Position:
+              Alpha: 0.30000001192092896
+              Color: 204; 51; 204
+              Scale: 1
+              Value: true
+            Value: true
+          Enabled: true
+          Keep: 1
+          Name: VehicleOdometry
+          Position Tolerance: 0.10000000149011612
+          Shape:
+            Alpha: 1
+            Axes Length: 1
+            Axes Radius: 0.10000000149011612
+            Color: 117; 80; 123
+            Head Length: 1
+            Head Radius: 1
+            Shaft Length: 4
+            Shaft Radius: 0.5
+            Value: Arrow
+          Topic: /vehicle/odom
+          Unreliable: false
+          Value: true
+      Enabled: true
+      Name: Vehicle
     - Class: rviz/Group
       Displays:
         - Class: rviz/Group
@@ -122,33 +160,21 @@ Visualization Manager:
           Name: GlobalPlanning
         - Class: rviz/Group
           Displays:
-            - Alpha: 1
-              Buffer Length: 1
-              Class: rviz/Path
-              Color: 245; 121; 0
+            - Class: rviz/MarkerArray
               Enabled: true
-              Head Diameter: 0.30000001192092896
-              Head Length: 0.20000000298023224
-              Length: 0.30000001192092896
-              Line Style: Billboards
-              Line Width: 0.20000000298023224
-              Name: LocalPlanningPath
-              Offset:
-                X: 0
-                Y: 0
-                Z: 0
-              Pose Color: 255; 85; 255
-              Pose Style: None
-              Radius: 0.029999999329447746
-              Shaft Diameter: 0.10000000149011612
-              Shaft Length: 0.10000000149011612
-              Topic: /test_path_planning/trajectory
-              Unreliable: false
+              Marker Topic: /perception/visualization
+              Name: Obstacles
+              Namespaces:
+                labels: true
+                obstacles: true
+                trajectories: true
+                velocities: true
+              Queue Size: 100
               Value: true
             - Class: rviz/MarkerArray
               Enabled: true
-              Marker Topic: /test_path_planning/visualization_marker_array
-              Name: MarkerArray
+              Marker Topic: /test_decision_maker/visualization_marker_array
+              Name: decision
               Namespaces:
                 {}
               Queue Size: 100
@@ -194,11 +220,11 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: 20.961135864257812
+      Scale: 6.798635482788086
       Target Frame: body
       Value: TopDownOrtho (rviz)
-      X: 76.573486328125
-      Y: 174.0426025390625
+      X: 86.18790435791016
+      Y: 163.15391540527344
     Saved: ~
 Window Geometry:
   Displays:

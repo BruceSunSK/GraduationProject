@@ -1,0 +1,52 @@
+<launch>
+    <arg name="global_ref_topic"       default="/test_global_planning/path" />
+    <arg name="costmap_topic"          default="/test_global_planning/costmap" />
+    <arg name="vehicle_state_topic"    default="/initialpose" />
+    <arg name="input_obstacles_topic"  default="/perception/obstacles" />
+
+
+    <!-- 1. 启动感知，模拟障碍物 -->
+    <node pkg="perception" type="perception_simulator" name="perception_simulator" output="screen">
+        <!-- 障碍物模拟 -->
+        <param name="config_file" value="$(find perception)/config/stop_scene.yaml" />
+        <!-- <param name="config_file" value="$(find perception)/config/overtake_scene.yaml" /> -->
+        <!-- <param name="config_file" value="$(find perception)/config/yield_scene.yaml" /> -->
+        <!-- <param name="config_file" value="$(find perception)/config/follow_scene.yaml" /> -->
+        <!-- <param name="config_file" value="$(find perception)/config/ignore_scene.yaml" /> -->
+        
+        <!-- 仿真参数 -->
+        <param name="simulation_rate" value="10.0" />
+        <param name="prediction_time_step" value="0.5" />
+        <param name="prediction_points" value="10" />
+        <param name="single_frame_mode" value="true" /> <!-- 测试使用单帧模式，即时刻只有第一帧的障碍物信息 -->
+        
+        <!-- 可视化参数 -->
+        <param name="marker_lifetime" value="0.2" />
+        <param name="enable_visualization" value="true" />
+
+        <!-- 话题重映射 -->
+        <remap from="/perception/obstacles" to="$(arg input_obstacles_topic)"/>
+    </node>
+
+    <!-- 2. 启动全局规划，用于提供地图、参考线 -->
+    <node pkg="global_planning" name="test_global_planning" type="test_global_planning" output="screen" >
+        <param name="planner_name"  type="str"  value="TSHAstar"/>
+        <param name="load_map"      type="bool" value="true"/> <!-- 手动加载现有png地图 -->
+        <param name="map_file"      type="str"  value="$(find grid_cost_map)/map/XG_map.png"/> <!-- 地图文件路径 -->
+
+        <remap from="/test_global_planning/path"          to="$(arg global_ref_topic)"/>
+        <remap from="/test_global_planning/processed_map" to="$(arg costmap_topic)"/>
+    </node>
+
+    <!-- 3. 测试局部规划中的路径规划 -->
+    <node pkg="local_planning" name="test_decision_maker" type="test_decision_maker" output="screen">
+        <param name="input_global_ref_topic"    type="str" value="$(arg global_ref_topic)"/>
+        <param name="input_costmap_topic"       type="str" value="$(arg costmap_topic)"/>
+        <param name="input_initial_pose_topic"  type="str" value="$(arg vehicle_state_topic)"/>
+        <param name="input_obstacles_topic"     type="str" value="$(arg input_obstacles_topic)"/>
+    </node>
+
+    <!-- 4. 启动 rviz -->
+    <node pkg="rviz" name="rviz" type="rviz" args="-d $(find local_planning)/rviz/test_decision_maker.rviz" />
+
+</launch>

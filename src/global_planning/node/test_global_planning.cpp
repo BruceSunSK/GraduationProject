@@ -481,8 +481,8 @@ int main(int argc, char * argv[])
     ros::init(argc, argv, "test_global_planning");
     ros::NodeHandle nh("~");
 
-    ros::Subscriber start_point_sub = nh.subscribe("/initialpose", 1, start_point_callback);
-    ros::Subscriber end_point_sub   = nh.subscribe("/move_base_simple/goal", 1, end_point_callback);
+    // ros::Subscriber start_point_sub = nh.subscribe("/initialpose", 1, start_point_callback);
+    // ros::Subscriber end_point_sub   = nh.subscribe("/move_base_simple/goal", 1, end_point_callback);
     ros::Subscriber map_sub         = nh.subscribe("/grid_cost_map/global_occupancy_grid_map", 1, map_callback);
     processed_map_pub = nh.advertise<nav_msgs::OccupancyGrid>("processed_map", 1, true);
     path_pub          = nh.advertise<nav_msgs::Path>("path", 1, true);

@@ -1,10 +1,6 @@
 // ignore_state.h
 #pragma once
-#include <cmath>
-#include <algorithm>
-
 #include "local_planning/decision/decision_state_base.h"
-#include "local_planning/decision/decision_state_factory.h"
 
 
 namespace Decision
@@ -22,7 +18,7 @@ public:
     };
 
 public:
-    IgnoreState();
+    IgnoreState() = default;
     ~IgnoreState() override = default;
 
     // 禁止拷贝和移动

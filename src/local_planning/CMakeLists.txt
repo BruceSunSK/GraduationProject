@@ -160,6 +160,7 @@ target_link_libraries(local_planners map
 add_executable(local_planning      src/local_planning.cpp
                                    node/local_planning_node.cpp)
 add_executable(test_local_planning node/test_local_planning.cpp)
+add_executable(test_decision_maker node/test_decision_maker.cpp)
 add_executable(test_path_planning  node/test_path_planning.cpp)
 add_executable(test_speed_planning node/test_speed_planning.cpp)
 
@@ -173,12 +174,14 @@ add_executable(test_speed_planning node/test_speed_planning.cpp)
 ## same as for the library above
 add_dependencies(local_planning      ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(test_local_planning ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(test_decision_maker ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(test_path_planning  ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(test_speed_planning ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(local_planning      ${catkin_LIBRARIES} local_planners)
 target_link_libraries(test_local_planning ${catkin_LIBRARIES} local_planners)
+target_link_libraries(test_decision_maker ${catkin_LIBRARIES} local_planners)
 target_link_libraries(test_path_planning  ${catkin_LIBRARIES} local_planners)
 target_link_libraries(test_speed_planning ${catkin_LIBRARIES} local_planners)
 

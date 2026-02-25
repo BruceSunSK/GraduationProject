@@ -99,6 +99,7 @@ private:
     int prediction_points_;
     double marker_lifetime_;
     bool enable_visualization_;
+    bool single_frame_mode_;
 
     // 发布者
     ros::Publisher obstacles_pub_;

@@ -5,6 +5,7 @@
     <arg name="vehicle_state_topic"    default="/vehicle/odom" />
     <arg name="local_trajectory_topic" default="/test_local_planning/trajectory" />
 
+
     <!-- 1. 启动全局规划，用于提供地图、参考线 -->
     <node pkg="global_planning" name="test_global_planning" type="test_global_planning" output="screen" >
         <param name="planner_name"  type="str"  value="TSHAstar"/>

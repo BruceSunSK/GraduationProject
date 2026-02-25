@@ -68,6 +68,7 @@ struct SpeedBoundary
 struct DecisionMakerParams
 {
     // 距离阈值
+    double ego_half_length = 1.9;
     double safe_distance = 2.0;
     double min_follow_distance = 5.0;
     double max_follow_distance = 30.0;
