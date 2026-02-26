@@ -6,10 +6,6 @@ namespace Decision
 {
 DecisionType FollowState::Evaluate(DecisionContext & context)
 {
-    std::cout << "distance: " << context.projection.distance << std::endl;
-    std::cout << "time_to_collision: " << context.projection.time_to_collision << std::endl;
-    std::cout << "ego_l: " << context.ego_position.l << std::endl;
-
     if (ShouldStop(context))
         return DecisionType::STOP;
 

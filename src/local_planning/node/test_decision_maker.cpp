@@ -283,7 +283,7 @@ void SaveSpeedBoundaryData(const Decision::SpeedBoundary & sb,
     {
         auto proj = obs->GetProjection();
         file << "# obstacle: id=" << obs->GetId()
-             << ", s0=" << proj.s
+             << ", s=" << proj.s
              << ", l=" << proj.l
              << ", length=" << proj.length
              << ", width=" << proj.width

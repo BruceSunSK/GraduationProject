@@ -8,11 +8,15 @@
     <!-- 1. 启动感知，模拟障碍物 -->
     <node pkg="perception" type="perception_simulator" name="perception_simulator" output="screen">
         <!-- 障碍物模拟 -->
-        <param name="config_file" value="$(find perception)/config/stop_scene.yaml" />
-        <!-- <param name="config_file" value="$(find perception)/config/overtake_scene.yaml" /> -->
-        <!-- <param name="config_file" value="$(find perception)/config/yield_scene.yaml" /> -->
-        <!-- <param name="config_file" value="$(find perception)/config/follow_scene.yaml" /> -->
-        <!-- <param name="config_file" value="$(find perception)/config/ignore_scene.yaml" /> -->
+        <!-- <param name="config_file" value="$(find perception)/config/same_direction/follow_scene.yaml" /> -->
+        <!-- <param name="config_file" value="$(find perception)/config/same_direction/overtake_scene.yaml" /> -->
+        <!-- <param name="config_file" value="$(find perception)/config/same_direction/stop_scene.yaml" /> -->
+
+        <!-- <param name="config_file" value="$(find perception)/config/cross_direction/overtake_scene.yaml" /> -->
+        <!-- <param name="config_file" value="$(find perception)/config/cross_direction/yield_scene.yaml" /> -->
+
+        <param name="config_file" value="$(find perception)/config/opposite_direction/yield_scene.yaml" /> 
+        <!-- <param name="config_file" value="$(find perception)/config/opposite_direction/ignore_scene.yaml" /> -->
         
         <!-- 仿真参数 -->
         <param name="simulation_rate" value="10.0" />

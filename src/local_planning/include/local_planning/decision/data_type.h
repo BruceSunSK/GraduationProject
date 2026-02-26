@@ -41,7 +41,7 @@ struct DecisionInfo
     ObstacleTag tag = ObstacleTag::NONE;
     double decision_confidence = 0.0;
     double target_speed = 0.0;
-    double safety_distance = 2.0;
+    double safety_distance = 1.0;
     double desired_lateral_offset = 0.0;
     bool is_emergency = false;
 

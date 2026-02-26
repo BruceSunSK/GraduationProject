@@ -12,7 +12,7 @@ public:
     {
         double yield_safety_distance = 3.0;        // 让行安全距离(m)
         double max_yield_time = 5.0;               // 最大让行时间(s)
-        double clear_time_to_collision = 8.0;      // 安全通过所需的最小碰撞时间(s)
+        double clear_time_to_collision = 5.0;      // 安全通过所需的最小碰撞时间(s)
         double stop_distance_threshold = 2.0;      // 停车距离阈值(m)
         double min_passing_speed = 1.0;            // 最小通过速度(m/s)
     };
@@ -38,8 +38,8 @@ public:
 
 private:
     YieldParams params_;
-    bool IsClearToPass(const DecisionContext & context) const;
     bool ShouldStop(const DecisionContext & context) const;
+    bool IsClearToPass(const DecisionContext & context) const;
     bool IsYieldTimeout(const DecisionContext & context) const;
 
 };

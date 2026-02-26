@@ -1,15 +1,16 @@
 # 障碍物配置文件
+# 这里实际是overtake，但名字用yield_scene更贴切
 obstacles:
   - id: 1
     name: "vehicle_ahead"
     type: 1  # VEHICLE
-    init_x: 75.0
-    init_y: 180.5
-    init_yaw: -0.16
+    init_x: 66.0
+    init_y: 183.6
+    init_yaw: 3.02
     length: 3.2
     width: 1.8
     height: 1.6
-    speed: 4.0  # m/s
+    speed: 2.20  # m/s
     use_noise: false
     noise_stddev: 0.01
   

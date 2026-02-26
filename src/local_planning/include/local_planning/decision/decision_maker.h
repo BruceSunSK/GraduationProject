@@ -69,10 +69,11 @@ struct DecisionMakerParams
 {
     // 距离阈值
     double ego_half_length = 1.9;
-    double safe_distance = 2.0;
+    double safe_distance = 1.0;
     double min_follow_distance = 5.0;
     double max_follow_distance = 30.0;
-    double overtake_lateral_margin = 1.5;
+    double overtake_lateral_margin = 2.5;
+    double overtake_completion_threshold = 4.0;
     // 时间阈值
     double safe_time_headway = 2.0;
     double min_time_to_collision = 3.0;
@@ -150,6 +151,7 @@ private:
     // 状态机执行（根据场景和历史选择合适的状态机入口）
     DecisionType ExecuteStateMachine(const Obstacle::Obstacle::Ptr & obstacle,
                                      DecisionContext & context,
+                                     const TrafficScenario & scenario,
                                      bool is_new_obstacle,
                                      bool scenario_changed);
 

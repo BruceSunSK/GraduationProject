@@ -139,13 +139,13 @@ def plot_st_diagram(csv_path, out_dir):
     # 绘制障碍物在 ST 图上的投影
     t_max = t[-1]
     for obs in obstacles:
-        s0 = obs['s0']
+        s = obs['s']
         v = obs['speed']
         length = obs['length']
         # 静态障碍物（速度接近0）用矩形表示
         if abs(v) < 0.1:
             rect = Rectangle(
-                (0, s0 - length/2),
+                (0, s - length/2),
                 t_max, length,
                 linewidth=2, edgecolor='red', facecolor='red', alpha=0.7,
                 label='static obstacle' if obs['id'] == obstacles[0]['id'] else ""
@@ -155,10 +155,10 @@ def plot_st_diagram(csv_path, out_dir):
             # 四个顶点：(0, s0 - L/2), (t_max, s0 + v*t_max - L/2),
             #          (t_max, s0 + v*t_max + L/2), (0, s0 + L/2)
             pts = np.array([
-                [0, s0 - length/2],
-                [t_max, s0 + v*t_max - length/2],
-                [t_max, s0 + v*t_max + length/2],
-                [0, s0 + length/2]
+                [0, s - length/2],
+                [t_max, s + v*t_max - length/2],
+                [t_max, s + v*t_max + length/2],
+                [0, s + length/2]
             ])
             poly = Polygon(pts, closed=True, edgecolor='red', facecolor='red', alpha=0.7,
                            label='dynamic obstacle' if obs['id'] == obstacles[0]['id'] else "")
