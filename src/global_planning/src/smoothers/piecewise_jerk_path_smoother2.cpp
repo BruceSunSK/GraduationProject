@@ -8,9 +8,9 @@ namespace Smoother
 /// 约束条件：1.碰撞圆边界约束(包含起点约束)，2.连续性约束。
 /// 公式参考：https://zhuanlan.zhihu.com/p/480298921
 bool PiecewiseJerkPathSmoother2::Solve(const double ds, const std::vector<Path::PathNode> & ref_points,
-                                   const std::vector<std::array<std::pair<double, double>, 3>> & bounds,
-                                   const std::array<double, 3> & init_state, const std::array<double, 3> & end_state_ref, 
-                                   std::vector<Path::PointXY> & optimized_path) const
+    const std::vector<std::array<std::pair<double, double>, 3>> & bounds,
+    const std::array<double, 3> & init_state, const std::array<double, 3> & end_state_ref, 
+    std::vector<Path::PointSLWithDerivatives> & path_sl) const
 {
     // 0. 变量个数、约束个数
     const size_t point_num = bounds.size();
@@ -167,14 +167,16 @@ bool PiecewiseJerkPathSmoother2::Solve(const double ds, const std::vector<Path::
 
     // 6. 保存数据
     const Eigen::VectorXd & solution = solver.getSolution();
-    optimized_path.clear();
-    optimized_path.reserve(point_num);
+    path_sl.clear();
+    path_sl.reserve(point_num);
     for (size_t i = 0; i < point_num; ++i)
     {
-        const Path::PathNode & ref_node = ref_points[i];
-        const Path::PointSL sl(ref_node.s, solution(i));
-        const Path::PointXY xy = Path::Utils::SLtoXY(sl, { ref_node.x, ref_node.y }, ref_node.theta);
-        optimized_path.emplace_back(xy.x, xy.y);
+        Path::PointSLWithDerivatives sl;
+        sl.s              = ref_points[i].s;
+        sl.l              = solution(i);
+        sl.l_prime        = solution(i + point_num);
+        sl.l_double_prime = solution(i + 2 * point_num);
+        path_sl.push_back(sl);
     }
     return true;
 }

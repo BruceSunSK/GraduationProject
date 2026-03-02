@@ -46,7 +46,7 @@ public:
     bool Solve(const double ds, const std::vector<Path::PathNode> & ref_points,
                const std::vector<std::array<std::pair<double, double>, 3>> & bounds,
                const std::array<double, 3> & init_state, const std::array<double, 3> & end_state_ref, 
-               std::vector<Path::PointXY> & optimized_path) const;
+               std::vector<Path::PointSLWithDerivatives> & path_sl) const;
 
 private:
     Weights weights_;

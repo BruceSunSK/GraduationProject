@@ -6,7 +6,6 @@ Panels:
       Expanded:
         - /Vehicle1/VehicleOdometry1/Shape1
         - /Planning1
-        - /Planning1/GlobalPlanning1
         - /Planning1/GlobalPlanning1/GlobalPlanningAuxiliaryInfo1/Namespaces1
         - /Planning1/LocalPlanning1
         - /Planning1/LocalPlanning1/LocalPlanningPath1
@@ -189,20 +188,8 @@ Visualization Manager:
               Radius: 0.029999999329447746
               Shaft Diameter: 0.10000000149011612
               Shaft Length: 0.10000000149011612
-              Topic: /test_path_planning/trajectory
+              Topic: /test_local_planning/trajectory
               Unreliable: false
-              Value: true
-            - Class: rviz/MarkerArray
-              Enabled: true
-              Marker Topic: /test_path_planning/visualization_marker_array
-              Name: MarkerArray
-              Namespaces:
-                qp_lower_bound: true
-                qp_lower_bound_lines: true
-                qp_upper_bound: true
-                qp_upper_bound_lines: true
-                trajectory_boundary_connections: true
-              Queue Size: 100
               Value: true
           Enabled: true
           Name: LocalPlanning

@@ -5,7 +5,8 @@ Control::Control(ros::NodeHandle & private_nh) :
     private_nh_(private_nh),
     tf_listener_(tf_buffer_),
     has_trajectory_(false),
-    has_odom_(false)
+    has_odom_(false),
+    goal_reached_(false)
 {
     // 获取参数
     private_nh_.param<double>("lookahead_distance", lookahead_distance_, 0.5);
@@ -53,6 +54,7 @@ void Control::trajectoryCallback(const nav_msgs::Path::ConstPtr & msg)
     std::lock_guard<std::mutex> lock(trajectory_mutex_);
     current_trajectory_ = *msg;
     has_trajectory_ = true;
+    goal_reached_ = false;
 }
 
 void Control::odometryCallback(const nav_msgs::Odometry::ConstPtr & msg)
@@ -253,6 +255,13 @@ void Control::run()
             continue;
         }
 
+        if (goal_reached_)
+        {
+            ros::spinOnce();
+            rate.sleep();
+            continue;
+        }
+
         // 获取当前目标
         geometry_msgs::PoseStamped target_pose = getCurrentTarget();
         if (target_pose.header.frame_id.empty())
@@ -277,7 +286,8 @@ void Control::run()
         {
             v = 0.0;
             w = 0.0;
-            ROS_INFO("[Control]: Goal reached!");
+            goal_reached_ = true;
+            ROS_INFO("[Control]: Goal reached! Stopping control output");
         }
 
         // 发布控制指令

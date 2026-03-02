@@ -172,9 +172,6 @@ private:
 
     // 本帧中间变量
     double curr_s_interval_;
-    std::vector<double> path_s_ref_;      // 优化路径点在参考线上的s坐标
-    std::vector<double> path_l_;          // 优化路径点在参考线上的l坐标
-    std::vector<double> path_l_prime_;    // 优化路径点在参考线上的l' (dl/ds)
 
     /// @brief 检查算法所需数据是否准备好
     /// @return 是否可以进行算法部分
@@ -239,13 +236,7 @@ private:
     bool PathPlanning(const std::vector<Path::PathNode> & ref_points,
                       const std::vector<std::array<std::pair<double, double>, 3>> & bounds,
                       const Path::PathNode & start_point,
-                      std::vector<Path::PointXY> & optimized_path);
-    
-    /// @brief 计算路径点的s坐标（累积距离）
-    /// @param path_points 路径点
-    /// @param s_coordinates 输出的s坐标
-    void CalculatePathSCoordinates(const std::vector<Path::PointXY> & path_points,
-                                   std::vector<double> & s_coordinates);
+                      std::vector<Path::PathNode> & optimized_path);
     
     /// @brief 从决策模块的速度边界中提取时间序列和上下界
     /// @param sb 决策模块生成的速度边界
@@ -256,30 +247,18 @@ private:
                                      std::vector<double> & s_upper) const;
 
     /// @brief 进行速度QP优化
-    /// @param s_coordinates 路径点的s坐标
     /// @param decision_maker 决策模块
     /// @param optimized_speed_profile 优化的速度剖面
     /// @return 是否成功进行速度QP优化
-    bool SpeedPlanning(const std::vector<double> & s_coordinates,
-                      const std::shared_ptr<Decision::DecisionMaker> & decision_maker,
-                      std::vector<Path::TrajectoryPoint> & optimized_speed_profile);
-
-    /// @brief 计算路径点在参考线上的投影（s, l, l'）
-    /// @param optimized_path 优化后的路径点
-    /// @param planning_start_point 规划起点（用于参考）
-    /// @param s_ref 输出的s坐标
-    /// @param l 输出的l坐标
-    /// @param l_prime 输出的l' (dl/ds)
-    void ComputePathSL(const std::vector<Path::PointXY> & optimized_path,
-        const Path::PathNode & planning_start_point,
-        std::vector<double> & s_ref,
-        std::vector<double> & l,
-        std::vector<double> & l_prime);
+    bool SpeedPlanning(const std::shared_ptr<Decision::DecisionMaker> & decision_maker,
+                       std::vector<Path::TrajectoryPoint> & optimized_speed_profile);
 
     /// @brief 合并路径和速度规划结果，生成最终轨迹
-    /// @param speed_profile 速度剖面
+    /// @param speed_profile 速度剖面，即速度规划的st结果
+    /// @param optimized_path 最优路径，即路径规划的s, l, dl, ddl结果
     /// @param trajectory 最终轨迹
     void GenerateTrajectory(const std::vector<Path::TrajectoryPoint> & speed_profile,
+                            const std::vector<Path::PathNode> & optimized_path,
                             std::vector<Path::TrajectoryPoint> & trajectory);
 
 };

@@ -615,84 +615,6 @@ static std::vector<std::array<std::pair<double, double>, 3>> GetMapBounds(
     return bounds;
 }
 
-// 计算轨迹点的累积距离 s ，航向角 theta 和曲率 kappa
-static void ComputePathProperties(const std::vector<Path::PointXY> & points,
-    std::vector<double> & s,
-    std::vector<double> & kappa,
-    std::vector<double> & theta)  // 新增输出参数
-{
-    size_t n = points.size();
-    if (n < 2)
-    {
-        s.clear();
-        kappa.clear();
-        theta.clear();
-        return;
-    }
-
-    // 计算累积距离 s
-    s.resize(n);
-    s[0] = 0.0;
-    for (size_t i = 1; i < n; ++i)
-    {
-        double dx = points[i].x - points[i - 1].x;
-        double dy = points[i].y - points[i - 1].y;
-        s[i] = s[i - 1] + std::sqrt(dx * dx + dy * dy);
-    }
-
-    // 计算每个点的航向角 theta（基于前后点差分）
-    theta.resize(n);
-    for (size_t i = 0; i < n; ++i)
-    {
-        if (i == 0)
-        {
-            double dx = points[1].x - points[0].x;
-            double dy = points[1].y - points[0].y;
-            theta[i] = std::atan2(dy, dx);
-        }
-        else if (i == n - 1)
-        {
-            double dx = points[n - 1].x - points[n - 2].x;
-            double dy = points[n - 1].y - points[n - 2].y;
-            theta[i] = std::atan2(dy, dx);
-        }
-        else
-        {
-            double dx = points[i + 1].x - points[i - 1].x;
-            double dy = points[i + 1].y - points[i - 1].y;
-            theta[i] = std::atan2(dy, dx);
-        }
-    }
-
-    // 对 theta 进行 unwrap，避免跳变
-    for (size_t i = 1; i < n; ++i)
-    {
-        double diff = theta[i] - theta[i - 1];
-        if (diff > M_PI)
-            theta[i] -= 2.0 * M_PI;
-        else if (diff < -M_PI)
-            theta[i] += 2.0 * M_PI;
-    }
-
-    // 计算曲率 kappa = dθ/ds
-    kappa.resize(n);
-    for (size_t i = 0; i < n; ++i)
-    {
-        if (i == 0)
-        {
-            kappa[i] = (theta[1] - theta[0]) / (s[1] - s[0]);
-        }
-        else if (i == n - 1)
-        {
-            kappa[i] = (theta[n - 1] - theta[n - 2]) / (s[n - 1] - s[n - 2]);
-        }
-        else
-        {
-            kappa[i] = (theta[i + 1] - theta[i - 1]) / (s[i + 1] - s[i - 1]);
-        }
-    }
-}
-
 bool Run(const Map::MultiMap::Ptr & map,
          const Path::ReferencePath::Ptr & ref_path,
          const Vehicle::State::Ptr & veh_state,
@@ -760,31 +682,60 @@ bool Run(const Map::MultiMap::Ptr & map,
     };
     Smoother::PiecewiseJerkPathSmoother2 smoother(weights, opt_params);
 
-    std::vector<Path::PointXY> optimized_path;
+    // 调用优化器，得到路径点的 SL 信息（包含 l, l', l"）
+    std::vector<Path::PointSLWithDerivatives> path_sl;
     if (!smoother.Solve(s_interval, ref_points, final_bounds,
-                        init_state, end_state_ref, optimized_path))
+        init_state, end_state_ref, path_sl))
     {
         error_msg = "Path QP optimization failed";
         return false;
     }
 
-    ROS_INFO("Optimized path generated %zu points", optimized_path.size());
+    ROS_INFO("Optimized path generated %zu points", path_sl.size());
 
-    // 计算路径点的累积距离 s、曲率 kappa 和航向角 theta
-    std::vector<double> s_vals, kappa_vals, theta_vals;
-    ComputePathProperties(optimized_path, s_vals, kappa_vals, theta_vals);
-
+    // 将优化结果转换为轨迹点，并计算 theta 和 kappa
     result.trajectory.clear();
-    result.trajectory.reserve(optimized_path.size());
-    for (size_t i = 0; i < optimized_path.size(); ++i)
+    result.trajectory.reserve(path_sl.size());
+
+    // 先计算实际弧长 s_actual
+    std::vector<double> s_actual(path_sl.size(), 0.0);
+    std::vector<double> x_vals(path_sl.size()), y_vals(path_sl.size());
+    for (size_t i = 0; i < path_sl.size(); ++i)
     {
+        const auto & sl = path_sl[i];
+        const auto & ref_node = ref_points[i];
+        x_vals[i] = ref_node.x - sl.l * std::sin(ref_node.theta);
+        y_vals[i] = ref_node.y + sl.l * std::cos(ref_node.theta);
+    }
+    for (size_t i = 1; i < path_sl.size(); ++i)
+    {
+        double dx = x_vals[i] - x_vals[i - 1];
+        double dy = y_vals[i] - y_vals[i - 1];
+        s_actual[i] = s_actual[i - 1] + std::sqrt(dx * dx + dy * dy);
+    }
+
+    for (size_t i = 0; i < path_sl.size(); ++i)
+    {
+        const auto & sl = path_sl[i];
+        const auto & ref_node = ref_points[i];
+
         Path::TrajectoryPoint pt;
-        pt.x = optimized_path[i].x;
-        pt.y = optimized_path[i].y;
-        pt.s = s_vals[i];
-        pt.kappa = kappa_vals[i];
-        pt.theta = theta_vals[i];  // 填充航向角
-        // 其他字段保持默认值
+        pt.x = x_vals[i];
+        pt.y = y_vals[i];
+        pt.s = s_actual[i];
+        pt.l = sl.l;
+
+        // 计算航向角
+        double denominator = 1.0 - ref_node.kappa * sl.l;
+        if (std::abs(denominator) < 1e-6) denominator = 1e-6;
+        pt.theta = ref_node.theta + std::atan2(sl.l_prime, denominator);
+
+        // 计算曲率
+        double numerator = (ref_node.kappa + sl.l_double_prime) * (1.0 - ref_node.kappa * sl.l);
+        denominator = std::pow((1.0 - ref_node.kappa * sl.l) * (1.0 - ref_node.kappa * sl.l) +
+            sl.l_prime * sl.l_prime, 1.5);
+        pt.kappa = numerator / (denominator + 1e-9);
+
         result.trajectory.push_back(pt);
     }
 

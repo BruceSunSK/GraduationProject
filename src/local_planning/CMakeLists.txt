@@ -159,7 +159,8 @@ target_link_libraries(local_planners map
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(local_planning      src/local_planning.cpp
                                    node/local_planning_node.cpp)
-add_executable(test_local_planning node/test_local_planning.cpp)
+add_executable(test_local_planning src/local_planning.cpp
+                                   node/test_local_planning.cpp)
 add_executable(test_decision_maker node/test_decision_maker.cpp)
 add_executable(test_path_planning  node/test_path_planning.cpp)
 add_executable(test_speed_planning node/test_speed_planning.cpp)

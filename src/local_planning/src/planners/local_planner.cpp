@@ -129,33 +129,26 @@ bool LocalPlanner::Plan(LocalPlannerResult & result, std::string & error_msg)
         result_.log << "No decision boundaries, using map bounds only.\n";
     }
 
-    // 6. 进行路径规划，QP优化
-    std::vector<Path::PointXY> optimized_path;
+    // 6. 路径规划
+    std::vector<Path::PathNode> optimized_path;
     if (!PathPlanning(ref_points, final_bounds, planning_start_point, optimized_path))
     {
         error_msg = "LocalPlanner::Plan() failed: PathPlanning failed.";
         return false;
     }
-    // 计算路径点的参考线投影（s, l, l'）
-    ComputePathSL(optimized_path, planning_start_point, path_s_ref_, path_l_, path_l_prime_);
-    result_.log << "Computed path SL: " << path_s_ref_.size() << " points.\n";
-    
-    // 7. 计算路径点的s坐标
-    std::vector<double> s_coordinates;
-    CalculatePathSCoordinates(optimized_path, s_coordinates);
-    result_.log << "Calculated s coordinates for " << s_coordinates.size() << " path points.\n";
-    
-    // 8. 进行速度规划
+    result_.log << "Path planning generated " << optimized_path.size() << " path nodes.\n";
+
+    // 7. 速度规划
     std::vector<Path::TrajectoryPoint> speed_profile;
-    if (!SpeedPlanning(s_coordinates, decision_maker_, speed_profile))
+    if (!SpeedPlanning(decision_maker_, speed_profile))
     {
         error_msg = "LocalPlanner::Plan() failed: SpeedPlanning failed.";
         return false;
     }
     result_.log << "Speed planning generated " << speed_profile.size() << " speed points.\n";
-    
-    // 9. 生成最终轨迹
-    GenerateTrajectory(speed_profile, result_.trajectory);
+
+    // 8. 生成最终轨迹
+    GenerateTrajectory(speed_profile, optimized_path, result_.trajectory);
     result_.log << "Generated " << result_.trajectory.size() << " trajectory points.\n";
 
     // 99. 记录结果
@@ -487,9 +480,9 @@ std::vector<std::array<std::pair<double, double>, 3>> LocalPlanner::MergeBounds(
 }
 
 bool LocalPlanner::PathPlanning(const std::vector<Path::PathNode> & ref_points,
-    const std::vector<std::array<std::pair<double, double>, 3>> & bounds,
-    const Path::PathNode & start_point,
-    std::vector<Path::PointXY> & optimized_path)
+                                 const std::vector<std::array<std::pair<double, double>, 3>> & bounds,
+                                 const Path::PathNode & start_point,
+                                 std::vector<Path::PathNode> & optimized_path)
 {
     // 设置权重等参数
     const static Smoother::PiecewiseJerkPathSmoother2::Weights weights {
@@ -515,38 +508,54 @@ bool LocalPlanner::PathPlanning(const std::vector<Path::PathNode> & ref_points,
         { start_point.x, start_point.y }, start_point.theta, start_point.kappa,
         { start_point_proj.x, start_point_proj.y }, start_point_proj.s,
         start_point_proj.theta, start_point_proj.kappa, start_point_proj.dkappa);
-    std::array<double, 3> init_state = { start_point_sl.l, start_point_sl.l_prime, start_point_sl.l_double_prime };      // l, l', l"的参考值
-    std::array<double, 3> end_state_ref = { 0.0, 0.0, 0.0 };      // l, l', l"的参考值
+    std::array<double, 3> init_state = { start_point_sl.l, start_point_sl.l_prime, start_point_sl.l_double_prime };
+    std::array<double, 3> end_state_ref = { 0.0, 0.0, 0.0 };
     result_.log << "PathPlanning(): start_point_sl (l, l', l\"): ("
                 << start_point_sl.l << ", " << start_point_sl.l_prime << ", " << start_point_sl.l_double_prime << ")\n";
 
     auto start_time = std::chrono::steady_clock::now();
-    optimized_path.clear();
+
+    // 调用优化器，得到路径点的 SL 信息（包含 l, l', l"）
+    std::vector<Path::PointSLWithDerivatives> path_sl;
     if (!smoother.Solve(curr_s_interval_, ref_points, bounds,
-                        init_state, end_state_ref, optimized_path))
-    {
+                        init_state, end_state_ref, path_sl))
         return false;
+
+    optimized_path.clear();
+    optimized_path.reserve(path_sl.size());
+
+    for (size_t i = 0; i < path_sl.size(); ++i)
+    {
+        const auto & sl = path_sl[i];
+        const auto & ref_node = ref_points[i];
+
+        Path::PathNode node;
+        node.s = sl.s;
+        node.l = sl.l;
+        node.dkappa = sl.l_prime;  // 存储 l' 到 dkappa 字段
+
+        // 计算笛卡尔坐标
+        node.x = ref_node.x - sl.l * std::sin(ref_node.theta);
+        node.y = ref_node.y + sl.l * std::cos(ref_node.theta);
+
+        // 计算航向角 theta
+        double denominator = 1.0 - ref_node.kappa * sl.l;
+        if (std::abs(denominator) < 1e-6)
+            denominator = 1e-6;
+        node.theta = ref_node.theta + std::atan2(sl.l_prime, denominator);
+
+        // 计算曲率 kappa
+        double numerator = (ref_node.kappa + sl.l_double_prime) * (1.0 - ref_node.kappa * sl.l);
+        denominator = std::pow((1.0 - ref_node.kappa * sl.l) * (1.0 - ref_node.kappa * sl.l) +
+                                sl.l_prime * sl.l_prime, 1.5);
+        node.kappa = numerator / (denominator + 1e-9);  // 避免除零
+
+        optimized_path.push_back(node);
     }
+
     auto end_time = std::chrono::steady_clock::now();
     result_.log << "PathPlanning(): cost time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count() << " ms.\n";
     return true;
-}
-
-void LocalPlanner::CalculatePathSCoordinates(const std::vector<Path::PointXY> & path_points,
-    std::vector<double> & s_coordinates)
-{
-    s_coordinates.clear();
-    if (path_points.empty()) return;
-    double cumulative_s = 0.0;
-    s_coordinates.push_back(cumulative_s);
-    for (size_t i = 1; i < path_points.size(); ++i)
-    {
-        double dx = path_points[i].x - path_points[i - 1].x;
-        double dy = path_points[i].y - path_points[i - 1].y;
-        cumulative_s += std::sqrt(dx * dx + dy * dy);
-        s_coordinates.push_back(cumulative_s);
-    }
-    result_.log << "Path length: " << cumulative_s << " m, " << s_coordinates.size() << " points.\n";
 }
 
 void LocalPlanner::ExtractSpeedBoundary(const Decision::SpeedBoundary & sb,
@@ -562,16 +571,9 @@ void LocalPlanner::ExtractSpeedBoundary(const Decision::SpeedBoundary & sb,
     }
 }
 
-bool LocalPlanner::SpeedPlanning(const std::vector<double> & s_coordinates,
-    const std::shared_ptr<Decision::DecisionMaker> & decision_maker,
+bool LocalPlanner::SpeedPlanning(const std::shared_ptr<Decision::DecisionMaker> & decision_maker,
     std::vector<Path::TrajectoryPoint> & optimized_speed_profile)
 {
-    if (s_coordinates.empty())
-    {
-        result_.log << "SpeedPlanning failed: s_coordinates is empty.\n";
-        return false;
-    }
-
     // 获取速度边界
     auto speed_boundary = decision_maker->GenerateSpeedBoundary(
         params_.speed_qp.PLANNING_TIME_HORIZON,
@@ -634,136 +636,98 @@ bool LocalPlanner::SpeedPlanning(const std::vector<double> & s_coordinates,
     return true;
 }
 
-void LocalPlanner::ComputePathSL(const std::vector<Path::PointXY> & optimized_path,
-    const Path::PathNode & planning_start_point,
-    std::vector<double> & s_ref,
-    std::vector<double> & l,
-    std::vector<double> & l_prime)
-{
-    s_ref.clear();
-    l.clear();
-    l_prime.clear();
-    if (optimized_path.empty()) return;
-
-    // 为每个路径点计算投影
-    for (const auto & point : optimized_path)
-    {
-        auto [proj_node, proj_idx] = reference_path_->GetProjection(
-            { point.x, point.y }, last_veh_proj_nearest_idx_);
-
-        Path::PointSL sl = Path::Utils::XYtoSL(
-            { point.x, point.y },
-            { proj_node.x, proj_node.y },
-            proj_node.s,
-            proj_node.theta);
-
-        s_ref.push_back(sl.s);
-        l.push_back(sl.l);
-    }
-
-    // 确保s_ref单调递增（处理可能的数值误差）
-    for (size_t i = 1; i < s_ref.size(); ++i)
-    {
-        if (s_ref[i] <= s_ref[i - 1])
-            s_ref[i] = s_ref[i - 1] + 0.0001;
-    }
-
-    // 计算l' (dl/ds) 通过差分
-    l_prime.resize(l.size(), 0.0);
-    for (size_t i = 1; i < l.size(); ++i)
-    {
-        double ds = s_ref[i] - s_ref[i - 1];
-        if (ds > 1e-6)
-        {
-            l_prime[i] = (l[i] - l[i - 1]) / ds;
-        }
-        else
-        {
-            l_prime[i] = l_prime[i - 1];
-        }
-    }
-    // 第一个点使用第二个点的值
-    if (l.size() > 1)
-        l_prime[0] = l_prime[1];
-}
-
 void LocalPlanner::GenerateTrajectory(const std::vector<Path::TrajectoryPoint> & speed_profile,
-    std::vector<Path::TrajectoryPoint> & trajectory)
+                                      const std::vector<Path::PathNode> & optimized_path,
+                                      std::vector<Path::TrajectoryPoint> & trajectory)
 {
     trajectory.clear();
-
-    if (speed_profile.empty() || path_s_ref_.empty() || path_l_.empty())
+    if (speed_profile.empty() || optimized_path.empty())
     {
         result_.log << "GenerateTrajectory: input data is empty.\n";
         return;
     }
 
+    // 计算路径点的累积弧长 s_coordinates（实际行驶距离）
+    std::vector<double> s_coordinates(optimized_path.size(), 0.0);
+    for (size_t i = 1; i < optimized_path.size(); ++i)
+    {
+        double dx = optimized_path[i].x - optimized_path[i-1].x;
+        double dy = optimized_path[i].y - optimized_path[i-1].y;
+        s_coordinates[i] = s_coordinates[i-1] + std::sqrt(dx*dx + dy*dy);
+    }
+    result_.log << "Computed path length: " << s_coordinates.back() << " m, " << s_coordinates.size() << " points.\n";
+
+    // 提取路径点的参考线 s、l、l' 和 kappa
+    std::vector<double> path_s_ref(optimized_path.size());
+    std::vector<double> path_l(optimized_path.size());
+    std::vector<double> path_l_prime(optimized_path.size());
+    std::vector<double> path_kappa(optimized_path.size());
+    for (size_t i = 0; i < optimized_path.size(); ++i)
+    {
+        path_s_ref[i]   = optimized_path[i].s;
+        path_l[i]       = optimized_path[i].l;
+        path_l_prime[i] = optimized_path[i].dkappa;
+        path_kappa[i]   = optimized_path[i].kappa;
+    }
+
     // 对每个速度点进行插值
     for (const auto & sp : speed_profile)
     {
-        double target_s = sp.s;
+        double target_s = sp.s;   // 速度点对应的实际弧长
 
+        // 在 s_coordinates 中二分查找
+        auto it = std::lower_bound(s_coordinates.begin(), s_coordinates.end(), target_s);
+        size_t idx = it - s_coordinates.begin();
+        size_t idx0, idx1;
+        if (idx == 0)
+        {
+            idx0 = idx1 = 0;
+        }
+        else if (idx >= s_coordinates.size())
+        {
+            idx0 = idx1 = s_coordinates.size() - 1;
+        }
+        else
+        {
+            idx0 = idx - 1;
+            idx1 = idx;
+        }
+
+        double s0 = s_coordinates[idx0];
+        double s1 = s_coordinates[idx1];
+        double ratio = (target_s - s0) / (s1 - s0 + 1e-9);
+
+        // 插值得到参考线 s、l、l'、kappa
+        double ref_s   = path_s_ref[idx0]   + ratio * (path_s_ref[idx1] - path_s_ref[idx0]);
+        double l       = path_l[idx0]       + ratio * (path_l[idx1] - path_l[idx0]);
+        double l_prime = path_l_prime[idx0] + ratio * (path_l_prime[idx1] - path_l_prime[idx0]);
+        double kappa   = path_kappa[idx0]   + ratio * (path_kappa[idx1] - path_kappa[idx0]);
+
+        // 获取参考线上对应 ref_s 的点
+        Path::PathNode ref_node = reference_path_->GetPathNode(ref_s);
+
+        // 计算笛卡尔坐标和航向角（航向角也可用插值，但此处仍用公式）
         Path::TrajectoryPoint traj_point;
         traj_point.t = sp.t;
         traj_point.s = sp.s;
         traj_point.v = sp.v;
         traj_point.a = sp.a;
         traj_point.j = sp.j;
-
-        // 1. 插值得到当前s对应的l和l'
-        double l = 0.0;
-        double l_prime = 0.0;
-
-        if (target_s <= path_s_ref_.front())
-        {
-            l = path_l_.front();
-            l_prime = path_l_prime_.front();
-        }
-        else if (target_s >= path_s_ref_.back())
-        {
-            l = path_l_.back();
-            l_prime = path_l_prime_.back();
-        }
-        else
-        {
-            auto it = std::lower_bound(path_s_ref_.begin(), path_s_ref_.end(), target_s);
-            size_t idx = it - path_s_ref_.begin();
-            size_t idx0 = idx - 1;
-            size_t idx1 = idx;
-
-            double s0 = path_s_ref_[idx0];
-            double s1 = path_s_ref_[idx1];
-            double ratio = (target_s - s0) / (s1 - s0);
-
-            l = path_l_[idx0] + ratio * (path_l_[idx1] - path_l_[idx0]);
-            l_prime = path_l_prime_[idx0] + ratio * (path_l_prime_[idx1] - path_l_prime_[idx0]);
-        }
         traj_point.l = l;
 
-        // 2. 获取参考线上对应s的点
-        Path::PathNode ref_node = reference_path_->GetPathNode(target_s);
-
-        // 3. 将Frenet坐标(s,l)转换为笛卡尔坐标(x,y)
-        // x = x_ref - l * sin(theta_ref)
-        // y = y_ref + l * cos(theta_ref)
         traj_point.x = ref_node.x - l * std::sin(ref_node.theta);
         traj_point.y = ref_node.y + l * std::cos(ref_node.theta);
 
-        // 4. 计算航向角
-        // theta = theta_ref + atan(l' / (1 - kappa_ref * l))
-        // 简化处理：假设 |kappa_ref * l| << 1，使用 theta_ref + atan(l')
-        double denominator = 1.0 - ref_node.kappa * l;
-        if (std::abs(denominator) < 1e-6)
-            denominator = 1e-6;
-        traj_point.theta = ref_node.theta + std::atan2(l_prime, denominator);
+        double denom = 1.0 - ref_node.kappa * l;
+        if (std::abs(denom) < 1e-6) denom = 1e-6;
+        traj_point.theta = ref_node.theta + std::atan2(l_prime, denom);
 
-        // 5. 计算曲率
-        // kappa = (kappa_ref + l'') / ( (1 - kappa_ref * l)^2 + l'^2 )^(3/2) 复杂
-        // 简化：使用参考线的曲率作为近似
-        traj_point.kappa = ref_node.kappa;
+        // 直接使用插值得到的曲率
+        traj_point.kappa = kappa;
 
         trajectory.push_back(traj_point);
     }
+
     result_.log << "GenerateTrajectory: generated " << trajectory.size()
                 << " trajectory points, last s: " << trajectory.back().s
                 << " m, last t: " << trajectory.back().t << " s.\n";

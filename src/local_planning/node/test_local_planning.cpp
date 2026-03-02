@@ -1,802 +1,179 @@
-/**
- * @file test_path_planning.cpp
- * @brief 局部规划测试节点 - Local Planning Test Node
- * 此节点用于测试LocalPlanner的单帧或连续路径规划功能
- * This node tests LocalPlanner's single-frame or continuous path planning
- */
-
-#include <atomic>
+#include <fstream>
+#include <iomanip>
+#include <ctime>
+#include <sstream>
+#include <sys/stat.h>
+#include <errno.h>
 #include <chrono>
 
 #include <ros/ros.h>
-#include <std_msgs/ColorRGBA.h>
-#include <nav_msgs/Path.h>
-#include <nav_msgs/OccupancyGrid.h>
+#include <ros/package.h>
 #include <nav_msgs/Odometry.h>
-#include <geometry_msgs/PoseStamped.h>
-#include <visualization_msgs/Marker.h>
-#include <visualization_msgs/MarkerArray.h>
 #include <tf2/utils.h>
 
-#include <opencv2/core.hpp>
-#include <opencv2/imgproc.hpp>
+#include "local_planning/local_planning.h"
 
-#include "global_planning/map/distance_map.h"
-#include "global_planning/path/reference_path.h"
-#include "global_planning/path/data_type.h" 
-#include "local_planning/planners/local_planner.h"
-#include "local_planning/vehicle/data_type.h"
-
- // ============================================================================
- // 全局数据存储和标志
- // Global data storage and flags
- // ============================================================================
-
- /// @brief 测试数据命名空间
-namespace TestData
+// 派生类，增加数据记录功能
+class TestLocalPlanning : public LocalPlanning
 {
-// 运行模式
-bool single_frame_mode = true;  // 默认单帧模式
-
-// 数据接收标志
-std::atomic<bool> map_received { false };
-std::atomic<bool> reference_path_received { false };
-std::atomic<bool> vehicle_state_received { false };
-
-// 数据存储
-Map::MultiMap::Ptr map { nullptr };
-Path::ReferencePath::Ptr reference_path { nullptr };
-Vehicle::State::Ptr vehicle_state { nullptr };
-
-// LocalPlanner实例
-std::unique_ptr<LocalPlanner> planner { nullptr };
-
-// 规划结果
-LocalPlanner::LocalPlannerResult planning_result;
-std::string error_msg;
-
-// 规划统计
-int planning_count { 0 };
-double total_planning_time { 0.0 };
-}
-
-// ============================================================================
-// ROS发布者全局变量
-// ROS publishers global variables
-// ============================================================================
-
-ros::Publisher g_local_trajectory_pub;
-ros::Publisher g_visualization_marker_array_pub;
-
-// ============================================================================
-// ROS话题回调函数 - 简化版本，只设置标志
-// ROS topic callback functions - simplified, only set flags
-// ============================================================================
-
-/**
- * @brief 代价地图回调函数
- * @param msg 代价地图消息
- */
-void CostmapCallback(const nav_msgs::OccupancyGrid::ConstPtr & msg)
-{
-    if (TestData::map_received)
+public:
+    TestLocalPlanning(ros::NodeHandle & nh, const ros::Rate & loop_rate)
+        : LocalPlanning(nh, loop_rate)
+        , data_file_(nullptr)
+        , last_timestamp_(0.0)
+        , last_v_(0.0)
+        , last_record_time_(0.0)
     {
-        return;
-    }
+        // 从参数服务器读取记录间隔（秒），默认为0，表示记录所有帧
+        nh.param("record_interval", record_interval_, 1.0);
 
-    try
-    {
-        // 创建多层地图对象
-        TestData::map = std::make_shared<Map::MultiMap>();
-
-        // 设置基本地图信息
-        TestData::map->rows = msg->info.height;
-        TestData::map->cols = msg->info.width;
-        TestData::map->resolution = msg->info.resolution;
-        TestData::map->origin_x = msg->info.origin.position.x;
-        TestData::map->origin_y = msg->info.origin.position.y;
-
-        // 创建代价地图
-        cv::Mat cost_map = cv::Mat::zeros(msg->info.height, msg->info.width, CV_8UC1);
-        for (size_t i = 0; i < msg->info.height; i++)
+        // 创建数据文件
+        std::string package_path = ros::package::getPath("local_planning");
+        if (package_path.empty())
         {
-            for (size_t j = 0; j < msg->info.width; j++)
-            {
-                cost_map.at<uchar>(i, j) = msg->data[i * msg->info.width + j];
-            }
+            ROS_ERROR("[TestLocalPlanning]: Failed to get package path");
+            return;
         }
-        TestData::map->cost_map = std::move(cost_map);
-
-        // 创建二值化地图
-        cv::Mat binary_map;
-        cv::threshold(TestData::map->cost_map, binary_map, 99, 255, cv::THRESH_BINARY_INV);
-
-        // 创建距离地图
-        cv::Mat distance_map;
-        cv::distanceTransform(binary_map, distance_map, cv::DIST_L2, cv::DIST_MASK_PRECISE, CV_32FC1);
-        TestData::map->distance_map.SetMap(distance_map);
-
-        TestData::map_received = true;
-
-        // 设置到规划器中
-        if (TestData::planner)
+        std::string timestamp = getCurrentTimestamp();
+        std::string dir = package_path + "/result/test/local_planning/" + timestamp + "/";
+        if (!createDirectoryRecursively(dir))
         {
-            TestData::planner->SetMap(TestData::map);
+            ROS_ERROR("[TestLocalPlanning]: Failed to create directory %s", dir.c_str());
+            return;
         }
-
-        if (TestData::single_frame_mode)
+        std::string filename = dir + "vehicle_data.csv";
+        data_file_.open(filename);
+        if (!data_file_.is_open())
         {
-            ROS_INFO("Costmap received: %dx%d, resolution: %.2f",
-                msg->info.width, msg->info.height, msg->info.resolution);
+            ROS_ERROR("[TestLocalPlanning]: Failed to open file %s", filename.c_str());
+            return;
         }
-    }
-    catch (const std::exception & e)
-    {
-        ROS_ERROR("Error processing costmap: %s", e.what());
-    }
-}
+        // 写入表头
+        data_file_ << "timestamp,x,y,theta,v,ax,ay,kappa\n";
+        data_file_ << std::fixed << std::setprecision(6);
 
-/**
- * @brief 全局参考线回调函数
- * @param msg 参考线消息
- */
-void ReferencePathCallback(const nav_msgs::Path::ConstPtr & msg)
-{
-    // 即使单帧，也需要测试多个参考线的结果
-    if (TestData::reference_path_received && TestData::single_frame_mode)
-    {
-        return;
+        if (record_interval_ > 0)
+            ROS_INFO("[TestLocalPlanning]: Data recording with interval %.3f s to %s", record_interval_, filename.c_str());
+        else
+            ROS_INFO("[TestLocalPlanning]: Data recording every frame to %s", filename.c_str());
     }
 
-    try
+    ~TestLocalPlanning()
     {
-        // 转换nav_msgs::Path到cv::Point2d向量
-        std::vector<cv::Point2d> points;
-        points.reserve(msg->poses.size());
-        for (const auto & pose : msg->poses)
+        if (data_file_.is_open())
+            data_file_.close();
+    }
+
+protected:
+    // 重写车辆状态回调，记录数据
+    void VehicleStateCallback(const nav_msgs::Odometry::ConstPtr & msg) override
+    {
+        // 先调用基类处理（更新planner中的车辆状态）
+        LocalPlanning::VehicleStateCallback(msg);
+
+        double timestamp = msg->header.stamp.toSec();
+
+        // 判断是否需要记录
+        bool should_record = false;
+        if (record_interval_ <= 0.0)
         {
-            points.emplace_back(pose.pose.position.x, pose.pose.position.y);
-        }
-
-        // 创建参考线对象
-        TestData::reference_path = std::make_shared<Path::ReferencePath>(points, 4.0);
-        TestData::reference_path_received = true;
-
-        // 设置到规划器中
-        if (TestData::planner)
-        {
-            TestData::planner->SetReferencePath(TestData::reference_path);
-        }
-
-        if (TestData::single_frame_mode)
-        {
-            ROS_INFO("Reference path received: %lu points, length: %.2fm",
-                msg->poses.size(), TestData::reference_path->GetLength());
-
-            TestData::vehicle_state_received = false;
-            ros::Duration(0.3).sleep();     // 确保订阅新的车辆位姿
-        }
-    }
-    catch (const std::exception & e)
-    {
-        ROS_ERROR("Error processing reference path: %s", e.what());
-    }
-}
-
-/**
- * @brief 车辆状态回调函数
- * @param msg 车辆状态消息
- */
-void VehicleStateCallback(const nav_msgs::Odometry::ConstPtr & msg)
-{
-    if (TestData::vehicle_state_received && TestData::single_frame_mode)
-    {
-        return;
-    }
-
-    try
-    {
-        // 创建车辆状态对象
-        TestData::vehicle_state = std::make_shared<Vehicle::State>();
-
-        // 提取位置和方向信息
-        TestData::vehicle_state->pos.x = msg->pose.pose.position.x;
-        TestData::vehicle_state->pos.y = msg->pose.pose.position.y;
-        TestData::vehicle_state->pos.theta = tf2::getYaw(msg->pose.pose.orientation);
-
-        // 提取速度信息
-        TestData::vehicle_state->v = msg->twist.twist.linear.x;
-        TestData::vehicle_state->w = msg->twist.twist.angular.z;
-
-        // 计算曲率（防止除零）
-        if (std::abs(TestData::vehicle_state->v) > 1e-3)
-        {
-            TestData::vehicle_state->pos.kappa = TestData::vehicle_state->w / TestData::vehicle_state->v;
+            should_record = true;  // 记录所有帧
         }
         else
         {
-            TestData::vehicle_state->pos.kappa = 0.0;
-        }
-
-        TestData::vehicle_state_received = true;
-
-        // 设置到规划器中
-        if (TestData::planner)
-        {
-            TestData::planner->SetVehicleState(TestData::vehicle_state);
-        }
-
-        if (TestData::single_frame_mode)
-        {
-            ROS_INFO("Vehicle state received: x=%.2f, y=%.2f, theta=%.2f, v=%.2f",
-                TestData::vehicle_state->pos.x,
-                TestData::vehicle_state->pos.y,
-                TestData::vehicle_state->pos.theta,
-                TestData::vehicle_state->v);
-        }
-    }
-    catch (const std::exception & e)
-    {
-        ROS_ERROR("Error processing vehicle state: %s", e.what());
-    }
-}
-
-// ============================================================================
-// 辅助函数
-// Helper functions
-// ============================================================================
-
-/**
- * @brief 等待所有数据就绪 - 简化版本，不使用条件变量
- * @param timeout_ms 超时时间（毫秒）
- * @return 如果所有数据就绪返回true，超时返回false
- */
-bool WaitForData()
-{
-    while (true)
-    {
-        // 处理回调
-        ros::spinOnce();
-
-        // 检查是否所有数据就绪 - 直接检查原子标志
-        if (TestData::map_received &&
-            TestData::reference_path_received &&
-            TestData::vehicle_state_received)
-        {
-            return true;
-        }
-
-        // 每2秒显示一次状态
-        // static int last_status_time = 0;
-        // if (elapsed - last_status_time > 2000)
-        // {
-        //     ROS_INFO("Waiting for data... Map: %s, RefPath: %s, Vehicle: %s, Elapsed: %ld ms",
-        //         TestData::map_received ? "YES" : "NO",
-        //         TestData::reference_path_received ? "YES" : "NO",
-        //         TestData::vehicle_state_received ? "YES" : "NO",
-        //         elapsed);
-        //     last_status_time = elapsed;
-        // }
-
-        // 短暂休眠，避免占用过多CPU
-        ros::Duration(0.05).sleep();
-    }
-}
-
-/**
- * @brief 将TrajectoryPoint向量转换为nav_msgs::Path消息
- * @param trajectory TrajectoryPoint向量
- * @param frame_id 坐标系ID
- * @return nav_msgs::Path消息
- */
-nav_msgs::Path ConvertTrajectoryToPathMsg(const std::vector<Path::TrajectoryPoint> & trajectory,
-    const std::string & frame_id = "/map")
-{
-    nav_msgs::Path path_msg;
-    path_msg.header.stamp = ros::Time::now();
-    path_msg.header.frame_id = frame_id;
-
-    for (const auto & point : trajectory)
-    {
-        geometry_msgs::PoseStamped pose_stamped;
-        pose_stamped.header = path_msg.header;
-        pose_stamped.pose.position.x = point.x;
-        pose_stamped.pose.position.y = point.y;
-        pose_stamped.pose.position.z = 2.0;     // 参考速度
-
-        // 使用默认朝向（可以后续根据轨迹点速度方向计算，目前使用单位四元数）
-        pose_stamped.pose.orientation.w = 1.0;
-        pose_stamped.pose.orientation.x = 0.0;
-        pose_stamped.pose.orientation.y = 0.0;
-        pose_stamped.pose.orientation.z = 0.0;
-
-        path_msg.poses.push_back(pose_stamped);
-    }
-
-    return path_msg;
-}
-
-/**
- * @brief 发布轨迹到ROS话题
- * @param trajectory 轨迹点向量
- */
-void PublishTrajectory(const std::vector<Path::TrajectoryPoint> & trajectory)
-{
-    if (trajectory.empty())
-    {
-        ROS_WARN("Trajectory is empty, nothing to publish");
-        return;
-    }
-
-    // 转换轨迹为ROS消息
-    nav_msgs::Path trajectory_msg = ConvertTrajectoryToPathMsg(trajectory);
-    g_local_trajectory_pub.publish(trajectory_msg);
-
-    if (TestData::single_frame_mode || TestData::planning_count % 10 == 0)
-    {
-        ROS_INFO("Trajectory published: points=%lu, start=(%.2f, %.2f), end=(%.2f, %.2f)",
-            trajectory.size(),
-            trajectory.front().x, trajectory.front().y,
-            trajectory.back().x, trajectory.back().y);
-    }
-}
-
-/**
- * @brief 创建颜色RGBA
- * @param r 红色分量 [0, 1]
- * @param g 绿色分量 [0, 1]
- * @param b 蓝色分量 [0, 1]
- * @param a 透明度 [0, 1]
- * @return std_msgs::ColorRGBA
- */
-std_msgs::ColorRGBA CreateColor(double r, double g, double b, double a = 1.0)
-{
-    std_msgs::ColorRGBA color;
-    color.r = r;
-    color.g = g;
-    color.b = b;
-    color.a = a;
-    return color;
-}
-
-/**
- * @brief 发布QP优化边界可视化信息
- * @param lower_bounds 下边界点数组
- * @param upper_bounds 上边界点数组
- * @param trajectory 轨迹点（用于参考位置）
- */
-void PublishQPBoundaryVisualization(
-    const std::vector<std::array<Path::PointXY, 3>> & lower_bounds,
-    const std::vector<std::array<Path::PointXY, 3>> & upper_bounds,
-    const std::vector<Path::TrajectoryPoint> & trajectory)
-{
-    if (lower_bounds.empty() || upper_bounds.empty())
-    {
-        if (TestData::single_frame_mode)
-        {
-            ROS_WARN("QP boundaries are empty, nothing to visualize");
-        }
-        return;
-    }
-
-    // 创建MarkerArray来包含所有可视化元素
-    visualization_msgs::MarkerArray marker_array;
-
-    // 1. 显示下边界点（红色系）
-    for (size_t i = 0; i < lower_bounds.size(); ++i)
-    {
-        const auto & lb_points = lower_bounds[i];
-        double g = Math::Lerp(0.2, 0.6, i / static_cast<double>(lower_bounds.size() - 1));
-
-        // 为每个轨迹点的3个下边界点创建单独的Marker（便于区分）
-        for (int j = 0; j < 3; ++j)
-        {
-            visualization_msgs::Marker marker;
-            marker.header.frame_id = "/map";
-            marker.header.stamp = ros::Time::now();
-            marker.ns = "qp_lower_bound";
-            marker.id = i * 3 + j; // 唯一ID
-            marker.type = visualization_msgs::Marker::SPHERE;
-            marker.action = visualization_msgs::Marker::ADD;
-
-            // 设置位置
-            marker.pose.position.x = lb_points[j].x;
-            marker.pose.position.y = lb_points[j].y;
-            marker.pose.position.z = 0.1; // 稍微抬高避免与地面重叠
-            marker.pose.orientation.w = 1.0;
-
-            // 设置大小
-            marker.scale.x = 0.15;
-            marker.scale.y = 0.15;
-            marker.scale.z = 0.15;
-
-            // 设置颜色 - 红色系，不同圆使用不同深浅
-            marker.color = CreateColor(0.9, g, 0.2, 0.8);
-
-            // 设置生命周期
-            marker.lifetime = ros::Duration(0);
-
-            marker_array.markers.push_back(marker);
-        }
-    }
-
-    // 2. 显示上边界点（蓝色系）
-    for (size_t i = 0; i < upper_bounds.size(); ++i)
-    {
-        const auto & ub_points = upper_bounds[i];
-        double g = Math::Lerp(0.2, 0.6, i / static_cast<double>(upper_bounds.size() - 1));
-
-        // 为每个轨迹点的3个上边界点创建单独的Marker
-        for (int j = 0; j < 3; ++j)
-        {
-            visualization_msgs::Marker marker;
-            marker.header.frame_id = "/map";
-            marker.header.stamp = ros::Time::now();
-            marker.ns = "qp_upper_bound";
-            marker.id = i * 3 + j; // 唯一ID
-            marker.type = visualization_msgs::Marker::SPHERE;
-            marker.action = visualization_msgs::Marker::ADD;
-
-            // 设置位置
-            marker.pose.position.x = ub_points[j].x;
-            marker.pose.position.y = ub_points[j].y;
-            marker.pose.position.z = 0.1; // 稍微抬高
-            marker.pose.orientation.w = 1.0;
-
-            // 设置大小
-            marker.scale.x = 0.15;
-            marker.scale.y = 0.15;
-            marker.scale.z = 0.15;
-
-            // 设置颜色 - 蓝色系，不同圆使用不同深浅
-            marker.color = CreateColor(0.2, g, 0.9, 0.8);
-
-            // 设置生命周期
-            marker.lifetime = ros::Duration(0);
-
-            marker_array.markers.push_back(marker);
-        }
-    }
-
-    // 3. 连接同组边界点（显示边界框）
-    // 3.1 连接下边界点（红色线框）
-    for (size_t i = 0; i < lower_bounds.size(); ++i)
-    {
-        visualization_msgs::Marker line_marker;
-        line_marker.header.frame_id = "/map";
-        line_marker.header.stamp = ros::Time::now();
-        line_marker.ns = "qp_lower_bound_lines";
-        line_marker.id = i;
-        line_marker.type = visualization_msgs::Marker::LINE_STRIP;
-        line_marker.action = visualization_msgs::Marker::ADD;
-        line_marker.pose.orientation.w = 1.0;
-
-        // 设置线宽
-        line_marker.scale.x = 0.05;
-
-        // 设置颜色 - 浅红色半透明
-        line_marker.color = CreateColor(1.0, 0.5, 0.5, 0.6);
-
-        // 添加点
-        geometry_msgs::Point p1, p2, p3;
-        p1.x = lower_bounds[i][0].x;
-        p1.y = lower_bounds[i][0].y;
-        p1.z = 0.05;
-
-        p2.x = lower_bounds[i][1].x;
-        p2.y = lower_bounds[i][1].y;
-        p2.z = 0.05;
-
-        p3.x = lower_bounds[i][2].x;
-        p3.y = lower_bounds[i][2].y;
-        p3.z = 0.05;
-
-        line_marker.points.push_back(p1);
-        line_marker.points.push_back(p2);
-        line_marker.points.push_back(p3);
-
-        line_marker.lifetime = ros::Duration(0);
-        marker_array.markers.push_back(line_marker);
-    }
-
-    // 3.2 连接上边界点（蓝色线框）
-    for (size_t i = 0; i < upper_bounds.size(); ++i)
-    {
-        visualization_msgs::Marker line_marker;
-        line_marker.header.frame_id = "/map";
-        line_marker.header.stamp = ros::Time::now();
-        line_marker.ns = "qp_upper_bound_lines";
-        line_marker.id = i;
-        line_marker.type = visualization_msgs::Marker::LINE_STRIP;
-        line_marker.action = visualization_msgs::Marker::ADD;
-        line_marker.pose.orientation.w = 1.0;
-
-        // 设置线宽
-        line_marker.scale.x = 0.05;
-
-        // 设置颜色 - 浅蓝色半透明
-        line_marker.color = CreateColor(0.5, 0.5, 1.0, 0.6);
-
-        // 添加点
-        geometry_msgs::Point p1, p2, p3;
-        p1.x = upper_bounds[i][0].x;
-        p1.y = upper_bounds[i][0].y;
-        p1.z = 0.05;
-
-        p2.x = upper_bounds[i][1].x;
-        p2.y = upper_bounds[i][1].y;
-        p2.z = 0.05;
-
-        p3.x = upper_bounds[i][2].x;
-        p3.y = upper_bounds[i][2].y;
-        p3.z = 0.05;
-
-        line_marker.points.push_back(p1);
-        line_marker.points.push_back(p2);
-        line_marker.points.push_back(p3);
-
-        line_marker.lifetime = ros::Duration(0);
-        marker_array.markers.push_back(line_marker);
-    }
-
-    // 4. 显示轨迹点与边界点的连接线（显示对应关系）
-    if (!trajectory.empty() && trajectory.size() == lower_bounds.size())
-    {
-        for (size_t i = 0; i < trajectory.size(); i += 3) // 每3个点显示一次，避免过于密集
-        {
-            visualization_msgs::Marker connection_marker;
-            connection_marker.header.frame_id = "/map";
-            connection_marker.header.stamp = ros::Time::now();
-            connection_marker.ns = "trajectory_boundary_connections";
-            connection_marker.id = i;
-            connection_marker.type = visualization_msgs::Marker::LINE_LIST;
-            connection_marker.action = visualization_msgs::Marker::ADD;
-            connection_marker.pose.orientation.w = 1.0;
-
-            // 设置线宽
-            connection_marker.scale.x = 0.02;
-
-            // 设置颜色 - 灰色半透明
-            connection_marker.color = CreateColor(0.7, 0.7, 0.7, 0.4);
-
-            // 添加轨迹点到每个边界点的连线
-            geometry_msgs::Point traj_point;
-            traj_point.x = trajectory[i].x;
-            traj_point.y = trajectory[i].y;
-            traj_point.z = 0.0;
-
-            // 连接到下边界点
-            for (int j = 0; j < 3; ++j)
+            if (last_record_time_ == 0.0 || (timestamp - last_record_time_ >= record_interval_))
             {
-                geometry_msgs::Point bound_point;
-                bound_point.x = lower_bounds[i][j].x;
-                bound_point.y = lower_bounds[i][j].y;
-                bound_point.z = 0.05;
+                should_record = true;
+            }
+        }
 
-                connection_marker.points.push_back(traj_point);
-                connection_marker.points.push_back(bound_point);
+        if (should_record)
+        {
+            // 提取数据
+            double x = msg->pose.pose.position.x;
+            double y = msg->pose.pose.position.y;
+            double theta = tf2::getYaw(msg->pose.pose.orientation);
+            double v = msg->twist.twist.linear.x;
+            double w = msg->twist.twist.angular.z;
+            double kappa = (std::abs(v) > 1e-3) ? (w / v) : 0.0;
+
+            // 计算加速度
+            double ax = 0.0, ay = 0.0;
+            if (last_timestamp_ > 0)
+            {
+                double dt = timestamp - last_timestamp_;
+                if (dt > 0)
+                {
+                    ax = (v - last_v_) / dt;          // 纵向加速度
+                    ay = v * w;                        // 横向加速度（向心加速度近似）
+                }
             }
 
-            // 连接到上边界点
-            for (int j = 0; j < 3; ++j)
+            // 写入文件
+            if (data_file_.is_open())
             {
-                geometry_msgs::Point bound_point;
-                bound_point.x = upper_bounds[i][j].x;
-                bound_point.y = upper_bounds[i][j].y;
-                bound_point.z = 0.05;
-
-                connection_marker.points.push_back(traj_point);
-                connection_marker.points.push_back(bound_point);
+                data_file_ << timestamp << ","
+                    << x << "," << y << "," << theta << ","
+                    << v << "," << ax << "," << ay << ","
+                    << kappa << "\n";
             }
 
-            connection_marker.lifetime = ros::Duration(0);
-            marker_array.markers.push_back(connection_marker);
+            // 更新上一次记录时间
+            last_record_time_ = timestamp;
         }
+
+        // 无论是否记录，都需要更新这些值用于下一次加速度计算
+        last_timestamp_ = timestamp;
+        last_v_ = msg->twist.twist.linear.x;
     }
 
-    // 5. 发布MarkerArray
-    g_visualization_marker_array_pub.publish(marker_array);
-}
+private:
+    std::ofstream data_file_;
+    double last_timestamp_;
+    double last_v_;
+    double last_record_time_;      // 上次记录的时间戳
+    double record_interval_;       // 记录间隔（秒）
 
-/**
- * @brief 执行单次规划测试
- */
-void ExecuteSingleFrameTest()
-{
-    ROS_INFO("=======================================");
-    ROS_INFO("Starting SINGLE-FRAME planning test...");
-    ROS_INFO("=======================================");
-
-    // 检查规划器是否初始化
-    if (!TestData::planner)
+    // 辅助函数：获取当前时间戳字符串
+    static std::string getCurrentTimestamp()
     {
-        ROS_ERROR("Test failed: LocalPlanner not initialized");
-        return;
+        auto now = std::chrono::system_clock::now();
+        auto in_time_t = std::chrono::system_clock::to_time_t(now);
+        std::stringstream ss;
+        ss << std::put_time(std::localtime(&in_time_t), "%Y%m%d_%H%M%S");
+        return ss.str();
     }
 
-    // 执行规划
-    bool success = TestData::planner->Plan(TestData::planning_result, TestData::error_msg);
-    if (success)
+    // 辅助函数：递归创建目录
+    static bool createDirectoryRecursively(const std::string & path)
     {
-        TestData::planning_count = 1;
-        TestData::reference_path_received = false;
-
-        if (!TestData::planning_result.log.str().empty())
+        size_t pos = 0;
+        std::string dir;
+        int ret;
+        while (pos < path.length())
         {
-            ROS_INFO("Planning log: \n%s", TestData::planning_result.log.str().c_str());
+            pos = path.find('/', pos + 1);
+            dir = path.substr(0, pos);
+            if (dir.empty()) continue;
+            ret = mkdir(dir.c_str(), 0755);
+            if (ret != 0 && errno != EEXIST)
+            {
+                ROS_ERROR("[TestLocalPlanning]: Failed to create directory %s: %s", dir.c_str(), strerror(errno));
+                return false;
+            }
         }
-
-        // 发布轨迹到ROS话题
-        PublishTrajectory(TestData::planning_result.trajectory);
-
-        // 发布QP边界可视化信息
-        PublishQPBoundaryVisualization(
-            TestData::planning_result.path_qp_lb,
-            TestData::planning_result.path_qp_ub,
-            TestData::planning_result.trajectory);
+        return true;
     }
-    else
-    {
-        ROS_ERROR("Planning failed, Error: %s", TestData::error_msg.c_str());
-    }
-}
+};
 
-/**
- * @brief 执行持续规划的回调函数
- * @param event 定时器事件
- */
-void ContinuousPlanningCallback(const ros::TimerEvent & event)
-{
-    // 检查数据是否就绪
-    if (!TestData::map_received || !TestData::reference_path_received || !TestData::vehicle_state_received)
-    {
-        ROS_WARN_THROTTLE(5.0, "Waiting for data... Map: %s, RefPath: %s, Vehicle: %s",
-            TestData::map_received ? "YES" : "NO",
-            TestData::reference_path_received ? "YES" : "NO",
-            TestData::vehicle_state_received ? "YES" : "NO");
-        return;
-    }
-
-    // 检查规划器是否初始化
-    if (!TestData::planner)
-    {
-        ROS_WARN_THROTTLE(5.0, "LocalPlanner not initialized");
-        return;
-    }
-
-    // 执行规划
-    bool success = TestData::planner->Plan(TestData::planning_result, TestData::error_msg);
-
-    TestData::planning_count++;
-    TestData::total_planning_time += TestData::planning_result.planning_cost_time;
-
-    if (success)
-    {
-        // 每10次规划输出一次统计信息
-        if (TestData::planning_count % 10 == 0)
-        {
-            double avg_time = TestData::total_planning_time / TestData::planning_count;
-            ROS_INFO("Continuous planning #%d, time: %.2f ms, avg: %.2f ms",
-                TestData::planning_count,
-                TestData::planning_result.planning_cost_time,
-                avg_time);
-        }
-
-        // 发布轨迹到ROS话题
-        PublishTrajectory(TestData::planning_result.trajectory);
-
-        // 发布QP边界可视化信息（每5次发布一次，避免过于频繁）
-        if (TestData::planning_count % 5 == 0)
-        {
-            PublishQPBoundaryVisualization(
-                TestData::planning_result.path_qp_lb,
-                TestData::planning_result.path_qp_ub,
-                TestData::planning_result.trajectory);
-        }
-    }
-    else
-    {
-        ROS_ERROR("Planning #%d failed, Error: %s",
-            TestData::planning_count,
-            TestData::error_msg.c_str());
-    }
-}
-
-// ============================================================================
-// 主函数
-// ============================================================================
-/**
- * @brief 主函数
- */
+// main函数
 int main(int argc, char ** argv)
 {
-    // 初始化ROS节点
-    ros::init(argc, argv, "test_path_planning");
+    ros::init(argc, argv, "test_local_planning");
     ros::NodeHandle nh("~");
+    ros::Rate loop_rate(10);
 
-    // 读取运行模式参数
-    nh.param("single_frame_mode", TestData::single_frame_mode, true);
-
-    if (TestData::single_frame_mode)
-    {
-        ROS_INFO("Test Path Planning Node started (SINGLE-FRAME MODE)");
-        ROS_INFO("Waiting for data from other nodes...");
-    }
-    else
-    {
-        ROS_INFO("Test Path Planning Node started (CONTINUOUS MODE)");
-        ROS_INFO("Planning will run continuously at 10Hz");
-    }
-
-    // 获取话题名称
-    std::string ref_path_topic, costmap_topic, vehicle_state_topic;
-    nh.param("input_global_ref_topic",    ref_path_topic,      std::string("/global_planning/path"));
-    nh.param("input_costmap_topic",       costmap_topic,       std::string("/global_planning/costmap"));
-    nh.param("input_vehicle_state_topic", vehicle_state_topic, std::string("/vehicle/odom"));
-
-    // 创建发布者（用于可视化）
-    g_local_trajectory_pub           = nh.advertise<nav_msgs::Path>("trajectory", 1, true);
-    g_visualization_marker_array_pub = nh.advertise<visualization_msgs::MarkerArray>("visualization_marker_array", 10, true);
-
-    ROS_INFO("Publishers created:");
-    ROS_INFO("  - Local trajectory: /trajectory");
-    ROS_INFO("  - Visualization marker array: /visualization_marker_array");
-
-    // 创建订阅者
-    ros::Subscriber ref_sub     = nh.subscribe(ref_path_topic, 1, ReferencePathCallback);
-    ros::Subscriber costmap_sub = nh.subscribe(costmap_topic, 1, CostmapCallback);
-    ros::Subscriber vehicle_sub = nh.subscribe(vehicle_state_topic, 5, VehicleStateCallback);
-
-    ROS_INFO("Subscribers created:");
-    ROS_INFO("  - Reference path: %s", ref_path_topic.c_str());
-    ROS_INFO("  - Costmap: %s", costmap_topic.c_str());
-    ROS_INFO("  - Vehicle state: %s", vehicle_state_topic.c_str());
-
-    // 初始化规划器
-    LocalPlanner::LocalPlannerParams params;
-    TestData::planner = std::make_unique<LocalPlanner>();
-    TestData::planner->InitParams(params);
-    ROS_INFO("LocalPlanner initialized");
-
-    if (TestData::single_frame_mode)
-    {
-        while (true)    // 手动发布多次规划单帧
-        {
-            // 单帧模式：等待数据就绪后执行一次规划
-            if (WaitForData())
-            {
-                ExecuteSingleFrameTest();
-
-                ROS_INFO("=======================================");
-                ROS_INFO("Single-frame test completed!");
-                ROS_INFO("=======================================");
-            }
-            else
-            {
-                ROS_ERROR("Failed to receive all required data");
-                return 1;
-            }
-        }
-    }
-    else
-    {
-        // 持续规划模式：设置定时器进行连续规划
-        ROS_INFO("Starting continuous planning mode...");
-
-        // 设置规划频率（默认10Hz）
-        double planning_frequency = 10.0;
-        nh.param("planning_frequency", planning_frequency, 10.0);
-
-        ros::Timer continuous_timer = nh.createTimer(
-            ros::Duration(1.0 / planning_frequency),
-            ContinuousPlanningCallback);
-
-        ROS_INFO("Continuous planning timer started at %.1f Hz", planning_frequency);
-        ROS_INFO("Planning will start automatically when data is ready");
-
-        // 保持节点运行
-        ros::spin();
-    }
-
+    TestLocalPlanning planning(nh, loop_rate);
+    planning.Run();
     return 0;
 }

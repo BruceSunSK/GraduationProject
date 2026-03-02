@@ -20,12 +20,43 @@ void LocalPlanning::Run()
     ROS_INFO("[LocalPlanning]: LocalPlanning is running...");
     while (ros::ok())
     {
-        // todo
-        loop_rate_.sleep();
-        ros::spinOnce();
-    }    
-}
+        // 执行规划
+        LocalPlanner::LocalPlannerResult result;
+        std::string error_msg;
+        bool success = planner_->Plan(result, error_msg);
 
+        if (success)
+        {
+            nav_msgs::Path path_msg;
+            path_msg.header.stamp = ros::Time::now();
+            path_msg.header.frame_id = "map";
+
+            for (const auto & pt : result.trajectory)
+            {
+                geometry_msgs::PoseStamped pose;
+                pose.header = path_msg.header;
+                pose.pose.position.x = pt.x;
+                pose.pose.position.y = pt.y;
+                pose.pose.position.z = pt.v;  // 用z表示速度
+                tf2::Quaternion q;
+                q.setRPY(0, 0, pt.theta);
+                pose.pose.orientation = tf2::toMsg(q);
+                path_msg.poses.push_back(pose);
+            }
+
+            pub_local_trajectory_.publish(path_msg);
+            ROS_INFO_THROTTLE(5.0, "%s", result.log.str().c_str());
+        }
+        else
+        {
+            // 限制错误日志频率，避免刷屏
+            ROS_ERROR_THROTTLE(1.0, "Planning failed: %s", error_msg.c_str());
+        }
+
+        ros::spinOnce();
+        loop_rate_.sleep();
+    }
+}
 
 void LocalPlanning::Initialize()
 {
@@ -82,9 +113,7 @@ void LocalPlanning::InitializeSubscribers()
     sub_ref_path_      = nh_.subscribe(input_ref_path_topic_,      1, &LocalPlanning::ReferencePathCallback, this);
     sub_costmap_       = nh_.subscribe(input_costmap_topic_,       1, &LocalPlanning::CostmapCallback, this);
     sub_vehicle_state_ = nh_.subscribe(input_vehicle_state_topic_, 5, &LocalPlanning::VehicleStateCallback, this);
-
-    // sub_obstacles_ = nh_.subscribe(input_obstacles_topic_, 1,
-    //                               &LocalPlanning::PredictedObstaclesCallback<perception_prediction::PredictedObstacles>, this);
+    sub_obstacles_     = nh_.subscribe(input_obstacles_topic_,     1, &LocalPlanning::PredictedObstaclesCallback, this);
 
     ROS_INFO("[LocalPlanning]: All subscribers initialized");
 }
@@ -106,27 +135,6 @@ void LocalPlanning::InitializePlanner()
     planner_->InitParams(params);
     
     ROS_INFO("[LocalPlanning]: LocalPlanner initialized");
-}
-
-bool LocalPlanning::IsDataReady() const
-{
-    // todo: chuli
-    // 检查是否收到全局参考线（必须有）
-    // if (reference_line_.poses.empty())
-    // {
-    //     ROS_INFO_THROTTLE(1.0, "[LocalPlanning]: Waiting for global reference");
-    //     return false;
-    // }
-
-    // 检查是否收到车辆位姿（必须有）
-    // if (vehicle_pose_.header.frame_id.empty())
-    // {
-    //     ROS_INFO_THROTTLE(1.0, "[LocalPlanning]: Waiting for vehicle pose");
-    //     return false;
-    // }
-
-
-    return true;
 }
 
 void LocalPlanning::ReferencePathCallback(const nav_msgs::Path::ConstPtr & msg)
@@ -200,9 +208,18 @@ void LocalPlanning::VehicleStateCallback(const nav_msgs::Odometry::ConstPtr & ms
     planner_->SetVehicleState(vehicle_state);
 }
 
-// 模板函数实现（预留，待感知模块完成后实现）todo
-template<typename T>
-void LocalPlanning::PredictedObstaclesCallback(const typename T::ConstPtr & msg)
+void LocalPlanning::PredictedObstaclesCallback(const perception::PredictedObstacles::ConstPtr & msg)
 {
-    // 预留实现，待感知预测功能包完成后补充
+    Obstacle::Obstacle::List obstacles;
+    obstacles.reserve(msg->obstacles.size());
+
+    for (const auto & obs_msg : msg->obstacles)
+    {
+        // 使用障碍物构造函数（接受 perception::Obstacle）
+        auto obstacle = std::make_shared<Obstacle::Obstacle>(obs_msg);
+        obstacles.push_back(obstacle);
+    }
+
+    // 传递给局部规划器
+    planner_->SetObstacles(obstacles);
 }

@@ -40,6 +40,7 @@ private:
     std::mutex odom_mutex_;
     bool has_trajectory_;
     bool has_odom_;
+    bool goal_reached_;  // 是否已到达终点
     
     // 控制器
     PIDController * linear_pid_;
