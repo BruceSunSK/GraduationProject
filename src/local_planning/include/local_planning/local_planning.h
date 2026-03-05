@@ -35,6 +35,8 @@ protected:
     virtual void VehicleStateCallback(const nav_msgs::Odometry::ConstPtr & msg);
     virtual void PredictedObstaclesCallback(const perception::PredictedObstacles::ConstPtr & msg);
     
+    virtual void OnPlanningCompleted(const LocalPlanner::LocalPlannerResult & result) {}
+    
 private:
     void Initialize();
     void LoadParameters();

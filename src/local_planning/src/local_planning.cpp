@@ -29,7 +29,7 @@ void LocalPlanning::Run()
         {
             nav_msgs::Path path_msg;
             path_msg.header.stamp = ros::Time::now();
-            path_msg.header.frame_id = "map";
+            path_msg.header.frame_id = "/map";
 
             for (const auto & pt : result.trajectory)
             {
@@ -45,7 +45,9 @@ void LocalPlanning::Run()
             }
 
             pub_local_trajectory_.publish(path_msg);
-            ROS_INFO_THROTTLE(5.0, "%s", result.log.str().c_str());
+            // ROS_INFO_THROTTLE(5.0, "%s", result.log.str().c_str());
+
+            OnPlanningCompleted(result);  // 钩子函数
         }
         else
         {

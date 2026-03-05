@@ -161,32 +161,32 @@ std::pair<PathNode, int> ReferencePath::GetProjection(
 
     // 步骤3：计算横向偏移l
     // 获取投影点的位置和朝向
-    double x_proj = X_S_(s);
-    double y_proj = Y_S_(s);
-    double dx_proj = X_S_(s, 1);
-    double dy_proj = Y_S_(s, 1);
-
-    // 计算点到投影点的向量
-    double dx_point = point.x - x_proj;
-    double dy_point = point.y - y_proj;
+    const double x_proj = X_S_(s);
+    const double y_proj = Y_S_(s);
+    const double dx_proj = X_S_(s, 1);
+    const double dy_proj = Y_S_(s, 1);
+    const double ddx_proj = X_S_(s, 2);
+    const double ddy_proj = Y_S_(s, 2);
+    const double dddx_proj = X_S_(s, 3);
+    const double dddy_proj = Y_S_(s, 3);
 
     // 计算参考线的切向量
     double heading = Math::Heading(dx_proj, dy_proj);
 
+    // 计算点到投影点的向量
+    // double dx_point = point.x - x_proj;
+    // double dy_point = point.y - y_proj;
+
     // 计算横向偏移l：点到投影点的向量在法向上的投影
     // 法向向量为：(-sin(heading), cos(heading))
-    double l = -dx_point * std::sin(heading) + dy_point * std::cos(heading);
+    // double l = -dx_point * std::sin(heading) + dy_point * std::cos(heading);
 
     // 返回投影点
     PathNode node;
     node.x = x_proj;
     node.y = y_proj;
     node.s = s;
-    node.l = l;
-    const double ddx_proj = X_S_(s, 2);
-    const double ddy_proj = Y_S_(s, 2);
-    const double dddx_proj = X_S_(s, 3);
-    const double dddy_proj = Y_S_(s, 3);
+    node.l = 0.0;
     node.theta = heading;
     node.kappa = Math::Curvature(dx_proj, dy_proj, ddx_proj, ddy_proj);
     node.dkappa = Math::CurvatureRate(dx_proj, dy_proj, ddx_proj, ddy_proj, dddx_proj, dddy_proj);

@@ -19,7 +19,7 @@ Simulation::Simulation(ros::NodeHandle & private_nh) :
 
     // 获取车辆速度、加速度参数
     double max_linear_vel, max_angular_vel;
-    private_nh_.param<double>("vehicle/max_linear_vel", max_linear_vel, 4.0);
+    private_nh_.param<double>("vehicle/max_linear_vel", max_linear_vel, 8.0);
     private_nh_.param<double>("vehicle/max_angular_vel", max_angular_vel, 1.5);
     double max_linear_acc, max_angular_acc;
     private_nh_.param<double>("vehicle/max_linear_acc", max_linear_acc, std::numeric_limits<double>::max());

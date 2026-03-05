@@ -608,13 +608,23 @@ int main(int argc, char * argv[])
         geometry_msgs::PoseWithCovarianceStamped start_point;
         start_point.header.frame_id = "/map";
         start_point.header.stamp = ros::Time::now();
-        start_point.pose.pose.position.x = 40.0;
-        start_point.pose.pose.position.y = 185.0;
+        ////// 最初直线处
+        // start_point.pose.pose.position.x = 40.0;
+        // start_point.pose.pose.position.y = 185.0;
+        // start_point.pose.pose.position.z = 0.0;
+        // start_point.pose.pose.orientation.x = 0.0;
+        // start_point.pose.pose.orientation.y = 0.0;
+        // start_point.pose.pose.orientation.z = 0.0;
+        // start_point.pose.pose.orientation.w = 1.0;
+        ////// 拐角处
+        start_point.pose.pose.position.x = 334.0;
+        start_point.pose.pose.position.y = 141.0;
         start_point.pose.pose.position.z = 0.0;
         start_point.pose.pose.orientation.x = 0.0;
         start_point.pose.pose.orientation.y = 0.0;
-        start_point.pose.pose.orientation.z = 0.0;
-        start_point.pose.pose.orientation.w = 1.0;
+        start_point.pose.pose.orientation.z = -0.0786533136397;
+        start_point.pose.pose.orientation.w = 0.996902029416;
+        //////
         start_point_callback(start_point);
         geometry_msgs::PoseStamped end_point;
         end_point.header.frame_id = "/map";

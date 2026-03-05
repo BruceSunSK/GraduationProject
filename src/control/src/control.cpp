@@ -10,7 +10,7 @@ Control::Control(ros::NodeHandle & private_nh) :
 {
     // 获取参数
     private_nh_.param<double>("lookahead_distance", lookahead_distance_, 0.5);
-    private_nh_.param<double>("max_linear_vel", max_linear_vel_, 4.0);
+    private_nh_.param<double>("max_linear_vel", max_linear_vel_, 8.0);
     private_nh_.param<double>("max_angular_vel", max_angular_vel_, 1.5);
     private_nh_.param<double>("control_frequency", control_frequency_, 50.0);
     private_nh_.param<double>("goal_tolerance", goal_tolerance_, 0.1);
@@ -203,7 +203,7 @@ void Control::computeControlOutput(const geometry_msgs::PoseStamped & target_pos
     while (angle_error < -M_PI) angle_error += 2.0 * M_PI;
 
     // ****************** 添加死区控制 ******************
-    const double dead_zone = 0.05;  // 约2.9度，可根据需要调整
+    const double dead_zone = 0.01;  // 约2.9度，可根据需要调整
     if (std::fabs(angle_error) < dead_zone)
     {
         angle_error = 0.0;
@@ -211,7 +211,7 @@ void Control::computeControlOutput(const geometry_msgs::PoseStamped & target_pos
 
     // ****************** 添加低通滤波 ******************
     static double filtered_angle_error = 0.0;
-    double filter_coeff = 0.3;  // 滤波系数，0-1，越小滤波越强
+    double filter_coeff = 0.8;  // 滤波系数，0-1，越小滤波越强
     filtered_angle_error = filter_coeff * angle_error +
         (1.0 - filter_coeff) * filtered_angle_error;
 

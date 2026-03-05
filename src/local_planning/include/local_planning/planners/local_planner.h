@@ -55,9 +55,10 @@ public:
 
             // 运动学参数
             double MIN_SPEED = 0.0;                         // 最小速度(m/s)
-            double MAX_SPEED = 4.0;                         // 最大速度(m/s)
+            double MAX_SPEED = 8.0;                         // 最大速度(m/s)
             double MAX_ACCELERATION = 2.0;                  // 最大加速度(m/s²)
             double MAX_DECELERATION = -3.0;                 // 最大减速度(m/s²)
+            double MAX_LATERAL_ACCEL = 0.8;                 // 最大横向加速度 (m/s²)
             double MAX_JERK = 1.0;                          // 最大加加速度(m/s³)
             double MAX_KAPPA = 0.5;                         // 1/m，车辆最大曲率。路径qp过程中l''约束用到。
         } vehicle;
@@ -83,19 +84,16 @@ public:
 
         struct
         {
-            double PLANNING_TIME_HORIZON = 5.0;  // 规划时间长度(s)
-            double TIME_RESOLUTION = 0.1;        // 时间分辨率(s)
+            // 速度规划参数
+            double PLANNING_TIME_HORIZON = 5.0;         // 规划时间长度(s)
+            double TIME_RESOLUTION = 0.2;               // 时间分辨率(s)
 
-            // ST图边界参数
-            double SAFETY_TIME_HEADWAY = 2.0;    // 安全时距(s)
-            double SAFETY_DISTANCE = 2.0;        // 安全距离(m)
-            double MIN_FOLLOW_DISTANCE = 5.0;    // 最小跟车距离(m)
-
-            // QP权重
-            double WEIGHT_ACCELERATION = 1.0;           // 加速度权重
-            double WEIGHT_JERK = 5.0;                   // 加加速度权重
-            double WEIGHT_SPEED_DEVIATION = 10.0;       // 速度偏差权重
-            double WEIGHT_LATERAL_ACCELERATION = 2.0;   // 横向加速度权重
+            // QP 相关
+            double V_REF = 4.0;                         // 参考速度 (m/s)，软约束
+            double WEIGHT_ACCELERATION = 10.0;           // 加速度权重
+            double WEIGHT_JERK = 10.0;                  // 加加速度权重
+            double WEIGHT_SPEED_DEVIATION = 5.0;        // 速度偏差权重
+            double WEIGHT_LATERAL_ACCELERATION = 1.0;   // 横向加速度权重
         } speed_qp;
 
         // 决策参数
@@ -171,6 +169,7 @@ private:
     double last_planning_cycle_time_ = 0.1;  // 上一帧规划周期，默认0.1s
 
     // 本帧中间变量
+    double current_abs_time_;  // 当前帧绝对时间戳（秒）
     double curr_s_interval_;
 
     /// @brief 检查算法所需数据是否准备好
@@ -237,21 +236,27 @@ private:
                       const std::vector<std::array<std::pair<double, double>, 3>> & bounds,
                       const Path::PathNode & start_point,
                       std::vector<Path::PathNode> & optimized_path);
+
+    /// @brief 根据时间 t 从上一帧轨迹插值得到估计纵向位置 s
+    /// @param t 时间（相对于轨迹起点）
+    /// @return 估计的纵向位置 s，若上一帧不可用则返回当前自车 s
+    double EstimateSFromLastTrajectory(double t) const;
+
+    /// @brief 根据纵向位置 s 从上一帧轨迹插值得到曲率
+    /// @param s 纵向位置
+    /// @return 曲率值，若超出范围则返回0
+    double GetCurvatureFromLastTrajectory(double s) const;
     
-    /// @brief 从决策模块的速度边界中提取时间序列和上下界
-    /// @param sb 决策模块生成的速度边界
-    /// @param s_lower 输出的下界序列
-    /// @param s_upper 输出的上界序列
-    void ExtractSpeedBoundary(const Decision::SpeedBoundary & sb,
-                                     std::vector<double> & s_lower,
-                                     std::vector<double> & s_upper) const;
+    /// @brief 基于全局参考线曲率生成速度硬约束边界
+    /// @param time_points 时间点序列
+    /// @return 每个时间点的速度下界和上界 (v_min, v_max)
+    std::vector<std::pair<double, double>> GenerateVelocityBoundary(
+        const std::vector<double> & time_points) const;
 
     /// @brief 进行速度QP优化
-    /// @param decision_maker 决策模块
     /// @param optimized_speed_profile 优化的速度剖面
     /// @return 是否成功进行速度QP优化
-    bool SpeedPlanning(const std::shared_ptr<Decision::DecisionMaker> & decision_maker,
-                       std::vector<Path::TrajectoryPoint> & optimized_speed_profile);
+    bool SpeedPlanning(std::vector<Path::TrajectoryPoint> & optimized_speed_profile);
 
     /// @brief 合并路径和速度规划结果，生成最终轨迹
     /// @param speed_profile 速度剖面，即速度规划的st结果

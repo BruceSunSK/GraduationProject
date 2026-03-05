@@ -167,7 +167,7 @@ bool PiecewiseJerkSpeedSmoother::Solve(
     for (size_t i = 0; i < N; ++i)
     {
         Path::TrajectoryPoint point;
-        point.t = i * dt;
+        // point.t = i * dt;    // 在外部赋值，保证时间戳相同
         point.s = solution(idx_s + i);
         point.v = solution(idx_v + i);
         point.a = solution(idx_a + i);

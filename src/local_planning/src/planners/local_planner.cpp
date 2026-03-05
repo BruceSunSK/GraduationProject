@@ -53,12 +53,14 @@ bool LocalPlanner::Plan(LocalPlannerResult & result, std::string & error_msg)
 {
     result_.Clear();
     error_msg.clear();
-    has_last_trajectory_ = false;
+    // 记录当前绝对时间
+    current_abs_time_ = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
 
     // 0. 判断当前帧数据是否完整
     if (!IsDataReady())
     {
         error_msg = "LocalPlanner::Plan() failed: data not ready.";
+        has_last_trajectory_ = false;
         return false;
     }
     result_.timestamp = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -73,7 +75,8 @@ bool LocalPlanner::Plan(LocalPlannerResult & result, std::string & error_msg)
         { curr_veh_state.pos.x, curr_veh_state.pos.y }, last_veh_proj_nearest_idx_);
     last_veh_proj_nearest_idx_ = curr_veh_proj_nearest_idx;
     result_.log << "reference_path_.size(): " << reference_path_->GetSize() << "\n"
-                << "curr_veh_proj_nearest_idx: " << curr_veh_proj_nearest_idx << "\n";
+                << "curr_veh_proj_nearest_idx: " << curr_veh_proj_nearest_idx << "\n"
+                << "curr_veh_proj_point:\n" << curr_veh_proj_point << "\n";
 
     Path::PointXY veh_xy = { curr_veh_state.pos.x, curr_veh_state.pos.y };
     Path::PointSL veh_sl = Path::Utils::XYtoSL(veh_xy,
@@ -134,15 +137,17 @@ bool LocalPlanner::Plan(LocalPlannerResult & result, std::string & error_msg)
     if (!PathPlanning(ref_points, final_bounds, planning_start_point, optimized_path))
     {
         error_msg = "LocalPlanner::Plan() failed: PathPlanning failed.";
+        has_last_trajectory_ = false;
         return false;
     }
     result_.log << "Path planning generated " << optimized_path.size() << " path nodes.\n";
 
     // 7. 速度规划
     std::vector<Path::TrajectoryPoint> speed_profile;
-    if (!SpeedPlanning(decision_maker_, speed_profile))
+    if (!SpeedPlanning(speed_profile))
     {
         error_msg = "LocalPlanner::Plan() failed: SpeedPlanning failed.";
+        has_last_trajectory_ = false;
         return false;
     }
     result_.log << "Speed planning generated " << speed_profile.size() << " speed points.\n";
@@ -150,11 +155,15 @@ bool LocalPlanner::Plan(LocalPlannerResult & result, std::string & error_msg)
     // 8. 生成最终轨迹
     GenerateTrajectory(speed_profile, optimized_path, result_.trajectory);
     result_.log << "Generated " << result_.trajectory.size() << " trajectory points.\n";
+    // 将本帧轨迹时间转换为绝对时间（用于存储和下一帧使用）
+    for (auto & pt : result_.trajectory)
+    {
+        pt.t += current_abs_time_;
+    }
 
     // 99. 记录结果
-    // 保存当前帧的规划起点和轨迹
     last_start_point_ = planning_start_point;
-    last_trajectory_ = result_.trajectory;
+    last_trajectory_ = result_.trajectory;  // 此时已是绝对时间
     has_last_trajectory_ = true;
 
     // 记录规划时间
@@ -261,7 +270,7 @@ Path::PathNode LocalPlanner::GetPlanningStart(const Vehicle::State & curr_veh_st
     if (curr_veh_state.v < params_.start_point.V_TOLERANCE &&
         curr_veh_state.w < params_.start_point.W_TOLERANCE)
     {
-        result_.log << "GetPlanningStart(): vehicle is stopped.\n";
+        result_.log << "GetPlanningStart(): vehicle is stopped, using current position as planning start.\n";
         return curr_veh_state.pos;
     }
 
@@ -269,6 +278,7 @@ Path::PathNode LocalPlanner::GetPlanningStart(const Vehicle::State & curr_veh_st
     if (!has_last_trajectory_ || last_trajectory_.empty())
     {
         // 没有上一帧轨迹，使用运动学外推
+        result_.log << "GetPlanningStart(): no last trajectory, using motion extrapolation.\n";
         return GetMotionExtrapolationStart(curr_veh_state);
     }
 
@@ -480,9 +490,9 @@ std::vector<std::array<std::pair<double, double>, 3>> LocalPlanner::MergeBounds(
 }
 
 bool LocalPlanner::PathPlanning(const std::vector<Path::PathNode> & ref_points,
-                                 const std::vector<std::array<std::pair<double, double>, 3>> & bounds,
-                                 const Path::PathNode & start_point,
-                                 std::vector<Path::PathNode> & optimized_path)
+                                const std::vector<std::array<std::pair<double, double>, 3>> & bounds,
+                                const Path::PathNode & start_point,
+                                std::vector<Path::PathNode> & optimized_path)
 {
     // 设置权重等参数
     const static Smoother::PiecewiseJerkPathSmoother2::Weights weights {
@@ -558,43 +568,115 @@ bool LocalPlanner::PathPlanning(const std::vector<Path::PathNode> & ref_points,
     return true;
 }
 
-void LocalPlanner::ExtractSpeedBoundary(const Decision::SpeedBoundary & sb,
-                                        std::vector<double> & s_lower,
-                                        std::vector<double> & s_upper) const
+double LocalPlanner::EstimateSFromLastTrajectory(double abs_t) const
 {
-    s_lower.resize(sb.time_points.size());
-    s_upper.resize(sb.time_points.size());
-    for (size_t i = 0; i < s_lower.size(); ++i)
-    {
-        s_lower[i] = sb.bounds[i].first;
-        s_upper[i] = sb.bounds[i].second;
-    }
+    if (!has_last_trajectory_ || last_trajectory_.empty())
+        return vehicle_state_->pos.s;
+
+    const auto & traj = last_trajectory_;
+    auto it = std::lower_bound(traj.begin(), traj.end(), abs_t,
+        [](const Path::TrajectoryPoint & pt, double val) { return pt.t < val; });
+    if (it == traj.begin())
+        return traj.front().s;
+    if (it == traj.end())
+        return traj.back().s;
+    auto prev = std::prev(it);
+    double t0 = prev->t, t1 = it->t;
+    double s0 = prev->s, s1 = it->s;
+    double ratio = (abs_t - t0) / (t1 - t0 + 1e-9);
+    return s0 + ratio * (s1 - s0);
 }
 
-bool LocalPlanner::SpeedPlanning(const std::shared_ptr<Decision::DecisionMaker> & decision_maker,
-    std::vector<Path::TrajectoryPoint> & optimized_speed_profile)
+double LocalPlanner::GetCurvatureFromLastTrajectory(double s) const
 {
-    // 获取速度边界
-    auto speed_boundary = decision_maker->GenerateSpeedBoundary(
+    if (!has_last_trajectory_ || last_trajectory_.empty())
+        return 0.0;
+    const auto & traj = last_trajectory_;
+    auto it = std::lower_bound(traj.begin(), traj.end(), s,
+        [](const Path::TrajectoryPoint & pt, double val) { return pt.s < val; });
+    if (it == traj.begin())
+        return traj.front().kappa;
+    if (it == traj.end())
+        return traj.back().kappa;
+    auto prev = std::prev(it);
+    double s0 = prev->s, s1 = it->s;
+    double k0 = prev->kappa, k1 = it->kappa;
+    double ratio = (s - s0) / (s1 - s0 + 1e-9);
+    return k0 + ratio * (k1 - k0);
+}
+
+std::vector<std::pair<double, double>> LocalPlanner::GenerateVelocityBoundary(
+    const std::vector<double> & time_points) const
+{
+    size_t N = time_points.size();
+    std::vector<std::pair<double, double>> v_bounds(N,
+        std::make_pair(params_.vehicle.MIN_SPEED, params_.vehicle.MAX_SPEED));
+
+    if (!has_last_trajectory_ || last_trajectory_.empty())
+    {
+        // 退化：使用参考线曲率
+        for (size_t i = 0; i < N; ++i)
+        {
+            double s_est = vehicle_state_->pos.s + vehicle_state_->v * time_points[i];
+            double kappa = 0.0;
+            if (s_est >= 0 && s_est <= reference_path_->GetLength())
+                kappa = reference_path_->GetPathNode(s_est).kappa;
+            double v_curv = std::sqrt(params_.vehicle.MAX_LATERAL_ACCEL / (std::fabs(kappa) + 1e-6));
+            v_bounds[i].second = std::min(params_.vehicle.MAX_SPEED, v_curv);
+        }
+        return v_bounds;
+    }
+
+    for (size_t i = 0; i < N; ++i)
+    {
+        double abs_t = current_abs_time_ + time_points[i];  // 绝对时间
+        double s_est = EstimateSFromLastTrajectory(abs_t);
+        double kappa = GetCurvatureFromLastTrajectory(s_est);
+        double v_curv = std::sqrt(params_.vehicle.MAX_LATERAL_ACCEL / (std::fabs(kappa) + 1e-6));
+        v_bounds[i].second = std::min(params_.vehicle.MAX_SPEED, v_curv);
+    }
+    return v_bounds;
+}
+
+bool LocalPlanner::SpeedPlanning(std::vector<Path::TrajectoryPoint> & optimized_speed_profile)
+{
+    auto speed_boundary = decision_maker_->GenerateSpeedBoundary(
         params_.speed_qp.PLANNING_TIME_HORIZON,
         params_.speed_qp.TIME_RESOLUTION);
-
     if (speed_boundary.time_points.empty())
     {
         result_.log << "SpeedPlanning failed: no speed boundary generated.\n";
         return false;
     }
 
-    // 提取时间序列和边界
-    std::vector<double> s_lower, s_upper;
-    ExtractSpeedBoundary(speed_boundary, s_lower, s_upper);
-    std::vector<double> v_lower(s_lower.size(), params_.vehicle.MIN_SPEED);
-    std::vector<double> v_upper(s_lower.size(), params_.vehicle.MAX_SPEED);
+    // 提取 s 边界
+    const auto & s_bounds = speed_boundary.bounds;
+    std::vector<double> s_lower(s_bounds.size()), s_upper(s_bounds.size());
+    for (size_t i = 0; i < speed_boundary.time_points.size(); ++i)
+    {
+        s_lower[i] = s_bounds[i].first;
+        s_upper[i] = s_bounds[i].second;
+    }
+
+    // 生成速度硬约束
+    auto v_bounds = GenerateVelocityBoundary(speed_boundary.time_points);
+
+    // 分离 v 下界和上界
+    std::vector<double> v_lower(v_bounds.size()), v_upper(v_bounds.size());
+    for (size_t i = 0; i < v_bounds.size(); ++i)
+    {
+        v_lower[i] = v_bounds[i].first;
+        v_upper[i] = v_bounds[i].second;
+    }
+
+    // 加速度边界
     std::vector<double> a_lower(s_lower.size(), params_.vehicle.MAX_DECELERATION);
     std::vector<double> a_upper(s_lower.size(), params_.vehicle.MAX_ACCELERATION);
-    std::vector<double> v_ref(s_lower.size(), 4.0);
+
+    // 参考速度
+    std::vector<double> v_ref(s_lower.size(), params_.speed_qp.V_REF);
     std::vector<double> kappa_ref(s_lower.size(), 0.0);
-    
+
     // 权重
     const static Smoother::PiecewiseJerkSpeedSmoother::Weights weights {
         params_.speed_qp.WEIGHT_SPEED_DEVIATION,
@@ -606,12 +688,10 @@ bool LocalPlanner::SpeedPlanning(const std::shared_ptr<Decision::DecisionMaker> 
     // 优化器
     const static Smoother::PiecewiseJerkSpeedSmoother optimizer(params_.speed_qp.TIME_RESOLUTION, weights);
 
-    // 初始状态
     double init_s = vehicle_state_->pos.s;
     double init_v = vehicle_state_->v;
-    double init_a = 0.0;  // 暂设0，可由历史轨迹估计
+    double init_a = 0.0;
 
-    // 调用优化器
     auto start_time = std::chrono::steady_clock::now();
     optimized_speed_profile.clear();
     if (!optimizer.Solve(init_s, init_v, init_a,
@@ -625,8 +705,20 @@ bool LocalPlanner::SpeedPlanning(const std::shared_ptr<Decision::DecisionMaker> 
         result_.log << "SpeedPlanning: optimizer failed.\n";
         return false;
     }
-    auto end_time = std::chrono::steady_clock::now();
 
+    // 使用 speed_boundary 中的时间点重新赋值 t
+    const auto & time_points = speed_boundary.time_points;
+    if (optimized_speed_profile.size() != time_points.size())
+    {
+        result_.log << "SpeedPlanning: optimizer returned different number of points.\n";
+        return false;
+    }
+    for (size_t i = 0; i < optimized_speed_profile.size(); ++i)
+    {
+        optimized_speed_profile[i].t = time_points[i];
+    }
+
+    auto end_time = std::chrono::steady_clock::now();
     result_.log << "SpeedPlanning(): cost time: "
                 << std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count()
                 << " ms.\n";

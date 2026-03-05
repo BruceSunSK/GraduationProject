@@ -26,19 +26,19 @@
     <!-- 3. 启动control节点 -->
     <node pkg="control" type="control" name="control" output="screen">
         <!-- 基本控制参数 -->
-        <param name="lookahead_distance"    value="2.0" />
-        <param name="max_linear_vel"        value="4.0" />
+        <param name="lookahead_distance"    value="5.0" />
+        <param name="max_linear_vel"        value="8.0" />
         <param name="max_angular_vel"       value="1.5" />
         <param name="control_frequency"     value="50.0" />
         <param name="goal_tolerance"        value="0.1" />
         
         <!-- PID控制器参数 -->
-        <param name="pid/linear/kp"         value="0.3" />
-        <param name="pid/linear/ki"         value="0.01" />
-        <param name="pid/linear/kd"         value="0.01" />
-        <param name="pid/angular/kp"        value="0.35" />
-        <param name="pid/angular/ki"        value="0.0" />
-        <param name="pid/angular/kd"        value="0.8" />
+        <param name="pid/linear/kp"         value="0.28" />
+        <param name="pid/linear/ki"         value="0.000" />
+        <param name="pid/linear/kd"         value="0.018" />
+        <param name="pid/angular/kp"        value="1.8" />
+        <param name="pid/angular/ki"        value="0.02" />
+        <param name="pid/angular/kd"        value="0.1" />
         
         <!-- 话题重映射 -->
         <remap from="/control/trajectory" to="$(arg local_trajectory_topic)" />  <!-- 订阅轨迹 -->
@@ -57,15 +57,20 @@
         <!-- 车辆参数 -->
         <param name="vehicle/length"            value="3.8" />
         <param name="vehicle/width"             value="2.0" />
-        <param name="vehicle/max_linear_vel"    value="4.0" />
+        <param name="vehicle/max_linear_vel"    value="8.0" />
         <param name="vehicle/max_angular_vel"   value="1.5" />
         <param name="vehicle/max_linear_acc"    value="2.0" />
         <param name="vehicle/max_angular_acc"   value="1.0" />
         
         <!-- 初始位置 -->
-        <param name="initial_position/x"        value="40.0" />
+        <!-- 直线起点处 -->
+        <!-- <param name="initial_position/x"        value="40.0" />
         <param name="initial_position/y"        value="185.0" />
-        <param name="initial_position/theta"    value="0.0" />
+        <param name="initial_position/theta"    value="0.0" /> -->
+        <!-- 拐弯处 -->
+        <param name="initial_position/x"        value="334.0" />
+        <param name="initial_position/y"        value="141.0" />
+        <param name="initial_position/theta"    value="-0.1574636" />
         
         <!-- 噪声参数 -->
         <param name="noise/add_noise"           value="false" />

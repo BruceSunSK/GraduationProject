@@ -10,7 +10,7 @@ PointSL XYtoSL(const PointXY xy, const PointXY ref_xy, const double ref_s, const
     PointSL sl;
     sl.s = ref_s;
     sl.l = std::hypot(xy.x - ref_xy.x, xy.y - ref_xy.y);
-    sl.l *= ((xy.y - ref_xy.y) * std::cos(ref_theta)) > ((xy.x - ref_xy.x) * std::sin(ref_theta) ? 1 : -1);
+    sl.l *= ((xy.y - ref_xy.y) * std::cos(ref_theta)) > ((xy.x - ref_xy.x) * std::sin(ref_theta)) ? 1 : -1;
     return sl;
 }
 
@@ -21,7 +21,7 @@ PointSLWithDerivatives XYtoSL(const PointXY xy, const double theta, const double
     PointSLWithDerivatives sl;
     sl.s = ref_s;
     sl.l = std::hypot(xy.x - ref_xy.x, xy.y - ref_xy.y);
-    sl.l *= ((xy.y - ref_xy.y) * std::cos(ref_theta)) > ((xy.x - ref_xy.x) * std::sin(ref_theta) ? 1 : -1);
+    sl.l *= ((xy.y - ref_xy.y) * std::cos(ref_theta)) > ((xy.x - ref_xy.x) * std::sin(ref_theta)) ? 1 : -1;
 
     const double dtheta = theta - ref_theta;
     const double cos_dtheta = std::cos(dtheta);
