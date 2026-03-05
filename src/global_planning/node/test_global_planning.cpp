@@ -30,12 +30,12 @@ bool end_point_flag = false;
 bool map_flag = false;
 
 
-void load_map(const std::string & map_path, const double resulution)
+void load_map(const std::string & map_path, const double resolution)
 {
     cv::Mat map = cv::imread(map_path, cv::IMREAD_GRAYSCALE);
     int rows = map.rows;
     int cols = map.cols;
-    res = resulution;
+    res = resolution;
     ori_x = 0.0;
     ori_y = 0.0;
     planner->setMapInfo(res, ori_x, ori_y);
@@ -481,9 +481,9 @@ int main(int argc, char * argv[])
     ros::init(argc, argv, "test_global_planning");
     ros::NodeHandle nh("~");
 
-    // ros::Subscriber start_point_sub = nh.subscribe("/initialpose", 1, start_point_callback);
-    // ros::Subscriber end_point_sub   = nh.subscribe("/move_base_simple/goal", 1, end_point_callback);
-    ros::Subscriber map_sub         = nh.subscribe("/grid_cost_map/global_occupancy_grid_map", 1, map_callback);
+    ros::Subscriber start_point_sub;
+    ros::Subscriber end_point_sub;
+    ros::Subscriber map_sub = nh.subscribe("/grid_cost_map/global_occupancy_grid_map", 1, map_callback);
     processed_map_pub = nh.advertise<nav_msgs::OccupancyGrid>("processed_map", 1, true);
     path_pub          = nh.advertise<nav_msgs::Path>("path", 1, true);
     auxiliary_pub     = nh.advertise<visualization_msgs::MarkerArray>("auxiliary_info", 1, true);
@@ -598,47 +598,67 @@ int main(int argc, char * argv[])
     if (load_map_flag)
     {
         std::string map_file = nh.param<std::string>("map_file", "");
-        load_map(map_file, 0.4);
+        double map_resolution = nh.param<double>("map_resolution", 0.4);
+        load_map(map_file, map_resolution);
     }
 
-    // 手动设置起点和终点
-    // 5. 直接手动指定起点和终点
-    if (true)
+    // 从参数服务器读取起点和终点（若提供）
+    bool use_manual_points = nh.param<bool>("use_manual_points", true);
+    if (use_manual_points)
     {
-        geometry_msgs::PoseWithCovarianceStamped start_point;
-        start_point.header.frame_id = "/map";
-        start_point.header.stamp = ros::Time::now();
-        ////// 最初直线处
-        // start_point.pose.pose.position.x = 40.0;
-        // start_point.pose.pose.position.y = 185.0;
-        // start_point.pose.pose.position.z = 0.0;
-        // start_point.pose.pose.orientation.x = 0.0;
-        // start_point.pose.pose.orientation.y = 0.0;
-        // start_point.pose.pose.orientation.z = 0.0;
-        // start_point.pose.pose.orientation.w = 1.0;
-        ////// 拐角处
-        start_point.pose.pose.position.x = 334.0;
-        start_point.pose.pose.position.y = 141.0;
-        start_point.pose.pose.position.z = 0.0;
-        start_point.pose.pose.orientation.x = 0.0;
-        start_point.pose.pose.orientation.y = 0.0;
-        start_point.pose.pose.orientation.z = -0.0786533136397;
-        start_point.pose.pose.orientation.w = 0.996902029416;
-        //////
-        start_point_callback(start_point);
-        geometry_msgs::PoseStamped end_point;
-        end_point.header.frame_id = "/map";
-        end_point.header.stamp = ros::Time::now();
-        end_point.pose.position.x = 875.0;
-        end_point.pose.position.y = 60.0;
-        end_point.pose.position.z = 0.0;
-        end_point.pose.orientation.x = 0.0;
-        end_point.pose.orientation.y = 0.0;
-        end_point.pose.orientation.z = -0.434185925891;
-        end_point.pose.orientation.w = 0.900823279982;
-        end_point_callback(end_point);
+        // 读取起点坐标
+        double start_x, start_y, start_z, start_ox, start_oy, start_oz, start_ow;
+        nh.param("start_pose/position/x", start_x, 334.0);
+        nh.param("start_pose/position/y", start_y, 141.0);
+        nh.param("start_pose/position/z", start_z, 0.0);
+        nh.param("start_pose/orientation/x", start_ox, 0.0);
+        nh.param("start_pose/orientation/y", start_oy, 0.0);
+        nh.param("start_pose/orientation/z", start_oz, -0.0786533136397);
+        nh.param("start_pose/orientation/w", start_ow, 0.996902029416);
+
+        // 读取终点坐标
+        double goal_x, goal_y, goal_z, goal_ox, goal_oy, goal_oz, goal_ow;
+        nh.param("goal_pose/position/x", goal_x, 875.0);
+        nh.param("goal_pose/position/y", goal_y, 60.0);
+        nh.param("goal_pose/position/z", goal_z, 0.0);
+        nh.param("goal_pose/orientation/x", goal_ox, 0.0);
+        nh.param("goal_pose/orientation/y", goal_oy, 0.0);
+        nh.param("goal_pose/orientation/z", goal_oz, -0.434185925891);
+        nh.param("goal_pose/orientation/w", goal_ow, 0.900823279982);
+
+        // 构造起点消息
+        geometry_msgs::PoseWithCovarianceStamped start_msg;
+        start_msg.header.frame_id = "/map";
+        start_msg.header.stamp = ros::Time::now();
+        start_msg.pose.pose.position.x = start_x;
+        start_msg.pose.pose.position.y = start_y;
+        start_msg.pose.pose.position.z = start_z;
+        start_msg.pose.pose.orientation.x = start_ox;
+        start_msg.pose.pose.orientation.y = start_oy;
+        start_msg.pose.pose.orientation.z = start_oz;
+        start_msg.pose.pose.orientation.w = start_ow;
+        start_point_callback(start_msg);
+
+        // 构造终点消息
+        geometry_msgs::PoseStamped goal_msg;
+        goal_msg.header.frame_id = "/map";
+        goal_msg.header.stamp = ros::Time::now();
+        goal_msg.pose.position.x = goal_x;
+        goal_msg.pose.position.y = goal_y;
+        goal_msg.pose.position.z = goal_z;
+        goal_msg.pose.orientation.x = goal_ox;
+        goal_msg.pose.orientation.y = goal_oy;
+        goal_msg.pose.orientation.z = goal_oz;
+        goal_msg.pose.orientation.w = goal_ow;
+        end_point_callback(goal_msg);
     }
-        
+    else
+    {
+        // 若不使用手动设置，则订阅 RViz 的 2D Nav Goal 和 Initial Pose 话题
+        start_point_sub = nh.subscribe("/initialpose", 1, start_point_callback);
+        end_point_sub   = nh.subscribe("/move_base_simple/goal", 1, end_point_callback);
+    }
+
     ros::spin();
     delete planner;
     return 0;

@@ -1,5 +1,4 @@
 <launch>
-    <arg name="single_frame_mode"      default="false" />
     <arg name="global_ref_topic"       default="/test_global_planning/path" />
     <arg name="costmap_topic"          default="/test_global_planning/costmap" />
     <arg name="vehicle_state_topic"    default="/vehicle/odom" />
@@ -8,43 +7,70 @@
 
     <!-- 1. 启动全局规划，用于提供地图、参考线 -->
     <node pkg="global_planning" name="test_global_planning" type="test_global_planning" output="screen" >
-        <param name="planner_name"  type="str"  value="TSHAstar"/>
-        <param name="load_map"      type="bool" value="true"/> <!-- 手动加载现有png地图 -->
-        <param name="map_file"      type="str"  value="$(find grid_cost_map)/map/XG_map.png"/> <!-- 地图文件路径 -->
+        <param name="planner_name"      type="str"    value="TSHAstar"/>   <!-- 选用的规划器种类，大小写敏感。 TSHAstar / Astar / RRT / RRTstar / GA-->
 
+        <param name="load_map"          type="bool"   value="true"/>       <!-- 手动加载现有png地图 -->
+        <param name="map_file"          type="str"    value="$(find grid_cost_map)/map/carla_map.png"/> <!-- 地图文件路径 -->
+        <param name="map_resolution"    type="double" value="0.4"/>        <!-- 地图分辨率 -->
+
+        <param name="use_manual_points" type="bool"   value="true"/>       <!-- true: 通过配置文件加载起点和终点; false: 通过rviz手动输入起点和终点 -->
+        <rosparam command="load" file="$(find global_planning)/config/test/carla.yaml" />
+        
         <remap from="/test_global_planning/path"          to="$(arg global_ref_topic)"/>
         <remap from="/test_global_planning/processed_map" to="$(arg costmap_topic)"/>
     </node>
 
     <!-- 2. 测试局部规划中的路径规划 -->
     <node pkg="local_planning" name="test_local_planning" type="test_local_planning" output="screen">
-        <param name="single_frame_mode"             type="bool" value="$(arg single_frame_mode)" />
         <param name="input_global_ref_topic"        type="str"  value="$(arg global_ref_topic)" />
         <param name="input_costmap_topic"           type="str"  value="$(arg costmap_topic)" />
         <param name="input_vehicle_state_topic"     type="str"  value="$(arg vehicle_state_topic)" />
         <param name="output_local_trajectory_topic" type="str"  value="$(arg local_trajectory_topic)" />
     </node>
 
-    <!-- 3. 启动仿真，用于提供车辆位置 -->
+    <!-- 3. 启动control节点 -->
+    <node pkg="control" type="control" name="control" output="screen">
+        <!-- 基本控制参数 -->
+        <param name="lookahead_distance"    value="5.0" />
+        <param name="max_linear_vel"        value="8.0" />
+        <param name="max_angular_vel"       value="1.5" />
+        <param name="control_frequency"     value="50.0" />
+        <param name="goal_tolerance"        value="0.1" />
+        
+        <!-- PID控制器参数 -->
+        <param name="pid/linear/kp"         value="0.28" />
+        <param name="pid/linear/ki"         value="0.000" />
+        <param name="pid/linear/kd"         value="0.018" />
+        <param name="pid/angular/kp"        value="1.8" />
+        <param name="pid/angular/ki"        value="0.02" />
+        <param name="pid/angular/kd"        value="0.1" />
+        
+        <!-- 话题重映射 -->
+        <remap from="/control/trajectory" to="$(arg local_trajectory_topic)" />  <!-- 订阅轨迹 -->
+        <remap from="/control/odom"       to="$(arg vehicle_state_topic)" />     <!-- 订阅车辆位姿和速度 -->
+        <remap from="/control/cmd_vel"    to="/control/cmd_vel" />               <!-- 发布控制指令 -->
+    </node>
+
+    <!-- 4. 启动仿真，用于提供车辆位置 -->
     <node pkg="simulation" type="simulation" name="simulation" output="screen">
         <!-- 仿真参数 -->
-        <param name="simulation_frequency"      value="100.0" />
-        <param name="cmd_vel_timeout"           value="0.5" />
+        <param name="simulation_frequency"      value="50.0" />
+        <param name="cmd_vel_timeout"           value="0.04" />
         <param name="world_frame"               value="/map" />
         <param name="robot_frame"               value="/veh" />
         
         <!-- 车辆参数 -->
         <param name="vehicle/length"            value="3.8" />
         <param name="vehicle/width"             value="2.0" />
-        <param name="vehicle/max_linear_vel"    value="4.0" />
+        <param name="vehicle/max_linear_vel"    value="8.0" />
         <param name="vehicle/max_angular_vel"   value="1.5" />
         <param name="vehicle/max_linear_acc"    value="2.0" />
         <param name="vehicle/max_angular_acc"   value="1.0" />
         
         <!-- 初始位置 -->
-        <param name="initial_position/x"        value="40.0" />
-        <param name="initial_position/y"        value="185.0" />
-        <param name="initial_position/theta"    value="0.0" />
+        <param name="initial_position/x"        value="21.0" />
+        <param name="initial_position/y"        value="437.0" />
+        <param name="initial_position/theta"    value="-1.5797063" />
         
         <!-- 噪声参数 -->
         <param name="noise/add_noise"           value="false" />
@@ -58,32 +84,6 @@
         <remap from="odom"           to="$(arg vehicle_state_topic)" /> <!-- 发布车辆位姿和速度 -->
         <remap from="vehicle_marker" to="/vehicle/vehicle_marker" />    <!-- 发布车辆形状可视化marker -->
     </node>
-
-    <!-- 4. 根据运行模式决定是否启动control节点 -->
-    <group unless="$(arg single_frame_mode)">
-        <!-- 持续规划模式需要启动control节点 -->
-        <node pkg="control" type="control" name="control" output="screen">
-            <!-- 基本控制参数 -->
-            <param name="lookahead_distance"    value="1.5" />
-            <param name="max_linear_vel"        value="2.0" />
-            <param name="max_angular_vel"       value="1.0" />
-            <param name="control_frequency"     value="50.0" />
-            <param name="goal_tolerance"        value="0.1" />
-            
-            <!-- PID控制器参数 -->
-            <param name="pid/linear/kp"         value="0.3" />
-            <param name="pid/linear/ki"         value="0.01" />
-            <param name="pid/linear/kd"         value="0.01" />
-            <param name="pid/angular/kp"        value="0.4" />
-            <param name="pid/angular/ki"        value="0.0" />
-            <param name="pid/angular/kd"        value="0.8" />
-            
-            <!-- 话题重映射 -->
-            <remap from="/control/trajectory" to="$(arg local_trajectory_topic)" />  <!-- 订阅轨迹 -->
-            <remap from="/control/odom"       to="$(arg vehicle_state_topic)" />     <!-- 订阅车辆位姿和速度 -->
-            <remap from="/control/cmd_vel"    to="/control/cmd_vel" />               <!-- 发布控制指令 -->
-        </node>
-    </group>
 
     <!-- 5. 启动 rviz -->
     <node pkg="rviz" name="rviz" type="rviz" args="-d $(find local_planning)/rviz/test_local_planning.rviz" />

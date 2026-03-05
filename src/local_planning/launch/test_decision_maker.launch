@@ -34,9 +34,14 @@
 
     <!-- 2. 启动全局规划，用于提供地图、参考线 -->
     <node pkg="global_planning" name="test_global_planning" type="test_global_planning" output="screen" >
-        <param name="planner_name"  type="str"  value="TSHAstar"/>
-        <param name="load_map"      type="bool" value="true"/> <!-- 手动加载现有png地图 -->
-        <param name="map_file"      type="str"  value="$(find grid_cost_map)/map/XG_map.png"/> <!-- 地图文件路径 -->
+        <param name="planner_name"      type="str"    value="TSHAstar"/>   <!-- 选用的规划器种类，大小写敏感。 TSHAstar / Astar / RRT / RRTstar / GA-->
+
+        <param name="load_map"          type="bool"   value="true"/>       <!-- 手动加载现有png地图 -->
+        <param name="map_file"          type="str"    value="$(find grid_cost_map)/map/XG_map.png"/> <!-- 地图文件路径 -->
+        <param name="map_resolution"    type="double" value="0.4"/>        <!-- 地图分辨率 -->
+
+        <param name="use_manual_points" type="bool"   value="true"/>       <!-- true: 通过配置文件加载起点和终点; false: 通过rviz手动输入起点和终点 -->
+        <rosparam command="load" file="$(find global_planning)/config/test/XG.yaml" />
 
         <remap from="/test_global_planning/path"          to="$(arg global_ref_topic)"/>
         <remap from="/test_global_planning/processed_map" to="$(arg costmap_topic)"/>

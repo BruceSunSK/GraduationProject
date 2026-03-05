@@ -1,0 +1,21 @@
+start_pose:
+  position: 
+    x: 334.0
+    y: 141.0
+    z: 0.0
+  orientation: 
+    x: 0.0
+    y: 0.0
+    z: -0.0786533136397
+    w: 0.996902029416
+  
+goal_pose:
+  position: 
+    x: 875.0
+    y: 60.0
+    z: 0.0
+  orientation: 
+    x: 0.0
+    y: 0.0
+    z: -0.434185925891
+    w: 0.900823279982
