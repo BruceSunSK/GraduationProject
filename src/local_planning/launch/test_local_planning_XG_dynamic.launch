@@ -3,6 +3,7 @@
     <arg name="costmap_topic"          default="/test_global_planning/costmap" />
     <arg name="local_trajectory_topic" default="/test_local_planning/trajectory" />
     <arg name="vehicle_state_topic"    default="/vehicle/odom" />
+    <arg name="obstacles_topic"        default="/perception/obstacles" />
 
 
     <!-- 1. 启动全局规划，用于提供地图、参考线 -->
@@ -25,10 +26,30 @@
         <param name="input_global_ref_topic"        type="str"  value="$(arg global_ref_topic)" />
         <param name="input_costmap_topic"           type="str"  value="$(arg costmap_topic)" />
         <param name="input_vehicle_state_topic"     type="str"  value="$(arg vehicle_state_topic)" />
+        <param name="input_obstacles_topic"         type="str"  value="$(arg obstacles_topic)" />
         <param name="output_local_trajectory_topic" type="str"  value="$(arg local_trajectory_topic)" />
     </node>
 
-    <!-- 3. 启动control节点 -->
+    <!-- 3. 启动感知，模拟障碍物 -->
+    <node pkg="perception" type="perception_simulator" name="perception_simulator" output="screen">
+        <!-- 障碍物模拟 -->
+        <param name="config_file" value="$(find perception)/config/dynamic_experiment/XG.yaml" /> 
+        
+        <!-- 仿真参数 -->
+        <param name="simulation_rate" value="10.0" />
+        <param name="prediction_time_step" value="0.5" />
+        <param name="prediction_points" value="10" />
+        <param name="single_frame_mode" value="false" /> <!-- 测试使用单帧模式，即时刻只有第一帧的障碍物信息 -->
+        
+        <!-- 可视化参数 -->
+        <param name="marker_lifetime" value="0.2" />
+        <param name="enable_visualization" value="true" />
+
+        <!-- 话题重映射 -->
+        <remap from="/perception/obstacles" to="$(arg obstacles_topic)"/>
+    </node>
+
+    <!-- 4. 启动control节点 -->
     <node pkg="control" type="control" name="control" output="screen">
         <!-- 基本控制参数 -->
         <param name="lookahead_distance"    value="5.0" />
@@ -51,7 +72,7 @@
         <remap from="/control/cmd_vel"    to="/control/cmd_vel" />               <!-- 发布控制指令 -->
     </node>
 
-    <!-- 4. 启动仿真，用于提供车辆位置 -->
+    <!-- 5. 启动仿真，用于提供车辆位置 -->
     <node pkg="simulation" type="simulation" name="simulation" output="screen">
         <!-- 仿真参数 -->
         <param name="simulation_frequency"      value="50.0" />
@@ -69,13 +90,13 @@
         
         <!-- 初始位置 -->
         <!-- 直线起点处 -->
-        <!-- <param name="initial_position/x"        value="40.0" />
-        <param name="initial_position/y"        value="185.0" />
-        <param name="initial_position/theta"    value="0.0" /> -->
+        <param name="initial_position/x"        value="45.16" />
+        <param name="initial_position/y"        value="184.67" />
+        <param name="initial_position/theta"    value="-0.14" />
         <!-- 拐弯处 -->
-        <param name="initial_position/x"        value="334.0" />
+        <!-- <param name="initial_position/x"        value="334.0" />
         <param name="initial_position/y"        value="141.0" />
-        <param name="initial_position/theta"    value="-0.1574636" />
+        <param name="initial_position/theta"    value="-0.1574636" /> -->
         
         <!-- 噪声参数 -->
         <param name="noise/add_noise"           value="false" />

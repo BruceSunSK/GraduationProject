@@ -97,20 +97,12 @@ bool LocalPlanner::Plan(LocalPlannerResult & result, std::string & error_msg)
 
     // 4. 执行决策
     result_.log << "Starting decision making...\n";
-    if (flag_obstacles_ && !obstacles_.empty())
-    {
-        decision_maker_->UpdateAndDecide(obstacles_, 
-                                         planning_start_point, 
-                                         curr_veh_state.v, 
-                                         0.0);  // 暂时使用0加速度
-        
-        result_.log << "Decision results:\n";
-        result_.log << decision_maker_->GetDebugInfo();
-    }
-    else
-    {
-        result_.log << "No obstacles to make decisions for.\n";
-    }
+    decision_maker_->UpdateAndDecide(obstacles_,
+        planning_start_point,
+        curr_veh_state.v,
+        0.0);  // 暂时使用0加速度
+    // result_.log << "Decision results:\n";
+    // result_.log << decision_maker_->GetDebugInfo();
 
     // 5. 确定路径规划的上下边界
     // 包括两部分：①代价地图确定的边界；②决策部分给出的每辆车的边界。两部分每个点都是三碰撞圆的边界，两部分求交集得到最终上下边界。
@@ -144,7 +136,7 @@ bool LocalPlanner::Plan(LocalPlannerResult & result, std::string & error_msg)
 
     // 7. 速度规划
     std::vector<Path::TrajectoryPoint> speed_profile;
-    if (!SpeedPlanning(speed_profile))
+    if (!SpeedPlanning(curr_veh_state, speed_profile))
     {
         error_msg = "LocalPlanner::Plan() failed: SpeedPlanning failed.";
         has_last_trajectory_ = false;
@@ -568,10 +560,10 @@ bool LocalPlanner::PathPlanning(const std::vector<Path::PathNode> & ref_points,
     return true;
 }
 
-double LocalPlanner::EstimateSFromLastTrajectory(double abs_t) const
+double LocalPlanner::EstimateSFromLastTrajectory(const Vehicle::State & curr_veh_state, double abs_t) const
 {
     if (!has_last_trajectory_ || last_trajectory_.empty())
-        return vehicle_state_->pos.s;
+        return curr_veh_state.pos.s;
 
     const auto & traj = last_trajectory_;
     auto it = std::lower_bound(traj.begin(), traj.end(), abs_t,
@@ -606,7 +598,7 @@ double LocalPlanner::GetCurvatureFromLastTrajectory(double s) const
 }
 
 std::vector<std::pair<double, double>> LocalPlanner::GenerateVelocityBoundary(
-    const std::vector<double> & time_points) const
+    const Vehicle::State & curr_veh_state, const std::vector<double> & time_points) const
 {
     size_t N = time_points.size();
     std::vector<std::pair<double, double>> v_bounds(N,
@@ -617,7 +609,7 @@ std::vector<std::pair<double, double>> LocalPlanner::GenerateVelocityBoundary(
         // 退化：使用参考线曲率
         for (size_t i = 0; i < N; ++i)
         {
-            double s_est = vehicle_state_->pos.s + vehicle_state_->v * time_points[i];
+            double s_est = curr_veh_state.pos.s + curr_veh_state.v * time_points[i];
             double kappa = 0.0;
             if (s_est >= 0 && s_est <= reference_path_->GetLength())
                 kappa = reference_path_->GetPathNode(s_est).kappa;
@@ -630,7 +622,7 @@ std::vector<std::pair<double, double>> LocalPlanner::GenerateVelocityBoundary(
     for (size_t i = 0; i < N; ++i)
     {
         double abs_t = current_abs_time_ + time_points[i];  // 绝对时间
-        double s_est = EstimateSFromLastTrajectory(abs_t);
+        double s_est = EstimateSFromLastTrajectory(curr_veh_state, abs_t);
         double kappa = GetCurvatureFromLastTrajectory(s_est);
         double v_curv = std::sqrt(params_.vehicle.MAX_LATERAL_ACCEL / (std::fabs(kappa) + 1e-6));
         v_bounds[i].second = std::min(params_.vehicle.MAX_SPEED, v_curv);
@@ -638,8 +630,9 @@ std::vector<std::pair<double, double>> LocalPlanner::GenerateVelocityBoundary(
     return v_bounds;
 }
 
-bool LocalPlanner::SpeedPlanning(std::vector<Path::TrajectoryPoint> & optimized_speed_profile)
+bool LocalPlanner::SpeedPlanning(const Vehicle::State & curr_veh_state, std::vector<Path::TrajectoryPoint> & optimized_speed_profile)
 {
+    // 1. 获取决策生成的 s 边界
     auto speed_boundary = decision_maker_->GenerateSpeedBoundary(
         params_.speed_qp.PLANNING_TIME_HORIZON,
         params_.speed_qp.TIME_RESOLUTION);
@@ -649,35 +642,56 @@ bool LocalPlanner::SpeedPlanning(std::vector<Path::TrajectoryPoint> & optimized_
         return false;
     }
 
-    // 提取 s 边界
+    const auto & time_points = speed_boundary.time_points;
     const auto & s_bounds = speed_boundary.bounds;
-    std::vector<double> s_lower(s_bounds.size()), s_upper(s_bounds.size());
-    for (size_t i = 0; i < speed_boundary.time_points.size(); ++i)
+    size_t N = time_points.size();
+
+    // 2. 提取 s 下界和上界
+    std::vector<double> s_lower(N), s_upper(N);
+    for (size_t i = 0; i < N; ++i)
     {
         s_lower[i] = s_bounds[i].first;
         s_upper[i] = s_bounds[i].second;
     }
 
-    // 生成速度硬约束
-    auto v_bounds = GenerateVelocityBoundary(speed_boundary.time_points);
+    // 3. 基于曲率生成速度硬约束
+    auto v_bounds_curv = GenerateVelocityBoundary(curr_veh_state, time_points);
 
-    // 分离 v 下界和上界
-    std::vector<double> v_lower(v_bounds.size()), v_upper(v_bounds.size());
-    for (size_t i = 0; i < v_bounds.size(); ++i)
+    // 4. 基于决策生成速度硬约束
+    auto v_bounds_decision = decision_maker_->GenerateVConstraint(time_points);
+
+    // 5. 融合两个速度约束（取交集）
+    std::vector<std::pair<double, double>> v_bounds_final(N);
+    for (size_t i = 0; i < N; ++i)
     {
-        v_lower[i] = v_bounds[i].first;
-        v_upper[i] = v_bounds[i].second;
+        double lower = std::max(v_bounds_curv[i].first, v_bounds_decision[i].first);
+        double upper = std::min(v_bounds_curv[i].second, v_bounds_decision[i].second);
+        if (lower > upper)
+        {
+            double mid = (lower + upper) / 2.0;
+            lower = mid;
+            upper = mid;
+        }
+        v_bounds_final[i] = std::make_pair(lower, upper);
     }
 
-    // 加速度边界
-    std::vector<double> a_lower(s_lower.size(), params_.vehicle.MAX_DECELERATION);
-    std::vector<double> a_upper(s_lower.size(), params_.vehicle.MAX_ACCELERATION);
+    // 6. 分离 v 下界和上界
+    std::vector<double> v_lower(N), v_upper(N);
+    for (size_t i = 0; i < N; ++i)
+    {
+        v_lower[i] = v_bounds_final[i].first;
+        v_upper[i] = v_bounds_final[i].second;
+    }
 
-    // 参考速度
-    std::vector<double> v_ref(s_lower.size(), params_.speed_qp.V_REF);
-    std::vector<double> kappa_ref(s_lower.size(), 0.0);
+    // 7. 加速度边界
+    std::vector<double> a_lower(N, params_.vehicle.MAX_DECELERATION);
+    std::vector<double> a_upper(N, params_.vehicle.MAX_ACCELERATION);
 
-    // 权重
+    // 8. 参考速度（软约束）
+    std::vector<double> v_ref(N, params_.speed_qp.V_REF);
+    std::vector<double> kappa_ref(N, 0.0);
+
+    // 9. 权重（静态）
     const static Smoother::PiecewiseJerkSpeedSmoother::Weights weights {
         params_.speed_qp.WEIGHT_SPEED_DEVIATION,
         params_.speed_qp.WEIGHT_ACCELERATION,
@@ -685,11 +699,12 @@ bool LocalPlanner::SpeedPlanning(std::vector<Path::TrajectoryPoint> & optimized_
         params_.speed_qp.WEIGHT_LATERAL_ACCELERATION
     };
 
-    // 优化器
+    // 10. 优化器
     const static Smoother::PiecewiseJerkSpeedSmoother optimizer(params_.speed_qp.TIME_RESOLUTION, weights);
 
-    double init_s = vehicle_state_->pos.s;
-    double init_v = vehicle_state_->v;
+    // 11. 初始状态
+    double init_s = std::min(curr_veh_state.pos.s, s_lower.front());
+    double init_v = curr_veh_state.v;
     double init_a = 0.0;
 
     auto start_time = std::chrono::steady_clock::now();
@@ -706,14 +721,13 @@ bool LocalPlanner::SpeedPlanning(std::vector<Path::TrajectoryPoint> & optimized_
         return false;
     }
 
-    // 使用 speed_boundary 中的时间点重新赋值 t
-    const auto & time_points = speed_boundary.time_points;
-    if (optimized_speed_profile.size() != time_points.size())
+    // 12. 设置时间点
+    if (optimized_speed_profile.size() != N)
     {
         result_.log << "SpeedPlanning: optimizer returned different number of points.\n";
         return false;
     }
-    for (size_t i = 0; i < optimized_speed_profile.size(); ++i)
+    for (size_t i = 0; i < N; ++i)
     {
         optimized_speed_profile[i].t = time_points[i];
     }
@@ -740,7 +754,7 @@ void LocalPlanner::GenerateTrajectory(const std::vector<Path::TrajectoryPoint> &
     }
 
     // 计算路径点的累积弧长 s_coordinates（实际行驶距离）
-    std::vector<double> s_coordinates(optimized_path.size(), 0.0);
+    std::vector<double> s_coordinates(optimized_path.size(), optimized_path.front().s);
     for (size_t i = 1; i < optimized_path.size(); ++i)
     {
         double dx = optimized_path[i].x - optimized_path[i-1].x;

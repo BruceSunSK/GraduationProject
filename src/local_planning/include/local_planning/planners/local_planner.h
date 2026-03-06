@@ -238,9 +238,10 @@ private:
                       std::vector<Path::PathNode> & optimized_path);
 
     /// @brief 根据时间 t 从上一帧轨迹插值得到估计纵向位置 s
+    /// @param curr_veh_state 当前车辆状态
     /// @param t 时间（相对于轨迹起点）
     /// @return 估计的纵向位置 s，若上一帧不可用则返回当前自车 s
-    double EstimateSFromLastTrajectory(double t) const;
+    double EstimateSFromLastTrajectory(const Vehicle::State & curr_veh_state, double t) const;
 
     /// @brief 根据纵向位置 s 从上一帧轨迹插值得到曲率
     /// @param s 纵向位置
@@ -248,15 +249,19 @@ private:
     double GetCurvatureFromLastTrajectory(double s) const;
     
     /// @brief 基于全局参考线曲率生成速度硬约束边界
+    /// @param curr_veh_state 当前车辆状态
     /// @param time_points 时间点序列
     /// @return 每个时间点的速度下界和上界 (v_min, v_max)
     std::vector<std::pair<double, double>> GenerateVelocityBoundary(
+        const Vehicle::State & curr_veh_state,
         const std::vector<double> & time_points) const;
 
     /// @brief 进行速度QP优化
+    /// @param curr_veh_state 当前车辆状态
     /// @param optimized_speed_profile 优化的速度剖面
     /// @return 是否成功进行速度QP优化
-    bool SpeedPlanning(std::vector<Path::TrajectoryPoint> & optimized_speed_profile);
+    bool SpeedPlanning(const Vehicle::State & curr_veh_state,
+                       std::vector<Path::TrajectoryPoint> & optimized_speed_profile);
 
     /// @brief 合并路径和速度规划结果，生成最终轨迹
     /// @param speed_profile 速度剖面，即速度规划的st结果

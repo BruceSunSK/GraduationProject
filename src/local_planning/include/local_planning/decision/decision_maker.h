@@ -72,7 +72,7 @@ struct DecisionMakerParams
     double safe_distance = 1.0;
     double min_follow_distance = 5.0;
     double max_follow_distance = 30.0;
-    double overtake_lateral_margin = 2.5;
+    double overtake_lateral_margin = 4.0;
     double overtake_completion_threshold = 4.0;
     // 时间阈值
     double safe_time_headway = 2.0;
@@ -92,6 +92,9 @@ struct DecisionMakerParams
     double angle_opposite_threshold = 150.0 * M_PI / 180.0; // 对向角度阈值
     double angle_cross_low = 60.0 * M_PI / 180.0;           // 交叉角度下限
     double angle_cross_high = 120.0 * M_PI / 180.0;         // 交叉角度上限
+    // 车辆参数
+    double vehicle_min_speed = 0.0;   // 车辆最小速度
+    double vehicle_max_speed = 8.0;   // 车辆最大速度
     // 调试
     bool enable_debug_output = true;
 };
@@ -132,6 +135,8 @@ public:
     PathBoundary GeneratePathBoundary(const std::vector<Path::PathNode> & ref_points) const;
     SpeedBoundary GenerateSpeedBoundary(double planning_horizon = 5.0,
                                         double time_resolution = 0.1) const;
+    std::vector<std::pair<double, double>> GenerateVConstraint(
+        const std::vector<double> & time_points);
 
     // 调试
     std::string GetDebugInfo() const;

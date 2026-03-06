@@ -5,6 +5,7 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Vehicle1/VehicleOdometry1/Shape1
+        - /Perception1/MarkerArray1/Status1
         - /Planning1
         - /Planning1/GlobalPlanning1/GlobalPlanningAuxiliaryInfo1/Namespaces1
         - /Planning1/LocalPlanning1
@@ -90,6 +91,21 @@ Visualization Manager:
           Value: true
       Enabled: true
       Name: Vehicle
+    - Class: rviz/Group
+      Displays:
+        - Class: rviz/MarkerArray
+          Enabled: true
+          Marker Topic: /perception/visualization
+          Name: MarkerArray
+          Namespaces:
+            labels: true
+            obstacles: true
+            trajectories: true
+            velocities: true
+          Queue Size: 100
+          Value: true
+      Enabled: true
+      Name: Perception
     - Class: rviz/Group
       Displays:
         - Class: rviz/Group
@@ -232,7 +248,7 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: 14.824865341186523
+      Scale: 11.95852279663086
       Target Frame: body
       Value: TopDownOrtho (rviz)
       X: 68.9729995727539

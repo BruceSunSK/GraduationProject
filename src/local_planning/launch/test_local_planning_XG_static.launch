@@ -1,8 +1,8 @@
 <launch>
     <arg name="global_ref_topic"       default="/test_global_planning/path" />
     <arg name="costmap_topic"          default="/test_global_planning/costmap" />
-    <arg name="vehicle_state_topic"    default="/vehicle/odom" />
     <arg name="local_trajectory_topic" default="/test_local_planning/trajectory" />
+    <arg name="vehicle_state_topic"    default="/vehicle/odom" />
 
 
     <!-- 1. 启动全局规划，用于提供地图、参考线 -->

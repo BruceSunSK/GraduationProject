@@ -189,8 +189,8 @@ DecisionResult DecisionMaker::ProcessObstacle(const Obstacle::Obstacle::Ptr & ob
     DecisionType new_state = ExecuteStateMachine(obstacle, context, current_scenario, is_new_obstacle, scenario_changed);
 
     // 6. 迟滞滤波
-    // DecisionType filtered_state = ApplyHysteresis(id, new_state);
-    DecisionType filtered_state = new_state;    // 用于单帧测试时，不进行迟滞滤波
+    DecisionType filtered_state = ApplyHysteresis(id, new_state);
+    // DecisionType filtered_state = new_state;    // 用于单帧测试时，不进行迟滞滤波
 
     // 7. 更新最终状态历史
     history.UpdateState(filtered_state);
@@ -505,7 +505,7 @@ std::array<std::pair<double, double>, 3> DecisionMaker::CalculateObstacleBoundar
     case DecisionType::OVERTAKE:
     {
         // 超车：从自车到障碍物后方一段距离
-        double s_start = obs_s - buffer;
+        double s_start = obs_s - buffer - 3.0;
         double s_end = obs_s + buffer + params_.overtake_completion_threshold;
         if (ref_s > s_start && ref_s < s_end)
         {
@@ -646,6 +646,108 @@ std::pair<double, double> DecisionMaker::CalculateSTBoundaryForObstacle(
     // 添加安全距离
     double safety = obstacle->GetDecision().safety_distance;
     return { rear - safety, front + safety };
+}
+
+std::vector<std::pair<double, double>> DecisionMaker::GenerateVConstraint(
+    const std::vector<double> & time_points)
+{
+    size_t N = time_points.size();
+    std::vector<std::pair<double, double>> v_bounds(N,
+        std::make_pair(params_.vehicle_min_speed, params_.vehicle_max_speed));
+
+    if (obstacles_with_decision_.empty())
+        return v_bounds;
+
+    for (const auto & obs : obstacles_with_decision_)
+    {
+        const auto & decision = obs->GetDecision();
+        const auto & proj = obs->GetProjection();
+        const auto & history = obstacle_histories_[obs->GetId()];
+        if (!proj.is_ahead) continue;  // 仅考虑前方障碍物
+
+        double obs_speed = obs->GetSpeed();
+        double half_len = proj.length / 2.0;
+        double safety = decision.safety_distance;
+
+        // 根据决策类型确定纵向缓冲区及速度目标
+        double start_buffer = 0.0, end_buffer = 0.0, speed_target = 0.0;
+        bool apply_lower = false, apply_upper = false;
+
+        // overtake实验应付
+        double overtake_target_speed = obs_speed + 1.2;
+        if (history.last_scenario == Decision::TrafficScenario::OPPOSITE_DIRECTION)
+        {
+            overtake_target_speed = obs_speed * 0.95;
+            obs_speed = -obs_speed;  // 反方向障碍物速度
+        }
+        
+        switch (decision.type)
+        {
+        case DecisionType::FOLLOW:
+            start_buffer = 5.0;
+            end_buffer = 5.0;
+            speed_target = obs_speed;  // 目标速度设为障碍物速度
+            apply_upper = true;         // 约束上界（不能超过目标速度）
+            break;
+        case DecisionType::OVERTAKE:
+            start_buffer = 5.0;
+            end_buffer = 5.0;
+            speed_target = overtake_target_speed;  // 需高于障碍物速度
+            if (history.last_scenario == Decision::TrafficScenario::OPPOSITE_DIRECTION)
+            {
+                apply_upper = true;         // 约束上界（不能超过目标速度）
+            }
+            else
+            {
+                apply_lower = true;         // 约束下界（不得低于目标速度）
+            }
+            break;
+        case DecisionType::YIELD:
+            start_buffer = 5.0;
+            end_buffer = 5.0;
+            speed_target = obs_speed;  // 强制减速至较低速度
+            apply_upper = true;         // 约束上界
+            break;
+        case DecisionType::STOP:
+            start_buffer = 1.0;
+            end_buffer = 3.0;
+            speed_target = 0.0;
+            apply_lower = true;         // 同时约束上下界，迫使速度为0
+            apply_upper = true;
+            break;
+        default:
+            continue;  // IGNORE 或其他无约束
+        }
+
+        for (size_t i = 0; i < N; ++i)
+        {
+            double t = time_points[i];
+            double s_ego = ego_position_.s + ego_speed_ * t;          // 自车估计纵向位置
+            double s_obs = proj.s + obs_speed * t;                    // 障碍物中心纵向位置
+            double lower = s_obs - half_len - safety - start_buffer;  // 影响区间下限
+            double upper = s_obs + half_len + safety + end_buffer;    // 影响区间上限
+
+            if (s_ego >= lower && s_ego <= upper)
+            {
+                if (apply_lower)
+                    v_bounds[i].first = std::max(v_bounds[i].first, speed_target);
+                if (apply_upper)
+                    v_bounds[i].second = std::min(v_bounds[i].second, speed_target);
+            }
+        }
+    }
+
+    // 确保下界不超过上界（防止冲突）
+    for (auto & bound : v_bounds)
+    {
+        if (bound.first > bound.second)
+        {
+            double mid = (bound.first + bound.second) / 2.0;
+            bound.first = mid;
+            bound.second = mid;
+        }
+    }
+    return v_bounds;
 }
 
 // ==================== 调试函数 ====================

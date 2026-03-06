@@ -12,7 +12,7 @@ DecisionType IgnoreState::Evaluate(DecisionContext & context)
         return DecisionType::IGNORE;
     }
 
-    double distance = context.projection.s - context.ego_position.s;
+    double distance = context.projection.distance;      // 障碍物投影纵向碰撞距离，已经考虑了自车、他车的长度
     double lateral_offset = std::abs(context.projection.l);
     double speed_diff = std::abs(context.ego_speed - context.obstacle_speed);
     double ttc = context.projection.time_to_collision;
@@ -36,11 +36,11 @@ DecisionType IgnoreState::Evaluate(DecisionContext & context)
     {
         return DecisionType::STOP;
     }
-    else if (ttc < 5.0)
+    else if (ttc < 15.0)
     {
-        if (lateral_offset < 1.0)          // 同车道
+        if (lateral_offset < 0.5)          // 同车道
             return DecisionType::FOLLOW;
-        else if (lateral_offset < 2.5)      // 相邻车道
+        else if (lateral_offset < 3.0)      // 相邻车道
             return DecisionType::OVERTAKE;
         else                                // 对向或交叉
             return DecisionType::YIELD;
@@ -48,7 +48,7 @@ DecisionType IgnoreState::Evaluate(DecisionContext & context)
     else if (distance < params_.min_attention_distance)
     {
         // 距离很近但还有时间
-        return DecisionType::FOLLOW;
+        return DecisionType::YIELD;
     }
 
     // 默认保持忽略

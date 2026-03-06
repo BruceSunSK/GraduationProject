@@ -10,9 +10,9 @@ class IgnoreState : public DecisionState
 public:
     struct IgnoreParams
     {
-        double max_ignore_distance = 50.0;        // 最大忽略距离(m)
+        double max_ignore_distance = 60.0;        // 最大忽略距离(m)
         double min_attention_distance = 10.0;     // 最小关注距离(m)
-        double min_attention_ttc = 3.0;           // 最小需要关注的碰撞时间(s)
+        double min_attention_ttc = 15.0;           // 最小需要关注的碰撞时间(s)
         double lateral_ignore_threshold = 3.0;    // 横向忽略阈值(m)
         double speed_difference_threshold = 5.0;  // 速度差阈值(m/s)
     };

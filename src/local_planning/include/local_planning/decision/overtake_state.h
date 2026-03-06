@@ -10,9 +10,9 @@ class OvertakeState : public DecisionState
 public:
     struct OvertakeParams
     {
-        double overtake_lateral_margin = 1.5;      // 超车横向裕度(m)
+        double overtake_lateral_margin = 0.5;      // 超车横向裕度(m)
         double overtake_safety_distance = 3.0;     // 超车安全距离(m)
-        double overtake_completion_threshold = -5.0; // 完成超车的最小相对位置(m)
+        double overtake_completion_threshold = -8.0; // 完成超车的最小相对位置(m)
         double max_overtake_time = 10.0;           // 最大超车时间(s)
         double min_overtake_speed_gain = 2.0;      // 最小超车速度增益(m/s)
         double emergency_abort_ttc = 1.0;          // 紧急放弃的碰撞时间(s)
