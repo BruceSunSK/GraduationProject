@@ -52,7 +52,7 @@ public:
             ROS_ERROR("[TestLocalPlanning]: Failed to open file %s", vehicle_filename.c_str());
             return;
         }
-        vehicle_data_file_ << "timestamp,x,y,theta,v,ax,ay,kappa\n";
+        vehicle_data_file_ << "timestamp,x,y,theta,v,ax,ay,kappa,terrain_distance,obstacle_distance\n";
         vehicle_data_file_ << std::fixed << std::setprecision(6);
         ROS_INFO("[TestLocalPlanning]: Vehicle data will be recorded to %s", vehicle_filename.c_str());
 
@@ -127,13 +127,45 @@ protected:
                 }
             }
 
+            // 计算距离
+            double terrain_dist = -1.0;  // 默认值，表示无效
+            double obstacle_dist = -1.0;
+
+            if (latest_map_)
+            {
+                // 将车辆坐标转换到地图坐标系
+                double mx = (x - latest_map_->origin_x) / latest_map_->resolution;
+                double my = (y - latest_map_->origin_y) / latest_map_->resolution;
+                if (latest_map_->distance_map.IsInside(mx, my))
+                {
+                    terrain_dist = latest_map_->distance_map.GetDistance(mx, my);
+                }
+            }
+
+            if (!latest_obstacles_.empty())
+            {
+                // 假设只考虑第一个障碍物
+                const auto & obs = latest_obstacles_[0];
+                double obs_x = obs->GetPose().position.x;
+                double obs_y = obs->GetPose().position.y;
+                double dx = x - obs_x;
+                double dy = y - obs_y;
+                double center_dist = std::sqrt(dx * dx + dy * dy);
+                // 减去自车半宽和障碍物半宽（简化，认为车辆和障碍物都是矩形，取最小外接圆近似）
+                double ego_half = std::hypot(3.2 / 2, 1.6 / 2);
+                double obs_half = std::hypot(obs->GetDimension().x / 2, obs->GetDimension().y / 2);
+                obstacle_dist = center_dist - ego_half - obs_half + 1.0;
+                if (obstacle_dist < 0) obstacle_dist = 0;  // 实际上碰撞时为负，但这里取0表示接触
+            }
+
             // 写入文件
             if (vehicle_data_file_.is_open())
             {
                 vehicle_data_file_ << timestamp << ","
-                                   << x << "," << y << "," << theta << ","
-                                   << v << "," << ax << "," << ay << ","
-                                   << kappa << "\n";
+                    << x << "," << y << "," << theta << ","
+                    << v << "," << ax << "," << ay << ","
+                    << kappa << ","
+                    << terrain_dist << "," << obstacle_dist << "\n";
             }
 
             // 更新上一次记录时间

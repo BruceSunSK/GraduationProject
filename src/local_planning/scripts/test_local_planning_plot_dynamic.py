@@ -4,12 +4,14 @@
 Test Local Planning Data Visualization (Dynamic)
 Reads vehicle_data.csv and planning_times.csv, also loads obstacle config from YAML.
 Plots:
-1. XY trajectory with filled rectangles (ego: black border, obstacle: gray border)
+1. XY trajectory with filled rectangles
 2. Velocity vs time
 3. Ax vs Ay scatter
 4. Ax vs time
 5. Curvature vs time
 6. Planning time vs index
+7. Terrain distance vs time
+8. Obstacle distance vs time
 """
 
 import os
@@ -27,11 +29,12 @@ import yaml
 
 
 # ==================== 硬编码障碍物配置文件路径 ====================
-# OBSTACLE_CONFIG_PATH = "/home/brucesun/GraduationProject/src/perception/config/dynamic_experiment/XG.yaml"  # 请修改为实际路径
-OBSTACLE_CONFIG_PATH = "/home/brucesun/GraduationProject/src/perception/config/dynamic_experiment/carla.yaml"  # 请修改为实际路径
-# ==================== 硬编码自车尺寸 ====================
+OBSTACLE_CONFIG_PATH = "/home/brucesun/GraduationProject/src/perception/config/dynamic_experiment/XG.yaml"  # 请修改为实际路径
+# OBSTACLE_CONFIG_PATH = "/home/brucesun/GraduationProject/src/perception/config/dynamic_experiment/carla.yaml"  # 请修改为实际路径
+# ==================== 参数  ====================
 VEHICLE_LENGTH = 3.8
 VEHICLE_WIDTH = 2.0
+DOWNSAMPLE_STEP = 10
 
 
 # ==================== 障碍物数据加载 ====================
@@ -151,11 +154,11 @@ def plot_xy_with_velocity(df, out_dir):
     ax.plot([start_x, end_x], [start_y, end_y], 'c--', linewidth=2, alpha=0.5, label='Reference line')
 
     ax.autoscale()
-    ax.set_aspect('auto')
+    ax.set_aspect('equal')
     ax.set_xlabel('X (m)')
     ax.set_ylabel('Y (m)')
     # ax.set_xlim(40, 110)
-    ax.set_ylim(330, 370)
+    # ax.set_ylim(330, 370)
     ax.set_title('Vehicle Trajectory with Velocity')
     ax.grid(True, linestyle='--', alpha=0.7)
 
@@ -250,6 +253,8 @@ def plot_planning_times(df_times, out_dir):
     idx = df_times['index'].values
     cost = df_times['cost_time_ms'].values
     ax.plot(idx, cost, 'c-', linewidth=2, label='Planning time')
+    # ax.set_ylim(0, 100)
+    ax.set_ylim(0, 60)
     mean_val = cost.mean()
     max_val = cost.max()
     ax.axhline(mean_val, color='orange', linestyle='--', linewidth=2, label=f'Mean: {mean_val:.1f} ms')
@@ -263,6 +268,54 @@ def plot_planning_times(df_times, out_dir):
     plt.savefig(os.path.join(out_dir, 'planning_times.png'), dpi=150, bbox_inches='tight')
     plt.close(fig)
     print(f"Planning times plot saved to {out_dir}")
+
+
+def plot_terrain_distance(df, out_dir):
+    fig, ax = plt.subplots(figsize=(8, 4))
+    t = df['timestamp'].values - df['timestamp'].iloc[0]
+    dist = df['terrain_distance'].values
+    ax.plot(t, dist, color='orange', linewidth=2, label='Terrain distance')
+    y_max = dist.max()
+    ax.set_ylim(bottom=0, top=y_max * 1.05 if y_max > 0 else 1.0)
+    min_val = dist.min()
+    ax.axhline(y=min_val, color='gray', linestyle='--', linewidth=2,
+               label=f'Min: {min_val:.2f} m')
+    ax.set_xlabel('Time (s)')
+    ax.set_ylabel('Terrain distance (m)')
+    ax.set_title('Terrain Distance Profile')
+    ax.grid(True, linestyle='--', alpha=0.7)
+    ax.legend(loc='upper right')
+    plt.tight_layout()
+    plt.savefig(os.path.join(out_dir, 'terrain_distance.png'), dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    print(f"Terrain distance plot saved to {out_dir}")
+
+
+def plot_obstacle_distance(df, out_dir):
+    fig, ax = plt.subplots(figsize=(8, 4))
+    t = df['timestamp'].values - df['timestamp'].iloc[0]
+    dist = df['obstacle_distance'].values
+    valid = dist >= 0
+    if np.any(valid):
+        ax.plot(t[valid], dist[valid], color='purple', linewidth=2, label='Obstacle distance')
+        y_max = dist[valid].max()
+        ax.set_ylim(bottom=0, top=y_max * 1.05 if y_max > 0 else 1.0)
+        min_val = dist[valid].min()
+        ax.axhline(y=min_val, color='gray', linestyle='--', linewidth=2,
+                   label=f'Min: {min_val:.2f} m')
+    else:
+        ax.text(0.5, 0.5, 'No obstacle data', transform=ax.transAxes, ha='center')
+        ax.set_ylim(0, 1)  # 默认范围
+    ax.set_xlabel('Time (s)')
+    ax.set_ylabel('Obstacle distance (m)')
+    ax.set_title('Obstacle Distance Profile')
+    ax.grid(True, linestyle='--', alpha=0.7)
+    if np.any(valid):
+        ax.legend(loc='upper right')
+    plt.tight_layout()
+    plt.savefig(os.path.join(out_dir, 'obstacle_distance.png'), dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    print(f"Obstacle distance plot saved to {out_dir}")
 
 
 def main():
@@ -290,7 +343,7 @@ def main():
         print(f"vehicle_data.csv not found in {folder}")
         sys.exit(1)
     df_vehicle = pd.read_csv(vehicle_csv)
-    required_cols = ['timestamp', 'x', 'y', 'theta', 'v', 'ax', 'ay', 'kappa']
+    required_cols = ['timestamp', 'x', 'y', 'theta', 'v', 'ax', 'ay', 'kappa', 'terrain_distance', 'obstacle_distance']
     for col in required_cols:
         if col not in df_vehicle.columns:
             print(f"Missing column: {col} in vehicle_data.csv")
@@ -309,17 +362,19 @@ def main():
             sys.exit(1)
 
     # 保存独立图片
-    plot_xy_with_velocity(df_vehicle, folder)
+    plot_xy_with_velocity(df_vehicle.iloc[::DOWNSAMPLE_STEP], folder)
     plot_velocity(df_vehicle, folder)
     plot_ax_vs_ay(df_vehicle, folder)
     plot_ax_t(df_vehicle, folder)
     plot_curvature(df_vehicle, folder)
     plot_planning_times(df_times, folder)
+    plot_terrain_distance(df_vehicle, folder)
+    plot_obstacle_distance(df_vehicle, folder)
 
-    # 组合图（2行3列，顺序：1,2,4,3,5,6）
-    fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+    # 组合图（3行3列，顺序：1,2,4,3,5,6,7,8）
+    fig, axes = plt.subplots(3, 3, figsize=(18, 18))
 
-    # 图1: XY轨迹（复用上述逻辑，但需适配 subplot）
+    # 图1: XY轨迹（放在 (0,0)）
     ax1 = axes[0, 0]
     ego_x = df_vehicle['x'].values
     ego_y = df_vehicle['y'].values
@@ -368,13 +423,12 @@ def main():
 
     # 参考线
     ax1.plot([ego_x[0], ego_x[-1]], [ego_y[0], ego_y[-1]], 'c--', linewidth=2, alpha=0.5, label='Reference line')
-
     ax1.autoscale()
-    ax1.set_aspect('auto')
+    ax1.set_aspect('equal')
     ax1.set_xlabel('X (m)')
     ax1.set_ylabel('Y (m)')
     # ax1.set_xlim(40, 110)
-    ax1.set_ylim(330, 370)
+    # ax1.set_ylim(330, 370)
     ax1.set_title('Trajectory with Velocity')
     ax1.grid(True, linestyle='--', alpha=0.7)
 
@@ -387,14 +441,13 @@ def main():
     ]
     ax1.legend(handles=legend_elements, loc='upper right')
 
-    # 颜色条（用 fig.colorbar）
+    # 颜色条
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
     cbar = fig.colorbar(sm, ax=ax1, fraction=0.05, pad=0.04)
     cbar.set_label('Velocity (m/s)')
 
-    # 其余子图与之前相同
-    # 图2: v-t
+    # 图2: v-t (0,1)
     ax2 = axes[0, 1]
     t = df_vehicle['timestamp'] - df_vehicle['timestamp'].iloc[0]
     ax2.plot(t, df_vehicle['v'], 'b-', linewidth=2)
@@ -403,7 +456,7 @@ def main():
     ax2.set_title('Velocity')
     ax2.grid(True, linestyle='--', alpha=0.7)
 
-    # 图4: ax-t
+    # 图4: ax-t (0,2)
     ax4 = axes[0, 2]
     ax4.plot(t, df_vehicle['ax'], 'm-', linewidth=2)
     ax4.set_xlabel('Time (s)')
@@ -411,7 +464,7 @@ def main():
     ax4.set_title('Longitudinal Acceleration')
     ax4.grid(True, linestyle='--', alpha=0.7)
 
-    # 图3: ax-ay散点
+    # 图3: ax-ay散点 (1,0)
     ax3 = axes[1, 0]
     ax3.scatter(df_vehicle['ay'], df_vehicle['ax'], c='b', s=40, alpha=0.6, edgecolors='none')
     max_abs = max(np.abs(df_vehicle['ax']).max(), np.abs(df_vehicle['ay']).max()) * 1.05
@@ -425,7 +478,7 @@ def main():
     ax3.axhline(0, color='gray', linewidth=0.5)
     ax3.axvline(0, color='gray', linewidth=0.5)
 
-    # 图5: kappa-t
+    # 图5: kappa-t (1,1)
     ax5 = axes[1, 1]
     ax5.plot(t, df_vehicle['kappa'], 'g-', linewidth=2)
     max_kappa = np.abs(df_vehicle['kappa']).max() * 1.05
@@ -435,11 +488,13 @@ def main():
     ax5.set_title('Curvature')
     ax5.grid(True, linestyle='--', alpha=0.7)
 
-    # 图6: planning times
+    # 图6: planning times (1,2)
     ax6 = axes[1, 2]
     idx = df_times['index'].values
     cost = df_times['cost_time_ms'].values
     ax6.plot(idx, cost, 'c-', linewidth=2, label='time')
+    # ax6.set_ylim(0, 100)
+    ax6.set_ylim(0, 60)
     mean_val = cost.mean()
     max_val = cost.max()
     ax6.axhline(mean_val, color='orange', linestyle='--', linewidth=2, label=f'Mean: {mean_val:.1f} ms')
@@ -449,6 +504,46 @@ def main():
     ax6.set_title('Planning Time')
     ax6.grid(True, linestyle='--', alpha=0.7)
     ax6.legend(loc='upper right', fontsize=8)
+
+    # 图7: terrain distance
+    ax7 = axes[2, 0]
+    t = df_vehicle['timestamp'] - df_vehicle['timestamp'].iloc[0]
+    dist = df_vehicle['terrain_distance'].values
+    ax7.plot(t, dist, color='orange', linewidth=2, label='Terrain distance')
+    y_max = dist.max()
+    ax7.set_ylim(bottom=0, top=y_max * 1.05 if y_max > 0 else 1.0)
+    min_val = dist.min()
+    ax7.axhline(y=min_val, color='gray', linestyle='--', linewidth=2,
+                label=f'Min: {min_val:.2f} m')
+    ax7.set_xlabel('Time (s)')
+    ax7.set_ylabel('Terrain distance (m)')
+    ax7.set_title('Terrain Distance')
+    ax7.grid(True, linestyle='--', alpha=0.7)
+    ax7.legend(loc='upper right')
+
+    # 图8: obstacle distance
+    ax8 = axes[2, 1]
+    obs_dist = df_vehicle['obstacle_distance'].values
+    valid = obs_dist >= 0
+    if np.any(valid):
+        ax8.plot(t[valid], obs_dist[valid], color='purple', linewidth=2, label='Obstacle distance')
+        y_max = obs_dist[valid].max()
+        ax8.set_ylim(bottom=0, top=y_max * 1.05 if y_max > 0 else 1.0)
+        min_val = obs_dist[valid].min()
+        ax8.axhline(y=min_val, color='gray', linestyle='--', linewidth=2,
+                    label=f'Min: {min_val:.2f} m')
+    else:
+        ax8.text(0.5, 0.5, 'No obstacle data', transform=ax8.transAxes, ha='center')
+        ax8.set_ylim(0, 1)
+    ax8.set_xlabel('Time (s)')
+    ax8.set_ylabel('Obstacle distance (m)')
+    ax8.set_title('Obstacle Distance')
+    ax8.grid(True, linestyle='--', alpha=0.7)
+    if np.any(valid):
+        ax8.legend(loc='upper right')
+
+    # 最后一列 (2,2) 留空
+    axes[2, 2].axis('off')
 
     plt.tight_layout()
     plt.savefig(os.path.join(folder, 'combined.png'), dpi=150, bbox_inches='tight')

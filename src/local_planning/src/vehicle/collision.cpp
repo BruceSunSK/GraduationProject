@@ -1,5 +1,6 @@
 #include "local_planning/vehicle/collision.h"
 
+
 namespace Vehicle
 {
 bool CollisionCircle::CheckCollision() const 

@@ -44,6 +44,13 @@ private:
     void InitializePublishers();
     void InitializePlanner();
 
+protected:
+    // 最新接收的数据，供派生类使用
+    Path::ReferencePath::Ptr latest_reference_path_;
+    Map::MultiMap::Ptr latest_map_;
+    Vehicle::State::Ptr latest_vehicle_state_;
+    Obstacle::Obstacle::List latest_obstacles_;
+
 private:
     // *********************************************************************************
     // 1. ROS相关
@@ -57,7 +64,7 @@ private:
     std::string input_obstacles_topic_;     // 预测障碍物订阅话题名
     ros::Subscriber sub_ref_path_;          // 全局参考线订阅
     ros::Subscriber sub_costmap_;           // 代价地图订阅
-    ros::Subscriber sub_vehicle_state_;      // 车辆状态订阅
+    ros::Subscriber sub_vehicle_state_;     // 车辆状态订阅
     ros::Subscriber sub_obstacles_;         // 预测障碍物订阅（预留）
 
     // 1.2 发布者

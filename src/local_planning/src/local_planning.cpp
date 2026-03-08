@@ -150,6 +150,7 @@ void LocalPlanning::ReferencePathCallback(const nav_msgs::Path::ConstPtr & msg)
     // 全局目前间隔是4.0m，因此保存备份也按照4.0m保存，后续截断全局参考线时再使用更小的间隔。
     Path::ReferencePath::Ptr reference_path = std::make_shared<Path::ReferencePath>(points, 4.0);
     planner_->SetReferencePath(reference_path);
+    latest_reference_path_ = reference_path;
 
     ROS_INFO("[LocalPlanning]: Received reference path with %lu points and %.2fm",
         msg->poses.size(), reference_path->GetLength());
@@ -185,6 +186,8 @@ void LocalPlanning::CostmapCallback(const nav_msgs::OccupancyGrid::ConstPtr & ms
     multi_map->distance_map.SetMap(distance_map);
 
     planner_->SetMap(multi_map);
+    latest_map_ = multi_map;
+
     ROS_INFO("[LocalPlanning]: Received costmap with resolution: %.2f, size: %dx%d",
         msg->info.resolution, msg->info.width, msg->info.height);
 }
@@ -208,6 +211,7 @@ void LocalPlanning::VehicleStateCallback(const nav_msgs::Odometry::ConstPtr & ms
         vehicle_state->pos.kappa = 0.0;
     }
     planner_->SetVehicleState(vehicle_state);
+    latest_vehicle_state_ = vehicle_state;
 }
 
 void LocalPlanning::PredictedObstaclesCallback(const perception::PredictedObstacles::ConstPtr & msg)
@@ -224,4 +228,5 @@ void LocalPlanning::PredictedObstaclesCallback(const perception::PredictedObstac
 
     // 传递给局部规划器
     planner_->SetObstacles(obstacles);
+    latest_obstacles_ = obstacles;
 }

@@ -5,10 +5,11 @@ Test Local Planning Data Visualization
 Reads vehicle_data.csv and planning_times.csv, then plots:
 1. XY trajectory with velocity-colored continuous path
 2. Velocity vs time
-3. Ax vs Ay scatter (larger dots, symmetric axes)
+3. Ax vs Ay scatter
 4. Ax vs time
-5. Curvature vs time (symmetric y-axis)
-6. Planning time vs index (with mean and max lines)
+5. Curvature vs time
+6. Planning time vs index
+7. Terrain distance vs time
 """
 
 import os
@@ -23,10 +24,7 @@ from matplotlib.collections import LineCollection
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
-# 车辆几何参数（不再使用，保留以防万一）
-VEHICLE_LENGTH = 3.8
-VEHICLE_WIDTH = 2.0
-RECT_SPARSE_STEP = 5
+DOWNSAMPLE_STEP = 5
 
 
 def find_latest_folder(base_dir):
@@ -169,7 +167,8 @@ def plot_planning_times(df_times, out_dir):
     cost = df_times['cost_time_ms'].values
 
     ax.plot(idx, cost, 'c-', linewidth=2, label='Planning time')
-
+    # ax.set_ylim(0, 100)   # 固定范围 0~100 ms
+    ax.set_ylim(0, 60)   # 固定范围 0~100 ms
     mean_val = cost.mean()
     max_val = cost.max()
     ax.axhline(mean_val, color='orange', linestyle='--', linewidth=2, label=f'Mean: {mean_val:.1f} ms')
@@ -185,6 +184,28 @@ def plot_planning_times(df_times, out_dir):
     plt.savefig(os.path.join(out_dir, 'planning_times.png'), dpi=150, bbox_inches='tight')
     plt.close(fig)
     print(f"Planning times plot saved to {out_dir}")
+
+
+def plot_terrain_distance(df, out_dir):
+    fig, ax = plt.subplots(figsize=(8, 4))
+    t = df['timestamp'].values - df['timestamp'].iloc[0]
+    dist = df['terrain_distance'].values
+    ax.plot(t, dist, color='orange', linewidth=2, label='Terrain distance')
+    # y轴从0开始，上限为数据最大值加5%余量
+    y_max = dist.max()
+    ax.set_ylim(bottom=0, top=y_max * 1.05 if y_max > 0 else 1.0)
+    min_val = dist.min()
+    ax.axhline(y=min_val, color='gray', linestyle='--', linewidth=2,
+               label=f'Min: {min_val:.2f} m')
+    ax.set_xlabel('Time (s)')
+    ax.set_ylabel('Distance to terrain (m)')
+    ax.set_title('Terrain Distance Profile')
+    ax.grid(True, linestyle='--', alpha=0.7)
+    ax.legend(loc='upper right')
+    plt.tight_layout()
+    plt.savefig(os.path.join(out_dir, 'terrain_distance.png'), dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    print(f"Terrain distance plot saved to {out_dir}")
 
 
 def main():
@@ -211,8 +232,8 @@ def main():
     if not os.path.exists(vehicle_csv):
         print(f"vehicle_data.csv not found in {folder}")
         sys.exit(1)
-    df_vehicle = pd.read_csv(vehicle_csv)
-    required_cols = ['timestamp', 'x', 'y', 'theta', 'v', 'ax', 'ay', 'kappa']
+    df_vehicle = pd.read_csv(vehicle_csv).iloc[::DOWNSAMPLE_STEP]
+    required_cols = ['timestamp', 'x', 'y', 'theta', 'v', 'ax', 'ay', 'kappa', 'terrain_distance']
     for col in required_cols:
         if col not in df_vehicle.columns:
             print(f"Missing column: {col} in vehicle_data.csv")
@@ -223,7 +244,7 @@ def main():
     if not os.path.exists(times_csv):
         print(f"planning_times.csv not found in {folder}")
         sys.exit(1)
-    df_times = pd.read_csv(times_csv)
+    df_times = pd.read_csv(times_csv).iloc[::DOWNSAMPLE_STEP]
     required_time_cols = ['index', 'cost_time_ms']
     for col in required_time_cols:
         if col not in df_times.columns:
@@ -237,11 +258,12 @@ def main():
     plot_ax_t(df_vehicle, folder)
     plot_curvature(df_vehicle, folder)
     plot_planning_times(df_times, folder)
+    plot_terrain_distance(df_vehicle, folder)
 
-    # 组合图（2行3列，顺序：1,2,4,3,5,6）
-    fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+    # 组合图（3行3列，顺序：1,2,4,3,5,6,7）
+    fig, axes = plt.subplots(3, 3, figsize=(18, 18))
 
-    # 图1: XY轨迹（连续彩色线条）
+     # 图1: XY轨迹（保持不变，放在 (0,0)）
     ax1 = axes[0, 0]
     x = df_vehicle['x'].values
     y = df_vehicle['y'].values
@@ -259,11 +281,10 @@ def main():
     ax1.set_ylabel('Y (m)')
     ax1.set_title('Trajectory with Velocity')
     ax1.grid(True, linestyle='--', alpha=0.7)
-    # 颜色条（使用fraction确保高度与ax1一致）
     cbar = fig.colorbar(lc, ax=ax1, fraction=0.05, pad=0.05)
     cbar.set_label('Velocity (m/s)')
 
-    # 图2: v-t
+    # 图2: v-t (0,1)
     ax2 = axes[0, 1]
     t = df_vehicle['timestamp'] - df_vehicle['timestamp'].iloc[0]
     ax2.plot(t, df_vehicle['v'], 'b-', linewidth=2)
@@ -272,7 +293,7 @@ def main():
     ax2.set_title('Velocity')
     ax2.grid(True, linestyle='--', alpha=0.7)
 
-    # 图4: ax-t
+    # 图4: ax-t (0,2)
     ax4 = axes[0, 2]
     ax4.plot(t, df_vehicle['ax'], 'm-', linewidth=2)
     ax4.set_xlabel('Time (s)')
@@ -280,7 +301,7 @@ def main():
     ax4.set_title('Longitudinal Acceleration')
     ax4.grid(True, linestyle='--', alpha=0.7)
 
-    # 图3: ax-ay散点（增大点尺寸）
+    # 图3: ax-ay散点 (1,0)
     ax3 = axes[1, 0]
     ax3.scatter(df_vehicle['ay'], df_vehicle['ax'], c='b', s=40, alpha=0.6, edgecolors='none')
     max_abs = max(np.abs(df_vehicle['ax']).max(), np.abs(df_vehicle['ay']).max()) * 1.05
@@ -294,7 +315,7 @@ def main():
     ax3.axhline(0, color='gray', linewidth=0.5)
     ax3.axvline(0, color='gray', linewidth=0.5)
 
-    # 图5: kappa-t
+    # 图5: kappa-t (1,1)
     ax5 = axes[1, 1]
     ax5.plot(t, df_vehicle['kappa'], 'g-', linewidth=2)
     max_kappa = np.abs(df_vehicle['kappa']).max() * 1.05
@@ -304,11 +325,13 @@ def main():
     ax5.set_title('Curvature')
     ax5.grid(True, linestyle='--', alpha=0.7)
 
-    # 图6: planning times
+    # 图6: planning times (1,2)
     ax6 = axes[1, 2]
     idx = df_times['index'].values
     cost = df_times['cost_time_ms'].values
     ax6.plot(idx, cost, 'c-', linewidth=2, label='time')
+    # ax6.set_ylim(0, 100)
+    ax6.set_ylim(0, 60)
     mean_val = cost.mean()
     max_val = cost.max()
     ax6.axhline(mean_val, color='orange', linestyle='--', linewidth=2, label=f'Mean: {mean_val:.1f} ms')
@@ -318,6 +341,26 @@ def main():
     ax6.set_title('Planning Time')
     ax6.grid(True, linestyle='--', alpha=0.7)
     ax6.legend(loc='upper right', fontsize=8)
+
+    # 图7: terrain distance (2,0)
+    ax7 = axes[2, 0]
+    t = df_vehicle['timestamp'] - df_vehicle['timestamp'].iloc[0]
+    dist = df_vehicle['terrain_distance'].values
+    ax7.plot(t, dist, color='orange', linewidth=2, label='Terrain distance')
+    y_max = dist.max()
+    ax7.set_ylim(bottom=0, top=y_max * 1.05 if y_max > 0 else 1.0)
+    min_val = dist.min()
+    ax7.axhline(y=min_val, color='gray', linestyle='--', linewidth=2,
+                label=f'Min: {min_val:.2f} m')
+    ax7.set_xlabel('Time (s)')
+    ax7.set_ylabel('Terrain distance (m)')
+    ax7.set_title('Terrain Distance')
+    ax7.grid(True, linestyle='--', alpha=0.7)
+    ax7.legend(loc='upper right')
+
+    # 其余子图（2,1）和（2,2）留空或隐藏
+    axes[2, 1].axis('off')
+    axes[2, 2].axis('off')
 
     plt.tight_layout()
     plt.savefig(os.path.join(folder, 'combined.png'), dpi=150, bbox_inches='tight')
