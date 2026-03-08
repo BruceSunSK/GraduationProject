@@ -21,7 +21,7 @@ void LocalPlanning::Run()
     while (ros::ok())
     {
         // 执行规划
-        LocalPlanner::LocalPlannerResult result;
+        LocalPlannerResult result;
         std::string error_msg;
         bool success = planner_->Plan(result, error_msg);
 
@@ -94,9 +94,6 @@ void LocalPlanning::LoadParameters()
 
     // 加载发布话题名称
     nh_.param("output_local_trajectory_topic", output_local_trajectory_topic_, std::string("trajectory"));
-    nh_.param("output_debug_path_topic",       output_debug_path_topic_,       std::string("debug/path"));
-    nh_.param("output_debug_speed_topic",      output_debug_speed_topic_,      std::string("debug/speed_profile"));
-
 
     ROS_INFO("[LocalPlanning]: Parameters loaded successfully:");
     ROS_INFO("[LocalPlanning]:   Input topics:");
@@ -106,8 +103,6 @@ void LocalPlanning::LoadParameters()
     ROS_INFO("[LocalPlanning]:     - Obstacles: %s", input_obstacles_topic_.c_str());
     ROS_INFO("[LocalPlanning]:   Output topics:");
     ROS_INFO("[LocalPlanning]:     - Local trajectory: %s", output_local_trajectory_topic_.c_str());
-    ROS_INFO("[LocalPlanning]:     - Debug path: %s", output_debug_path_topic_.c_str());
-    ROS_INFO("[LocalPlanning]:     - Debug speed: %s", output_debug_speed_topic_.c_str());
 }
 
 void LocalPlanning::InitializeSubscribers()
@@ -123,20 +118,33 @@ void LocalPlanning::InitializeSubscribers()
 void LocalPlanning::InitializePublishers()
 {
     pub_local_trajectory_ = nh_.advertise<nav_msgs::Path>(output_local_trajectory_topic_, 1, true);
-    pub_debug_path_       = nh_.advertise<nav_msgs::Path>(output_debug_path_topic_,       1, true);
-    pub_debug_speed_      = nh_.advertise<nav_msgs::Path>(output_debug_speed_topic_,      1, true);
 
     ROS_INFO("[LocalPlanning]: All publishers initialized");
 }
 
 void LocalPlanning::InitializePlanner()
 {
-    LocalPlanner::LocalPlannerParams params;
-    // todo ros参数服务器
-    planner_ = std::make_unique<LocalPlanner>();
-    planner_->InitParams(params);
-    
-    ROS_INFO("[LocalPlanning]: LocalPlanner initialized");
+    // 加载planner类型
+    planner_name_ = nh_.param<std::string>("planner_name", "LocalPlanner");
+    if (planner_name_ == "LocalPlanner")
+    {
+        LocalPlanner::LocalPlannerParams p;
+        planner_ = std::make_unique<LocalPlanner>();
+        planner_->InitParams(p);
+    }
+    else if (planner_name_ == "LatticePlanner")
+    {
+        LatticePlanner::LatticePlannerParams p;
+        planner_ = std::make_unique<LatticePlanner>();
+        planner_->InitParams(p);
+    }
+    else
+    {
+        ROS_FATAL("[LocalPlanning]: Wrong planner name! exit!");
+        ros::shutdown();
+    }
+
+    ROS_INFO("[LocalPlanning]: %s initialized", planner_name_.c_str());
 }
 
 void LocalPlanning::ReferencePathCallback(const nav_msgs::Path::ConstPtr & msg)

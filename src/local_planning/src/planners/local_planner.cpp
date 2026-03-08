@@ -2,9 +2,10 @@
 #include "local_planning/planners/local_planner.h"
 
 
-void LocalPlanner::InitParams(const LocalPlannerParams & params)
+void LocalPlanner::InitParams(const LocalPlannerParamsInterface & params)
 {
-    params_ = params;
+    LocalPlannerParams p = dynamic_cast<const LocalPlannerParams &>(params);
+    params_ = p;
     
     // 初始化决策模块
     decision_maker_ = std::make_shared<Decision::DecisionMaker>();
@@ -167,9 +168,6 @@ bool LocalPlanner::Plan(LocalPlannerResult & result, std::string & error_msg)
     result_.planning_cost_time = std::chrono::duration<double>(current_time.time_since_epoch()).count() - result_.timestamp;
     result_.log << "LocalPlanner::Plan() end.\n"
                 << "LocalPlanner::Plan() elapsed time: " << result_.planning_cost_time * 1000.0 << " ms.\n";
-    
-    // 保存决策模块到结果中
-    result_.decision_maker = decision_maker_;
     
     result = std::move(result_);
     return true;

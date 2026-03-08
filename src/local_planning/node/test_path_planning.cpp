@@ -50,7 +50,7 @@ bool Run(const Map::MultiMap::Ptr & map,
          const Path::ReferencePath::Ptr & ref_path,
          const Vehicle::State::Ptr & veh_state,
          const LocalPlanner::LocalPlannerParams & params,
-         LocalPlanner::LocalPlannerResult & result,
+         LocalPlannerResult & result,
          std::string & error_msg);
 }
 
@@ -72,7 +72,7 @@ Vehicle::State::Ptr vehicle_state { nullptr };      // v/w 均置为 0
 LocalPlanner::LocalPlannerParams params;
 
 // 规划结果
-LocalPlanner::LocalPlannerResult planning_result;
+LocalPlannerResult planning_result;
 std::string error_msg;
 }  // namespace TestData
 
@@ -551,7 +551,7 @@ static std::vector<std::array<std::pair<double, double>, 3>> GetMapBounds(
     const Map::MultiMap::Ptr & map,
     const Path::ReferencePath::Ptr & ref_path,
     const LocalPlanner::LocalPlannerParams & params,
-    LocalPlanner::LocalPlannerResult & result)
+    LocalPlannerResult & result)
 {
     std::vector<std::array<std::pair<double, double>, 3>> bounds;
     bounds.reserve(ref_points.size());
@@ -619,7 +619,7 @@ bool Run(const Map::MultiMap::Ptr & map,
          const Path::ReferencePath::Ptr & ref_path,
          const Vehicle::State::Ptr & veh_state,
          const LocalPlanner::LocalPlannerParams & params,
-         LocalPlanner::LocalPlannerResult & result,
+         LocalPlannerResult & result,
          std::string & error_msg)
 {
     result.Clear();

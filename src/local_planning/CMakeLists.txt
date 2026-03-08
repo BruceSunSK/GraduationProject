@@ -134,7 +134,8 @@ add_library(decision       SHARED src/decision/ignore_state.cpp
                                   src/decision/stop_state.cpp
                                   src/decision/decision_state_factory.cpp
                                   src/decision/decision_maker.cpp)
-add_library(local_planners SHARED src/planners/local_planner.cpp)
+add_library(local_planners SHARED src/planners/local_planner.cpp
+                                  src/planners/lattice_planner.cpp)
 
 target_link_libraries(vehicle        map 
                                      path)

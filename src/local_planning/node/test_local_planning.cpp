@@ -178,7 +178,7 @@ protected:
     }
 
     // 重写规划完成回调，记录规划耗时
-    void OnPlanningCompleted(const LocalPlanner::LocalPlannerResult & result) override
+    void OnPlanningCompleted(const LocalPlannerResult & result) override
     {
         if (planning_time_file_.is_open())
         {

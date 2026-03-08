@@ -11,6 +11,7 @@
 #include "global_planning/path/reference_path.h"
 #include "global_planning/smoothers/piecewise_jerk_path_smoother2.h"
 #include "global_planning/smoothers/piecewise_jerk_speed_smoother.h"
+#include "local_planning/planners/local_planner_interface.h"
 #include "local_planning/vehicle/data_type.h"
 #include "local_planning/vehicle/collision.h"
 #include "local_planning/obstacles/obstacle.h"
@@ -18,11 +19,11 @@
 
 
 /// @brief 局部规划器
-class LocalPlanner
+class LocalPlanner : public LocalPlannerInterface
 {
 public:
     /// @brief 局部规划器参数结构体
-    struct LocalPlannerParams
+    struct LocalPlannerParams : public LocalPlannerInterface::LocalPlannerParamsInterface
     {
         struct
         {
@@ -100,48 +101,20 @@ public:
         Decision::DecisionMakerParams decision_params;
     };
 
-    struct LocalPlannerResult
-    {
-        // 规划结果
-        double timestamp = 0.0;                             // 规划时间戳，单位：秒
-        double planning_cost_time = 0.0;                    // 规划耗时，单位：秒
-        std::vector<Path::TrajectoryPoint> trajectory;
-
-        // 附加信息
-        std::stringstream log;
-        std::vector<std::array<Path::PointXY, 3>> path_qp_lb;
-        std::vector<std::array<Path::PointXY, 3>> path_qp_ub;
-        
-        // 决策结果
-        std::shared_ptr<Decision::DecisionMaker> decision_maker;
-
-        void Clear()
-        {
-            timestamp = 0.0;
-            planning_cost_time = 0.0;
-            trajectory.clear();
-
-            log.str("");
-            path_qp_lb.clear();
-            path_qp_ub.clear();
-            decision_maker.reset();
-        }
-    };
-
 public:
-    LocalPlanner() : last_veh_proj_nearest_idx_(0) {};
+    LocalPlanner() {};
     LocalPlanner(const LocalPlanner & other) = delete;
     LocalPlanner(LocalPlanner && other) = delete;
     LocalPlanner & operator=(const LocalPlanner & other) = delete;
     LocalPlanner & operator=(LocalPlanner && other) = delete;
-    ~LocalPlanner() = default;
+    virtual ~LocalPlanner() override = default;
 
-    void InitParams(const LocalPlannerParams & params);
-    void SetMap(const Map::MultiMap::Ptr & map);
-    void SetReferencePath(const Path::ReferencePath::Ptr & reference_path);
-    void SetVehicleState(const Vehicle::State::Ptr & vehicle_state);
-    void SetObstacles(const Obstacle::Obstacle::List & obstacles);
-    bool Plan(LocalPlannerResult & result, std::string & error_msg);
+    void InitParams(const LocalPlannerParamsInterface & params) override;
+    void SetMap(const Map::MultiMap::Ptr & map) override;
+    void SetReferencePath(const Path::ReferencePath::Ptr & reference_path) override;
+    void SetVehicleState(const Vehicle::State::Ptr & vehicle_state) override;
+    void SetObstacles(const Obstacle::Obstacle::List & obstacles) override;
+    bool Plan(LocalPlannerResult & result, std::string & error_msg) override;
 
 private:
     LocalPlannerParams params_;
@@ -165,7 +138,7 @@ private:
     Path::PathNode last_start_point_;   // 上一帧的规划起点
     std::vector<Path::TrajectoryPoint> last_trajectory_;  // 上一帧轨迹
     std::chrono::steady_clock::time_point last_planning_time_;  // 上一帧规划时间
-    int last_veh_proj_nearest_idx_;
+    int last_veh_proj_nearest_idx_ = 0;
     double last_planning_cycle_time_ = 0.1;  // 上一帧规划周期，默认0.1s
 
     // 本帧中间变量

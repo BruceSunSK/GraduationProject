@@ -3,10 +3,7 @@
     <arg name="input_costmap_topic"       default="/global_planning/costmap" />
     <arg name="input_vehicle_state_topic" default="/simulation/vehicle_state" />
     <arg name="input_obstacles_topic"     default="/perception/obstacles" />
-    
     <arg name="output_local_trajectory_topic" default="trajectory" />
-    <arg name="output_debug_path_topic"       default="debug/path" />
-    <arg name="output_debug_speed_topic"      default="debug/speed_profile" />
     
     
     <node pkg="local_planning" name="local_planning" type="local_planning" output="screen">
@@ -14,10 +11,7 @@
         <param name="input_costmap_topic"       type="str" value="$(arg input_costmap_topic)" />
         <param name="input_vehicle_state_topic" type="str" value="$(arg input_vehicle_state_topic)" />
         <param name="input_obstacles_topic"     type="str" value="$(arg input_obstacles_topic)" />
-        
         <param name="output_local_trajectory_topic" type="str" value="$(arg output_local_trajectory_topic)" />
-        <param name="output_debug_path_topic"       type="str" value="$(arg output_debug_path_topic)" />
-        <param name="output_debug_speed_topic"      type="str" value="$(arg output_debug_speed_topic)" />
     </node>
     
 </launch>

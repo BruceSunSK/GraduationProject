@@ -12,7 +12,9 @@
 #include "perception/PredictedObstacles.h"
 #include "global_planning/map/distance_map.h"
 #include "global_planning/path/reference_path.h"
+#include "local_planning/planners/local_planner_interface.h"
 #include "local_planning/planners/local_planner.h"
+#include "local_planning/planners/lattice_planner.h"
 #include "local_planning/vehicle/data_type.h"
 
 
@@ -35,7 +37,7 @@ protected:
     virtual void VehicleStateCallback(const nav_msgs::Odometry::ConstPtr & msg);
     virtual void PredictedObstaclesCallback(const perception::PredictedObstacles::ConstPtr & msg);
     
-    virtual void OnPlanningCompleted(const LocalPlanner::LocalPlannerResult & result) {}
+    virtual void OnPlanningCompleted(const LocalPlannerResult & result) {}
     
 private:
     void Initialize();
@@ -69,11 +71,7 @@ private:
 
     // 1.2 发布者
     std::string output_local_trajectory_topic_; // 局部轨迹发布话题名
-    std::string output_debug_path_topic_;       // 调试路径发布话题名
-    std::string output_debug_speed_topic_;      // 调试速度发布话题名
     ros::Publisher pub_local_trajectory_;       // 局部轨迹发布
-    ros::Publisher pub_debug_path_;             // 调试路径发布
-    ros::Publisher pub_debug_speed_;            // 调试速度发布
 
     // 1.3 TF相关
     tf2_ros::Buffer tf_buffer_;                 // TF缓冲区
@@ -84,6 +82,7 @@ private:
     
     // *********************************************************************************
     // 算法实例
-    std::unique_ptr<LocalPlanner> planner_;     // LocalPlanner算法实例指针
+    std::string planner_name_;
+    std::unique_ptr<LocalPlannerInterface> planner_;     // LocalPlanner算法实例指针
 
 };
