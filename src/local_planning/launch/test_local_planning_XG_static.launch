@@ -22,7 +22,8 @@
 
     <!-- 2. 测试局部规划中的路径规划 -->
     <node pkg="local_planning" name="test_local_planning" type="test_local_planning" output="screen">
-        <param name="planner_name"                  type="str"      value="LocalPlanner" />
+        <!-- <param name="planner_name"                  type="str"      value="LocalPlanner" /> -->
+        <param name="planner_name"                  type="str"      value="LatticePlanner" />
         <param name="record_interval"               type="double"   value="0.0" />
         <param name="input_global_ref_topic"        type="str"      value="$(arg global_ref_topic)" />
         <param name="input_costmap_topic"           type="str"      value="$(arg costmap_topic)" />

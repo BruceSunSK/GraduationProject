@@ -17,6 +17,8 @@ bool LatticePlanner::Plan(LocalPlannerResult & result, std::string & error_msg)
         return false;
     }
 
+    auto start_time = std::chrono::steady_clock::now();
+
     // 1. 获取车辆当前 Frenet 状态
     auto [proj, idx] = reference_path_->GetProjection({ vehicle_state_->pos.x, vehicle_state_->pos.y });
     FrenetState start;
@@ -32,14 +34,23 @@ bool LatticePlanner::Plan(LocalPlannerResult & result, std::string & error_msg)
     // 2. 生成采样终点
     double s_end_max = std::min(reference_path_->GetLength(), start.s + params_.sample_T_max * params_.max_speed);
     double s_end_min = start.s + params_.sample_T_min * 0.5;
+    
+    // 速度采样范围（从 0 到最大速度，可粗采样 3~5 个值）
+    double v_target_min = 0.0;
+    double v_target_max = params_.max_speed;
+    double v_target_step = (v_target_max - v_target_min) / 3.0;  // 取 4 个点
+
     std::vector<SampleEndState> samples;
     for (double s_target = s_end_min; s_target <= s_end_max; s_target += params_.sample_s_step)
     {
         for (double l_target = -params_.sample_l_range; l_target <= params_.sample_l_range; l_target += params_.sample_l_step)
         {
-            for (double T = params_.sample_T_min; T <= params_.sample_T_max; T += params_.sample_T_step)
+            for (double v_target = v_target_min; v_target <= v_target_max + 1e-6; v_target += v_target_step)
             {
-                samples.push_back({ s_target, l_target, T });
+                for (double T = params_.sample_T_min; T <= params_.sample_T_max; T += params_.sample_T_step)
+                {
+                    samples.push_back({ s_target, l_target, v_target, T });
+                }
             }
         }
     }
@@ -56,6 +67,9 @@ bool LatticePlanner::Plan(LocalPlannerResult & result, std::string & error_msg)
     auto best = std::min_element(trajectories.begin(), trajectories.end(),
         [](const Trajectory & a, const Trajectory & b) { return a.cost < b.cost; });
     result.trajectory = best->points;
+
+    auto end_time = std::chrono::steady_clock::now();
+    result.planning_cost_time = std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time).count();
     return true;
 }
 
@@ -72,7 +86,7 @@ std::vector<LatticePlanner::Trajectory> LatticePlanner::GenerateTrajectories(
 
         // 纵向目标状态：终点 s_target，速度目标值，加速度 0
         double s1 = sample.s_target;
-        double s_d1 = params_.target_speed;
+        double s_d1 = sample.v_target;   // 使用采样速度
         double s_dd1 = 0.0;
 
         double T = sample.T;
@@ -134,7 +148,7 @@ std::vector<LatticePlanner::Trajectory> LatticePlanner::GenerateTrajectories(
                 if (map_->distance_map.IsInside(mx, my))
                 {
                     double dist = map_->distance_map.GetDistance(mx, my);
-                    if (dist < 0.5)
+                    if (dist < 0.0)
                     {
                         valid = false;
                         break;
@@ -143,6 +157,23 @@ std::vector<LatticePlanner::Trajectory> LatticePlanner::GenerateTrajectories(
             }
 
             traj.points.push_back(pt);
+        }
+
+        // 新增：动态碰撞检测
+        if (valid && CheckDynamicCollision(traj))  // 注意：这里 traj 还未完全填充，需要在填充完整后检测
+        {
+            valid = false;
+            break;
+        }
+
+        // 曲率检查
+        if (valid)
+        {
+            double max_curv = 0.0;
+            for (const auto & pt : traj.points)
+                max_curv = std::max(max_curv, std::abs(pt.kappa));
+            if (max_curv > params_.max_curvature)
+                valid = false;
         }
 
         if (valid)
@@ -162,7 +193,7 @@ double LatticePlanner::EvaluateTrajectory(const Trajectory & traj, const FrenetS
 
     // 横向偏移代价
     for (const auto & pt : traj.points)
-        cost += params_.weight_lateral_offset * std::abs(pt.l);
+        cost += params_.weight_lateral_offset * pt.l * pt.l;   // 原为 abs(l)
 
     // 速度偏差代价
     for (const auto & pt : traj.points)
@@ -189,7 +220,7 @@ double LatticePlanner::EvaluateTrajectory(const Trajectory & traj, const FrenetS
         }
     }
 
-    // 障碍物代价
+    // 静态地图障碍物代价（原代码）
     if (map_)
     {
         for (const auto & pt : traj.points)
@@ -199,9 +230,71 @@ double LatticePlanner::EvaluateTrajectory(const Trajectory & traj, const FrenetS
             if (map_->distance_map.IsInside(mx, my))
             {
                 double dist = map_->distance_map.GetDistance(mx, my);
-                if (dist < 1.0)
+                if (dist < 3.0)
                     cost += params_.weight_obstacle / (dist + 0.1);
             }
+        }
+    }
+
+    // 动态障碍物代价
+    if (!obstacles_.empty())
+    {
+        double min_dist = std::numeric_limits<double>::max();
+        for (const auto & pt : traj.points)
+        {
+            double t = pt.t;
+            // 遍历每个障碍物
+            for (const auto & obs : obstacles_)
+            {
+                // 获取障碍物在时刻 t 的预测位置
+                double obs_x, obs_y;
+                const auto & preds = obs->GetPerceptionObstacle().predicted_trajectory;
+                if (!preds.empty())
+                {
+                    // 在预测轨迹中插值
+                    size_t i = 0;
+                    while (i < preds.size() && preds[i].time_relative < t) ++i;
+                    if (i == 0)
+                    {
+                        obs_x = preds[0].pose.position.x;
+                        obs_y = preds[0].pose.position.y;
+                    }
+                    else if (i == preds.size())
+                    {
+                        obs_x = preds.back().pose.position.x;
+                        obs_y = preds.back().pose.position.y;
+                    }
+                    else
+                    {
+                        double t0 = preds[i - 1].time_relative;
+                        double t1 = preds[i].time_relative;
+                        double alpha = (t - t0) / (t1 - t0 + 1e-6);
+                        const auto & p0 = preds[i - 1].pose.position;
+                        const auto & p1 = preds[i].pose.position;
+                        obs_x = p0.x + alpha * (p1.x - p0.x);
+                        obs_y = p0.y + alpha * (p1.y - p0.y);
+                    }
+                }
+                else
+                {
+                    // 无预测，使用匀速运动假设
+                    double v = obs->GetSpeed();
+                    double yaw = tf2::getYaw(obs->GetPose().orientation);
+                    obs_x = obs->GetPose().position.x + v * t * std::cos(yaw);
+                    obs_y = obs->GetPose().position.y + v * t * std::sin(yaw);
+                }
+
+                // 计算距离
+                double dx = pt.x - obs_x;
+                double dy = pt.y - obs_y;
+                double dist = std::hypot(dx, dy);
+                min_dist = std::min(min_dist, dist);
+            }
+        }
+        // 仅当距离较近时施加代价（阈值可调整）
+        if (min_dist < 5.0)
+        {
+            cost += params_.weight_obstacle / (min_dist + 0.1);
         }
     }
 
@@ -222,7 +315,78 @@ bool LatticePlanner::CheckCollision(const Trajectory & traj) const
         if (map_->distance_map.IsInside(mx, my))
         {
             double dist = map_->distance_map.GetDistance(mx, my);
-            if (dist < 0.5) return true;
+            if (dist < 0.1) return true;
+        }
+    }
+    return false;
+}
+
+bool LatticePlanner::CheckDynamicCollision(const Trajectory & traj) const
+{
+    if (obstacles_.empty()) return false;
+
+    // 遍历轨迹上的每个点
+    for (const auto & pt : traj.points)
+    {
+        double t = pt.t;
+
+        // 遍历所有障碍物
+        for (const auto & obs : obstacles_)
+        {
+            // 获取障碍物在时刻 t 的预测位置
+            // 如果障碍物有预测轨迹，优先使用预测；否则匀速假设
+            double obs_x, obs_y;
+            const auto & preds = obs->GetPerceptionObstacle().predicted_trajectory;
+            if (!preds.empty())
+            {
+                // 找到最接近 t 的两个预测点进行插值
+                size_t i = 0;
+                while (i < preds.size() && preds[i].time_relative < t) ++i;
+                if (i == 0)
+                {
+                    // t 小于第一个预测点时间，使用第一个点
+                    obs_x = preds[0].pose.position.x;
+                    obs_y = preds[0].pose.position.y;
+                }
+                else if (i == preds.size())
+                {
+                    // t 大于最后一个预测点时间，使用最后一个点
+                    obs_x = preds.back().pose.position.x;
+                    obs_y = preds.back().pose.position.y;
+                }
+                else
+                {
+                    // 线性插值
+                    double t0 = preds[i - 1].time_relative;
+                    double t1 = preds[i].time_relative;
+                    double alpha = (t - t0) / (t1 - t0 + 1e-6);
+                    const auto & p0 = preds[i - 1].pose.position;
+                    const auto & p1 = preds[i].pose.position;
+                    obs_x = p0.x + alpha * (p1.x - p0.x);
+                    obs_y = p0.y + alpha * (p1.y - p0.y);
+                }
+            }
+            else
+            {
+                // 无预测轨迹，使用匀速运动假设
+                double v = obs->GetSpeed();
+                double yaw = tf2::getYaw(obs->GetPose().orientation);
+                obs_x = obs->GetPose().position.x + v * t * std::cos(yaw);
+                obs_y = obs->GetPose().position.y + v * t * std::sin(yaw);
+            }
+
+            // 计算自车点与障碍物的距离
+            double dx = pt.x - obs_x;
+            double dy = pt.y - obs_y;
+            double dist = std::hypot(dx, dy);
+
+            // 考虑车辆形状，简化：自车和障碍物都视为三外接圆
+            double ego_radius = std::hypot(params_.vehicle_length / 6.0, params_.vehicle_width / 2.0);
+            double obs_radius = std::hypot(obs->GetDimension().x / 6.0, obs->GetDimension().y / 2.0);
+            double required = ego_radius + obs_radius + params_.collision_safety_margin;
+
+            if (dist < required)
+                return true;  // 碰撞
         }
     }
     return false;

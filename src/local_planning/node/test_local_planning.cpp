@@ -152,8 +152,8 @@ protected:
                 double dy = y - obs_y;
                 double center_dist = std::sqrt(dx * dx + dy * dy);
                 // 减去自车半宽和障碍物半宽（简化，认为车辆和障碍物都是矩形，取最小外接圆近似）
-                double ego_half = std::hypot(3.2 / 2, 1.6 / 2);
-                double obs_half = std::hypot(obs->GetDimension().x / 2, obs->GetDimension().y / 2);
+                double ego_half = 1.6 / 2;
+                double obs_half = obs->GetDimension().y / 2;
                 obstacle_dist = center_dist - ego_half - obs_half + 1.0;
                 if (obstacle_dist < 0) obstacle_dist = 0;  // 实际上碰撞时为负，但这里取0表示接触
             }
